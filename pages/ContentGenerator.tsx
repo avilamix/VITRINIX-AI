@@ -1,0 +1,214 @@
+import React, { useState, useCallback } from 'react';
+import Textarea from '../components/Textarea';
+import Button from '../components/Button';
+import LoadingSpinner from '../components/LoadingSpinner';
+import { generateText, generateImage } from '../services/geminiService';
+import { savePost } from '../services/firestoreService';
+import { Post } from '../types';
+import { GEMINI_FLASH_MODEL, GEMINI_IMAGE_FLASH_MODEL, PLACEHOLDER_IMAGE_BASE64 } from '../constants';
+
+const ContentGenerator: React.FC = () => {
+  const [prompt, setPrompt] = useState<string>('');
+  const [generatedPost, setGeneratedPost] = useState<Post | null>(null);
+  const [generatedImageUrl, setGeneratedImageUrl] = useState<string>(PLACEHOLDER_IMAGE_BASE64);
+  const [loadingText, setLoadingText] = useState<boolean>(false);
+  const [loadingImage, setLoadingImage] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Mock user ID
+  const userId = 'mock-user-123';
+
+  const generateContent = useCallback(async (isWeekly: boolean = false) => {
+    if (!prompt.trim()) {
+      setError('Please enter a prompt to generate content.');
+      return;
+    }
+
+    setLoadingText(true);
+    setLoadingImage(true);
+    setError(null);
+    setGeneratedPost(null);
+    setGeneratedImageUrl(PLACEHOLDER_IMAGE_BASE64);
+
+    try {
+      let fullPrompt = `Generate a compelling social media post for: "${prompt}".`;
+      if (isWeekly) {
+        fullPrompt = `Generate 7 unique social media post ideas (including text and image descriptions for each) for a weekly content plan based on: "${prompt}". Format as a JSON array of objects with 'text' and 'image_description' keys.`;
+      } else {
+        fullPrompt = `Generate a compelling social media post (text only) for: "${prompt}". Include relevant hashtags.`;
+      }
+
+      const textResponse = await generateText(fullPrompt, { model: GEMINI_FLASH_MODEL });
+
+      let postContent: string = '';
+      let imageDescription: string = '';
+      let weeklyPosts: { text: string; image_description: string }[] = [];
+
+      if (isWeekly) {
+        try {
+          // Attempt to parse JSON for weekly generation
+          weeklyPosts = JSON.parse(textResponse);
+          if (weeklyPosts.length > 0) {
+            postContent = weeklyPosts[0].text; // Just take the first one for display
+            imageDescription = weeklyPosts[0].image_description || prompt;
+          } else {
+            postContent = "No weekly posts generated in JSON format. Here's the raw response: " + textResponse;
+            imageDescription = prompt;
+          }
+        } catch (jsonError) {
+          console.warn("Failed to parse weekly posts as JSON, using raw text.", jsonError);
+          postContent = textResponse;
+          imageDescription = prompt;
+        }
+      } else {
+        postContent = textResponse;
+        imageDescription = `An image illustrating the post content: "${postContent.substring(0, 100)}..."`;
+      }
+
+      setLoadingText(false);
+
+      const imageResponse = await generateImage(imageDescription, { model: GEMINI_IMAGE_FLASH_MODEL });
+      setGeneratedImageUrl(imageResponse.imageUrl || PLACEHOLDER_IMAGE_BASE64);
+      setLoadingImage(false);
+
+      const newPost: Post = {
+        id: `post-${Date.now()}`,
+        userId: userId,
+        content_text: postContent,
+        image_url: imageResponse.imageUrl || undefined,
+        createdAt: new Date().toISOString(),
+      };
+      setGeneratedPost(newPost);
+      await savePost(newPost); // Save to mock Firestore
+    } catch (err) {
+      console.error('Error generating content:', err);
+      setError(`Failed to generate content: ${err instanceof Error ? err.message : String(err)}`);
+      setLoadingText(false);
+      setLoadingImage(false);
+    }
+  }, [prompt, userId]);
+
+  const handleGenerateOnePost = useCallback(() => generateContent(false), [generateContent]);
+  const handleGenerateWeek = useCallback(() => generateContent(true), [generateContent]);
+
+  const handleRegenerateImage = useCallback(async () => {
+    if (!generatedPost) {
+      setError('Please generate a post first to regenerate its image.');
+      return;
+    }
+    setLoadingImage(true);
+    setError(null);
+    try {
+      const imageDescription = `An alternative image for: "${generatedPost.content_text.substring(0, 100)}..."`;
+      const imageResponse = await generateImage(imageDescription, { model: GEMINI_IMAGE_FLASH_MODEL });
+      setGeneratedImageUrl(imageResponse.imageUrl || PLACEHOLDER_IMAGE_BASE64);
+      // Update the stored post with the new image URL
+      if (generatedPost) {
+        const updatedPost = { ...generatedPost, image_url: imageResponse.imageUrl || undefined };
+        setGeneratedPost(updatedPost);
+        await savePost(updatedPost);
+      }
+    } catch (err) {
+      console.error('Error regenerating image:', err);
+      setError(`Failed to regenerate image: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLoadingImage(false);
+    }
+  }, [generatedPost]);
+
+  // TODO: Implement "Editar no Studio"
+  // const handleEditInStudio = useCallback(() => {
+  //   // Navigate to Creative Studio with generated content
+  //   console.log('Navigate to Creative Studio with:', generatedPost, generatedImageUrl);
+  // }, [generatedPost, generatedImageUrl]);
+
+  return (
+    <div className="container mx-auto">
+      <h2 className="text-3xl font-bold text-gray-800 mb-6">Content Generator</h2>
+
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <strong className="font-bold">Error!</strong>
+          <span className="block sm:inline"> {error}</span>
+        </div>
+      )}
+
+      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
+        <h3 className="text-xl font-semibold text-gray-700 mb-4">Gerar Novo Conteúdo</h3>
+        <Textarea
+          id="contentPrompt"
+          label="Descreva o conteúdo que você deseja gerar:"
+          value={prompt}
+          onChange={(e) => setPrompt(e.target.value)}
+          rows={6}
+          placeholder="Ex: 'Um post sobre os benefícios da meditação para o bem-estar mental', ou 'Ideias para 7 posts semanais sobre dicas de produtividade no trabalho.'"
+        />
+        <div className="flex flex-col sm:flex-row gap-2 mt-4">
+          <Button
+            onClick={handleGenerateOnePost}
+            isLoading={loadingText && !generatedPost}
+            variant="primary"
+          >
+            {loadingText && !generatedPost ? 'Gerando Post...' : 'Gerar 1 Post'}
+          </Button>
+          <Button
+            onClick={handleGenerateWeek}
+            isLoading={loadingText && !generatedPost && prompt.includes('semanal')}
+            variant="secondary"
+          >
+            {loadingText && !generatedPost && prompt.includes('semanal') ? 'Gerando Semana...' : 'Gerar Semana'}
+          </Button>
+        </div>
+      </div>
+
+      {generatedPost && (
+        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
+          <h3 className="text-xl font-semibold text-gray-700 mb-4">Conteúdo Gerado</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <div className="flex flex-col">
+              <h4 className="text-lg font-semibold text-gray-700 mb-2">Texto do Post</h4>
+              {loadingText ? (
+                <LoadingSpinner />
+              ) : (
+                <div className="prose max-w-none text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-md h-full" style={{ whiteSpace: 'pre-wrap' }}>
+                  {generatedPost.content_text}
+                </div>
+              )}
+            </div>
+            <div className="flex flex-col">
+              <h4 className="text-lg font-semibold text-gray-700 mb-2">Imagem do Post</h4>
+              {loadingImage ? (
+                <div className="flex items-center justify-center h-48 bg-gray-100 rounded-md">
+                  <LoadingSpinner />
+                </div>
+              ) : (
+                <img
+                  src={generatedImageUrl}
+                  alt="Generated content visual"
+                  className="w-full h-48 object-cover rounded-md border border-gray-200 mb-4"
+                />
+              )}
+              <div className="flex gap-2">
+                <Button onClick={handleRegenerateImage} isLoading={loadingImage} variant="outline">
+                  {loadingImage ? 'Regenerando...' : 'Regenerar Imagem'}
+                </Button>
+                {/* <Button onClick={handleEditInStudio} variant="secondary">
+                  Editar no Studio
+                </Button> */}
+              </div>
+            </div>
+          </div>
+          <div className="mt-6 flex gap-2">
+            <Button onClick={() => alert('Post salvo na biblioteca!')} variant="primary">
+              Salvar Post
+            </Button>
+            {/* If there were multiple weekly posts, buttons to cycle through them */}
+            {/* <Button variant="secondary">Próximo Post</Button> */}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
+
+export default ContentGenerator;
