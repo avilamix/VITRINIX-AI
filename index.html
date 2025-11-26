@@ -11,13 +11,16 @@
         theme: {
           extend: {
             colors: {
-              primary: '#6366f1', // Indigo-500
-              secondary: '#a78bfa', // Violet-400
-              accent: '#facc15', // Amber-400
-              darkbg: '#1f2937', // Gray-800
-              lightbg: '#e5e7eb', // Gray-200
-              textdark: '#f9fafb', // Gray-50
-              textlight: '#1f2937', // Gray-800
+              // Dark Theme Palette
+              primary: '#8B5CF6', // Soft purple
+              secondary: '#A78BFA', // Lighter purple/indigo
+              accent: '#00FF99', // Bright neon green for actions/glow
+              darkbg: '#0A0A0F', // Main background
+              lightbg: '#121212', // Card backgrounds, input fields
+              textdark: '#F9FAFB', // Main text, headings (near white)
+              textlight: '#D1D5DB', // Secondary text, placeholders (light gray)
+              textmuted: '#9CA3AF', // Subtle text (medium gray)
+              neonGreen: '#00FF99', // Alias for accent for specific neon effects
             }
           }
         }
@@ -35,7 +38,7 @@
 }
 </script>
 </head>
-<body class="bg-gray-100 text-gray-900 min-h-screen">
+<body class="bg-darkbg text-textdark h-full">
     <div id="root"></div>
     <script type="module" src="/index.tsx"></script>
 </body>

@@ -79,7 +79,7 @@ const ContentGenerator: React.FC = () => {
         createdAt: new Date().toISOString(),
       };
       setGeneratedPost(newPost);
-      await savePost(newPost); // Save to mock Firestore
+      // No immediate save here, user explicitly clicks 'Salvar Post'
     } catch (err) {
       console.error('Error generating content:', err);
       setError(`Failed to generate content: ${err instanceof Error ? err.message : String(err)}`);
@@ -106,13 +106,30 @@ const ContentGenerator: React.FC = () => {
       if (generatedPost) {
         const updatedPost = { ...generatedPost, image_url: imageResponse.imageUrl || undefined };
         setGeneratedPost(updatedPost);
-        await savePost(updatedPost);
       }
     } catch (err) {
       console.error('Error regenerating image:', err);
       setError(`Failed to regenerate image: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoadingImage(false);
+    }
+  }, [generatedPost]);
+
+  const handleSavePost = useCallback(async () => {
+    if (!generatedPost) {
+      setError('Nenhum post para salvar. Gere um post primeiro.');
+      return;
+    }
+    setLoadingText(true); // Re-use loading state for saving
+    setError(null);
+    try {
+      const savedPost = await savePost(generatedPost); // Save to mock Firestore
+      alert(`Post "${savedPost.content_text.substring(0, 30)}..." salvo com sucesso na biblioteca!`);
+    } catch (err) {
+      console.error('Error saving post:', err);
+      setError(`Falha ao salvar post: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLoadingText(false);
     }
   }, [generatedPost]);
 
@@ -123,18 +140,18 @@ const ContentGenerator: React.FC = () => {
   // }, [generatedPost, generatedImageUrl]);
 
   return (
-    <div className="container mx-auto">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Content Generator</h2>
+    <div className="container mx-auto py-8 lg:py-10">
+      <h2 className="text-3xl font-bold text-textdark mb-8">Content Generator</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
           <strong className="font-bold">Error!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
 
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">Gerar Novo Conteúdo</h3>
+      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
+        <h3 className="text-xl font-semibold text-textlight mb-5">Gerar Novo Conteúdo</h3>
         <Textarea
           id="contentPrompt"
           label="Descreva o conteúdo que você deseja gerar:"
@@ -143,11 +160,12 @@ const ContentGenerator: React.FC = () => {
           rows={6}
           placeholder="Ex: 'Um post sobre os benefícios da meditação para o bem-estar mental', ou 'Ideias para 7 posts semanais sobre dicas de produtividade no trabalho.'"
         />
-        <div className="flex flex-col sm:flex-row gap-2 mt-4">
+        <div className="flex flex-col sm:flex-row gap-3 mt-4">
           <Button
             onClick={handleGenerateOnePost}
             isLoading={loadingText && !generatedPost}
             variant="primary"
+            className="w-full sm:w-auto"
           >
             {loadingText && !generatedPost ? 'Gerando Post...' : 'Gerar 1 Post'}
           </Button>
@@ -155,6 +173,7 @@ const ContentGenerator: React.FC = () => {
             onClick={handleGenerateWeek}
             isLoading={loadingText && !generatedPost && prompt.includes('semanal')}
             variant="secondary"
+            className="w-full sm:w-auto"
           >
             {loadingText && !generatedPost && prompt.includes('semanal') ? 'Gerando Semana...' : 'Gerar Semana'}
           </Button>
@@ -162,34 +181,34 @@ const ContentGenerator: React.FC = () => {
       </div>
 
       {generatedPost && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-xl font-semibold text-gray-700 mb-4">Conteúdo Gerado</h3>
+        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+          <h3 className="text-xl font-semibold text-textlight mb-5">Conteúdo Gerado</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex flex-col">
-              <h4 className="text-lg font-semibold text-gray-700 mb-2">Texto do Post</h4>
-              {loadingText ? (
+              <h4 className="text-lg font-semibold text-textlight mb-3">Texto do Post</h4>
+              {loadingText && !generatedPost.content_text ? ( // Check content_text specifically for text loading
                 <LoadingSpinner />
               ) : (
-                <div className="prose max-w-none text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-md h-full" style={{ whiteSpace: 'pre-wrap' }}>
+                <div className="prose max-w-none text-textlight leading-relaxed bg-darkbg p-4 rounded-md h-full min-h-[150px]" style={{ whiteSpace: 'pre-wrap' }}>
                   {generatedPost.content_text}
                 </div>
               )}
             </div>
             <div className="flex flex-col">
-              <h4 className="text-lg font-semibold text-gray-700 mb-2">Imagem do Post</h4>
+              <h4 className="text-lg font-semibold text-textlight mb-3">Imagem do Post</h4>
               {loadingImage ? (
-                <div className="flex items-center justify-center h-48 bg-gray-100 rounded-md">
+                <div className="flex items-center justify-center h-48 bg-gray-900 rounded-md">
                   <LoadingSpinner />
                 </div>
               ) : (
                 <img
                   src={generatedImageUrl}
                   alt="Generated content visual"
-                  className="w-full h-48 object-cover rounded-md border border-gray-200 mb-4"
+                  className="w-full h-48 object-contain rounded-md border border-gray-700 mb-4"
                 />
               )}
-              <div className="flex gap-2">
-                <Button onClick={handleRegenerateImage} isLoading={loadingImage} variant="outline">
+              <div className="flex flex-wrap gap-3">
+                <Button onClick={handleRegenerateImage} isLoading={loadingImage} variant="outline" className="w-full sm:w-auto">
                   {loadingImage ? 'Regenerando...' : 'Regenerar Imagem'}
                 </Button>
                 {/* <Button onClick={handleEditInStudio} variant="secondary">
@@ -198,9 +217,9 @@ const ContentGenerator: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="mt-6 flex gap-2">
-            <Button onClick={() => alert('Post salvo na biblioteca!')} variant="primary">
-              Salvar Post
+          <div className="mt-8 flex gap-3">
+            <Button onClick={handleSavePost} variant="primary" isLoading={loadingText} disabled={!generatedPost}>
+              {loadingText ? 'Salvando Post...' : 'Salvar Post'}
             </Button>
             {/* If there were multiple weekly posts, buttons to cycle through them */}
             {/* <Button variant="secondary">Próximo Post</Button> */}

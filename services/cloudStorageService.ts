@@ -12,6 +12,25 @@ export const uploadFile = async (file: File, userId: string, type: LibraryItem['
   await new Promise(resolve => setTimeout(resolve, MOCK_API_DELAY)); // Simulate network delay
 
   const fileUrl = `https://picsum.photos/400/300?random=${Date.now()}`; // Placeholder image URL
+  // For audio, use a different placeholder or a base64 representation if playing in browser is intended
+  if (type === 'audio') {
+    // A mock URL for audio that would typically serve an actual audio file
+    // For now, using a general placeholder or a dummy URL
+    const audioPlaceholderUrl = `https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3?random=${Date.now()}`;
+    // Or if direct base64 is desired for in-browser playback (more complex setup needed)
+    // const audioBase64 = "data:audio/wav;base64,...";
+    return {
+      id: `lib-${Date.now()}`,
+      userId: userId,
+      type: type,
+      file_url: audioPlaceholderUrl,
+      thumbnail_url: undefined, // Audio usually doesn't have a visual thumbnail
+      tags: [],
+      name: file.name,
+      createdAt: new Date().toISOString(),
+    };
+  }
+
   const itemId = `lib-${Date.now()}`;
   mockStorage[itemId] = fileUrl;
 

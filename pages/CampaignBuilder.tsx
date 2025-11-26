@@ -30,7 +30,8 @@ const CampaignBuilder: React.FC = () => {
       const { campaign, videoUrl } = await campaignBuilder(campaignPrompt);
       setGeneratedCampaign(campaign);
       setGeneratedVideoUrl(videoUrl);
-      await saveCampaign(campaign); // Save to mock Firestore
+      // saveCampaign is already called within campaignBuilder in geminiService.ts
+      alert(`Campanha "${campaign.name}" criada e salva com sucesso!`);
     } catch (err) {
       console.error('Error building campaign:', err);
       setError(`Failed to build campaign: ${err instanceof Error ? err.message : String(err)}`);
@@ -68,18 +69,18 @@ const CampaignBuilder: React.FC = () => {
 
 
   return (
-    <div className="container mx-auto">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Campaign Builder</h2>
+    <div className="container mx-auto py-8 lg:py-10">
+      <h2 className="text-3xl font-bold text-textdark mb-8">Campaign Builder</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
           <strong className="font-bold">Error!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
 
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">Descreva sua Campanha</h3>
+      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
+        <h3 className="text-xl font-semibold text-textlight mb-5">Descreva sua Campanha</h3>
         <Textarea
           id="campaignPrompt"
           label="Qual campanha você gostaria de criar? Seja o mais detalhado possível:"
@@ -99,16 +100,16 @@ const CampaignBuilder: React.FC = () => {
       </div>
 
       {generatedCampaign && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-xl font-semibold text-gray-700 mb-4">Campanha Gerada: {generatedCampaign.name}</h3>
-          <p className="text-gray-700 mb-4">
+        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+          <h3 className="text-xl font-semibold text-textlight mb-5">Campanha Gerada: {generatedCampaign.name}</h3>
+          <p className="text-textlight mb-6">
             <span className="font-semibold">Cronograma:</span> {generatedCampaign.timeline}
           </p>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             <div>
-              <h4 className="text-lg font-semibold text-gray-700 mb-3">Posts ({generatedCampaign.posts.length})</h4>
-              <ul className="list-disc list-inside text-gray-700 space-y-2 max-h-64 overflow-y-auto bg-gray-50 p-4 rounded-md">
+              <h4 className="text-lg font-semibold text-textlight mb-4">Posts ({generatedCampaign.posts.length})</h4>
+              <ul className="list-disc list-inside text-textlight space-y-3 max-h-64 overflow-y-auto bg-darkbg p-4 rounded-md border border-gray-700">
                 {generatedCampaign.posts.map((post, index) => (
                   <li key={post.id || index} className="text-sm">
                     <strong>Post {index + 1}:</strong> {post.content_text.substring(0, 100)}...
@@ -117,8 +118,8 @@ const CampaignBuilder: React.FC = () => {
               </ul>
             </div>
             <div>
-              <h4 className="text-lg font-semibold text-gray-700 mb-3">Anúncios ({generatedCampaign.ads.length})</h4>
-              <ul className="list-disc list-inside text-gray-700 space-y-2 max-h-64 overflow-y-auto bg-gray-50 p-4 rounded-md">
+              <h4 className="text-lg font-semibold text-textlight mb-4">Anúncios ({generatedCampaign.ads.length})</h4>
+              <ul className="list-disc list-inside text-textlight space-y-3 max-h-64 overflow-y-auto bg-darkbg p-4 rounded-md border border-gray-700">
                 {generatedCampaign.ads.map((ad, index) => (
                   <li key={ad.id || index} className="text-sm">
                     <strong>Ad {index + 1} ({ad.platform}):</strong> "{ad.headline}" - {ad.copy.substring(0, 70)}...
@@ -129,17 +130,17 @@ const CampaignBuilder: React.FC = () => {
           </div>
 
           {generatedVideoUrl && (
-            <div className="mb-6">
-              <h4 className="text-lg font-semibold text-gray-700 mb-3">Vídeo da Campanha</h4>
-              <div className="relative w-full aspect-video bg-gray-100 rounded-md overflow-hidden border border-gray-200">
+            <div className="mb-8">
+              <h4 className="text-lg font-semibold text-textlight mb-4">Vídeo da Campanha</h4>
+              <div className="relative w-full aspect-video bg-gray-900 rounded-md overflow-hidden border border-gray-700">
                 <video controls src={generatedVideoUrl} className="w-full h-full object-contain"></video>
               </div>
             </div>
           )}
 
-          <div className="flex flex-col sm:flex-row gap-2">
-            <Button onClick={handleDownloadMaterials} variant="primary">Baixar Materiais</Button>
-            <Button onClick={handleAddCalendar} variant="secondary">Adicionar ao Calendário</Button>
+          <div className="flex flex-col sm:flex-row gap-3">
+            <Button onClick={handleDownloadMaterials} variant="primary" className="w-full sm:w-auto">Baixar Materiais</Button>
+            <Button onClick={handleAddCalendar} variant="secondary" className="w-full sm:w-auto">Adicionar ao Calendário</Button>
             {/* <Button variant="outline">Ver Detalhes (TODO)</Button> */}
           </div>
         </div>

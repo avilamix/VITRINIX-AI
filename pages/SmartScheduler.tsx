@@ -17,7 +17,7 @@ const SmartScheduler: React.FC = () => {
   const [newScheduleDate, setNewScheduleDate] = useState<string>('');
   const [newScheduleTime, setNewScheduleTime] = useState<string>('');
   const [newScheduleContentId, setNewScheduleContentId] = useState<string>('');
-  const [newScheduleContentType, setNewScheduleContentType] = useState<'post' | 'ad'>('post');
+  const [newScheduleContentType, setNewScheduleContentType] = useState<ScheduleEntry['contentType']>('post'); // Use generic content type
   const [scheduling, setScheduling] = useState<boolean>(false);
 
   const userId = 'mock-user-123'; // Mock user ID
@@ -34,7 +34,7 @@ const SmartScheduler: React.FC = () => {
       // Set default content for new schedule if available
       if (fetchedLibrary.length > 0 && !newScheduleContentId) {
         setNewScheduleContentId(fetchedLibrary[0].id);
-        setNewScheduleContentType(fetchedLibrary[0].type === 'ad' ? 'ad' : 'post');
+        setNewScheduleContentType(fetchedLibrary[0].type); // Set default content type based on library item
       }
     } catch (err) {
       console.error('Failed to fetch scheduler data:', err);
@@ -66,7 +66,7 @@ const SmartScheduler: React.FC = () => {
         datetime: new Date(combinedDateTime).toISOString(),
         platform: newSchedulePlatform,
         contentId: newScheduleContentId,
-        contentType: newScheduleContentType,
+        contentType: newScheduleContentType, // Use the selected content type
         status: 'scheduled',
       };
       const savedEntry = await saveScheduleEntry(newEntry);
@@ -108,32 +108,32 @@ const SmartScheduler: React.FC = () => {
   const getStatusIcon = (status: ScheduleEntry['status']) => {
     switch (status) {
       case 'published':
-        return <CheckCircleIcon className="w-5 h-5 text-green-500" />;
+        return <CheckCircleIcon className="w-5 h-5 text-accent" />;
       case 'failed':
         return <XCircleIcon className="w-5 h-5 text-red-500" />;
       case 'scheduled':
       default:
-        return <ClockIcon className="w-5 h-5 text-blue-500" />;
+        return <ClockIcon className="w-5 h-5 text-primary" />;
     }
   };
 
   return (
-    <div className="container mx-auto">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Smart Scheduler (Autopost)</h2>
+    <div className="container mx-auto py-8 lg:py-10">
+      <h2 className="text-3xl font-bold text-textdark mb-8">Smart Scheduler (Autopost)</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
           <strong className="font-bold">Error!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
 
       {/* New Schedule Form */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">Agendar Nova Publicação</h3>
+      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
+        <h3 className="text-xl font-semibold text-textlight mb-5">Agendar Nova Publicação</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
           <div>
-            <label htmlFor="contentSelect" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="contentSelect" className="block text-sm font-medium text-textlight mb-1">
               Conteúdo para Publicar:
             </label>
             <select
@@ -143,10 +143,10 @@ const SmartScheduler: React.FC = () => {
                 setNewScheduleContentId(e.target.value);
                 const selectedItem = libraryItems.find(item => item.id === e.target.value);
                 if (selectedItem) {
-                  setNewScheduleContentType(selectedItem.type === 'ad' ? 'ad' : 'post');
+                  setNewScheduleContentType(selectedItem.type); // Set content type based on selected library item
                 }
               }}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+              className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm mb-2"
             >
               <option value="">Selecione um item da Biblioteca</option>
               {libraryItems.map(item => (
@@ -159,19 +159,19 @@ const SmartScheduler: React.FC = () => {
               <img
                 src={getItemDetails(newScheduleContentId)?.thumbnail_url || 'https://picsum.photos/100/100'}
                 alt="Selected content thumbnail"
-                className="w-24 h-24 object-cover rounded-md mt-2"
+                className="w-24 h-24 object-cover rounded-md mt-2 border border-gray-700"
               />
             )}
           </div>
           <div>
-            <label htmlFor="platformSelect" className="block text-sm font-medium text-gray-700 mb-1">
+            <label htmlFor="platformSelect" className="block text-sm font-medium text-textlight mb-1">
               Plataforma:
             </label>
             <select
               id="platformSelect"
               value={newSchedulePlatform}
               onChange={(e) => setNewSchedulePlatform(e.target.value)}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+              className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
             >
               <option value="">Selecione uma plataforma</option>
               <option value="Instagram">Instagram</option>
@@ -196,7 +196,7 @@ const SmartScheduler: React.FC = () => {
             onChange={(e) => setNewScheduleTime(e.target.value)}
           />
         </div>
-        <div className="flex flex-col sm:flex-row gap-2 mt-4">
+        <div className="flex flex-col sm:flex-row gap-3 mt-6">
           <Button
             onClick={handleScheduleContent}
             isLoading={scheduling}
@@ -218,44 +218,44 @@ const SmartScheduler: React.FC = () => {
       </div>
 
       {/* Scheduled Posts & History */}
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">Próximos Agendamentos e Histórico</h3>
+      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+        <h3 className="text-xl font-semibold text-textlight mb-5">Próximos Agendamentos e Histórico</h3>
         {loading ? (
           <div className="flex justify-center items-center h-48">
             <LoadingSpinner />
-            <p className="ml-2 text-gray-600">Loading schedule...</p>
+            <p className="ml-2 text-textlight">Loading schedule...</p>
           </div>
         ) : scheduledItems.length === 0 ? (
-          <div className="text-center text-gray-600 p-4">Nenhum agendamento encontrado.</div>
+          <div className="text-center text-textlight p-4">Nenhum agendamento encontrado.</div>
         ) : (
           <div className="overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200">
-              <thead className="bg-gray-50">
+            <table className="min-w-full divide-y divide-gray-700">
+              <thead className="bg-darkbg">
                 <tr>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-textmuted uppercase tracking-wider">
                     Status
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-textmuted uppercase tracking-wider">
                     Data/Hora
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-textmuted uppercase tracking-wider">
                     Conteúdo
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-textmuted uppercase tracking-wider">
                     Plataforma
                   </th>
-                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  <th scope="col" className="px-6 py-3 text-left text-xs font-medium text-textmuted uppercase tracking-wider">
                     Ações
                   </th>
                 </tr>
               </thead>
-              <tbody className="bg-white divide-y divide-gray-200">
+              <tbody className="bg-lightbg divide-y divide-gray-700">
                 {scheduledItems.map((entry) => {
                   const item = getItemDetails(entry.contentId);
                   const dateTime = new Date(entry.datetime);
                   const isPast = dateTime < new Date();
                   return (
-                    <tr key={entry.id} className={isPast ? 'bg-gray-50 text-gray-500' : ''}>
+                    <tr key={entry.id} className={isPast ? 'bg-darkbg text-textmuted' : 'text-textlight'}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
                         <div className="flex items-center">
                           {getStatusIcon(entry.status)}
@@ -279,7 +279,7 @@ const SmartScheduler: React.FC = () => {
                             size="sm"
                             className="mr-2"
                           >
-                            <TrashIcon className="w-4 h-4" /> Cancelar
+                            <TrashIcon className="w-4 h-4 text-red-300" /> Cancelar
                           </Button>
                         )}
                         {/* <Button variant="secondary" size="sm">

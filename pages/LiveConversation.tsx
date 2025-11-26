@@ -72,9 +72,7 @@ const LiveConversation: React.FC = () => {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       mediaStreamRef.current = stream;
 
-      // FIX: Replace window.webkitAudioContext with window.AudioContext
       inputAudioContextRef.current = new window.AudioContext({ sampleRate: 16000 });
-      // FIX: Replace window.webkitAudioContext with window.AudioContext
       outputAudioContextRef.current = new window.AudioContext({ sampleRate: 24000 });
       outputNodeRef.current = outputAudioContextRef.current.createGain();
       outputNodeRef.current.connect(outputAudioContextRef.current.destination);
@@ -200,19 +198,19 @@ const LiveConversation: React.FC = () => {
   }, [isLive, stopConversation, cleanupAudio]);
 
   return (
-    <div className="container mx-auto max-w-3xl flex flex-col h-[calc(100vh-140px)]">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Live Conversation (Voice AI)</h2>
+    <div className="container mx-auto max-w-3xl flex flex-col h-[calc(100vh-140px)] py-8 lg:py-10">
+      <h2 className="text-3xl font-bold text-textdark mb-8">Live Conversation (Voice AI)</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
           <strong className="font-bold">Error!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
 
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6 flex-grow flex flex-col">
-        <div className="mb-4">
-          <label htmlFor="systemInstruction" className="block text-sm font-medium text-gray-700 mb-1">
+      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-6 flex-grow flex flex-col">
+        <div className="mb-6">
+          <label htmlFor="systemInstruction" className="block text-sm font-medium text-textlight mb-1">
             Instrução do Sistema (para a IA):
           </label>
           <textarea
@@ -220,21 +218,21 @@ const LiveConversation: React.FC = () => {
             value={systemInstruction}
             onChange={(e) => setSystemInstruction(e.target.value)}
             rows={3}
-            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm resize-y"
+            className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark placeholder-textmuted focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm resize-y"
             placeholder="Ex: 'Você é um assistente de vendas amigável e persuasivo.'"
             disabled={isLive || loading}
           ></textarea>
         </div>
 
-        <div className="mb-4">
-          <label htmlFor="voiceSelect" className="block text-sm font-medium text-gray-700 mb-1">
+        <div className="mb-6">
+          <label htmlFor="voiceSelect" className="block text-sm font-medium text-textlight mb-1">
             Voz da IA:
           </label>
           <select
             id="voiceSelect"
             value={selectedVoice}
             onChange={(e) => setSelectedVoice(e.target.value as VoiceName)}
-            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+            className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
             disabled={isLive || loading}
           >
             {VOICE_OPTIONS.map(voice => (
@@ -243,7 +241,7 @@ const LiveConversation: React.FC = () => {
           </select>
         </div>
 
-        <div className="flex justify-center gap-4 mb-4">
+        <div className="flex justify-center gap-4 mb-6">
           {!isLive ? (
             <Button
               onClick={startConversation}
@@ -251,6 +249,7 @@ const LiveConversation: React.FC = () => {
               variant="primary"
               size="lg"
               disabled={loading}
+              className="w-full sm:w-auto"
             >
               <MicrophoneIcon className="h-5 w-5 mr-2" />
               {loading ? 'Iniciando...' : 'Iniciar Conversa'}
@@ -262,6 +261,7 @@ const LiveConversation: React.FC = () => {
               variant="danger"
               size="lg"
               disabled={loading}
+              className="w-full sm:w-auto"
             >
               <StopCircleIcon className="h-5 w-5 mr-2" />
               {loading ? 'Parando...' : 'Parar Conversa'}
@@ -269,22 +269,22 @@ const LiveConversation: React.FC = () => {
           )}
         </div>
 
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">Transcrição ao Vivo:</h3>
-        <div className="border border-gray-300 bg-gray-50 p-4 rounded-md overflow-y-auto flex-1 text-sm text-gray-800">
+        <h3 className="text-xl font-semibold text-textlight mb-5">Transcrição ao Vivo:</h3>
+        <div className="border border-gray-700 bg-darkbg p-5 rounded-md overflow-y-auto flex-1 text-sm text-textlight">
           {conversationHistory.map((turn, index) => (
-            <div key={index} className="mb-3">
-              <p className="font-semibold text-primary">Você: <span className="font-normal text-gray-800">{turn.user}</span></p>
-              <p className="font-semibold text-secondary">IA: <span className="font-normal text-gray-800">{turn.model}</span></p>
+            <div key={index} className="mb-4">
+              <p className="font-semibold text-primary">Você: <span className="font-normal text-textlight">{turn.user}</span></p>
+              <p className="font-semibold text-secondary">IA: <span className="font-normal text-textlight">{turn.model}</span></p>
             </div>
           ))}
           {currentInputTranscription && (
-             <p className="font-semibold text-primary">Você (digitando): <span className="font-normal text-gray-800">{currentInputTranscription}</span></p>
+             <p className="font-semibold text-primary mb-2">Você (digitando): <span className="font-normal text-textlight">{currentInputTranscription}</span></p>
           )}
           {currentOutputTranscription && (
-            <p className="font-semibold text-secondary">IA (falando): <span className="font-normal text-gray-800">{currentOutputTranscription}</span></p>
+            <p className="font-semibold text-secondary">IA (falando): <span className="font-normal text-textlight">{currentOutputTranscription}</span></p>
           )}
           {!isLive && conversationHistory.length === 0 && !currentInputTranscription && !currentOutputTranscription && (
-            <p className="text-gray-500 text-center">Inicie uma conversa para ver a transcrição.</p>
+            <p className="text-textmuted text-center">Inicie uma conversa para ver a transcrição.</p>
           )}
         </div>
       </div>

@@ -76,11 +76,11 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
   }, [userProfile, businessProfileForm, userId]);
 
   return (
-    <div className="container mx-auto">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Configurações</h2>
+    <div className="container mx-auto py-8 lg:py-10">
+      <h2 className="text-3xl font-bold text-textdark mb-8">Configurações</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
           <strong className="font-bold">Error!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
@@ -89,13 +89,13 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
       {loading ? (
         <div className="flex justify-center items-center h-48">
           <LoadingSpinner />
-          <p className="ml-2 text-gray-600">Loading settings...</p>
+          <p className="ml-2 text-textlight">Loading settings...</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Business Profile */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <h3 className="text-xl font-semibold text-gray-700 mb-4">Perfil do Negócio</h3>
+          <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+            <h3 className="text-xl font-semibold text-textlight mb-5">Perfil do Negócio</h3>
             <Input
               id="name"
               label="Nome da Empresa"
@@ -135,14 +135,14 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
           </div>
 
           {/* API Key & Subscription */}
-          <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-            <h3 className="text-xl font-semibold text-gray-700 mb-4">API Key & Plano</h3>
+          <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+            <h3 className="text-xl font-semibold text-textlight mb-5">API Key & Plano</h3>
 
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Gemini API Key:</label>
+            <div className="mb-8">
+              <label className="block text-sm font-medium text-textlight mb-2">Gemini API Key:</label>
               {hasApiSelectionWindow ? (
                 <>
-                  <p className="text-sm text-gray-600 mb-2">
+                  <p className="text-sm text-textlight mb-3">
                     Gerencie sua chave API do Google Gemini. Para usar modelos como Veo e o Gemini 3 Pro Image, você precisará de uma chave vinculada a um projeto de GCP pago.
                   </p>
                   <Button
@@ -152,23 +152,23 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
                   >
                     Alterar Chave API
                   </Button>
-                  <p className="mt-2 text-sm text-gray-500">
+                  <p className="mt-3 text-sm text-textmuted">
                     <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Saiba mais sobre faturamento</a>.
                   </p>
                 </>
               ) : (
-                <p className="text-sm text-yellow-700 bg-yellow-100 p-3 rounded-md">
+                <p className="text-sm text-yellow-300 bg-yellow-900 p-3 rounded-md">
                   A ferramenta de seleção de API Key não está disponível neste ambiente. Por favor, certifique-se de que a variável de ambiente `API_KEY` esteja configurada.
                 </p>
               )}
             </div>
 
-            <div className="border-t border-gray-200 pt-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Plano de Assinatura:</label>
-              <p className="text-lg font-bold text-primary mb-2">
+            <div className="border-t border-gray-900 pt-6 mt-6">
+              <label className="block text-sm font-medium text-textlight mb-2">Plano de Assinatura:</label>
+              <p className="text-lg font-bold text-primary mb-3">
                 {userProfile?.plan ? userProfile.plan.charAt(0).toUpperCase() + userProfile.plan.slice(1) : 'Carregando...'}
               </p>
-              <p className="text-sm text-gray-600">
+              <p className="text-sm text-textlight">
                 Gerencie seu plano de assinatura para ter acesso a mais recursos e usos.
               </p>
               <Button
@@ -180,9 +180,9 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
               </Button>
             </div>
 
-            <div className="border-t border-gray-200 pt-6 mt-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">Exportação de Dados:</label>
-              <p className="text-sm text-gray-600">
+            <div className="border-t border-gray-900 pt-6 mt-6">
+              <label className="block text-sm font-medium text-textlight mb-2">Exportação de Dados:</label>
+              <p className="text-sm text-textlight">
                 Baixe todos os seus dados gerados e configurados pela VitrineX AI.
               </p>
               <Button

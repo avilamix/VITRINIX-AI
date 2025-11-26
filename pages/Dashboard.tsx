@@ -12,10 +12,10 @@ interface SummaryCardProps {
 }
 
 const SummaryCard: React.FC<SummaryCardProps> = ({ title, value, description }) => (
-  <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-    <h3 className="text-lg font-semibold text-gray-700 mb-2">{title}</h3>
-    <p className="text-4xl font-bold text-primary mb-2">{value}</p>
-    <p className="text-sm text-gray-500">{description}</p>
+  <div className="bg-lightbg p-7 rounded-lg shadow-sm border border-gray-800">
+    <h3 className="text-xl font-semibold text-textlight mb-3">{title}</h3>
+    <p className="text-4xl font-bold text-accent mb-3">{value}</p>
+    <p className="text-sm text-textmuted">{description}</p>
   </div>
 );
 
@@ -69,23 +69,23 @@ const Dashboard: React.FC = () => {
   const adsThisWeek = ads.filter(ad => new Date(ad.createdAt) >= currentWeekStart).length;
 
   return (
-    <div className="container mx-auto">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Dashboard</h2>
+    <div className="container mx-auto py-8 lg:py-10">
+      <h2 className="text-3xl font-bold text-textdark mb-8">Dashboard</h2>
 
       {loading ? (
         <div className="flex justify-center items-center h-48">
           <LoadingSpinner />
-          <p className="ml-2 text-gray-600">Loading dashboard...</p>
+          <p className="ml-2 text-textlight">Loading dashboard...</p>
         </div>
       ) : error ? (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
           <strong className="font-bold">Error!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       ) : (
         <>
-          <section className="mb-8">
-            <h3 className="text-xl font-semibold text-gray-700 mb-4">Resumo Semanal</h3>
+          <section className="mb-10">
+            <h3 className="text-2xl font-semibold text-textlight mb-5">Resumo Semanal</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <SummaryCard title="Posts Criados" value={postsThisWeek} description="Esta semana" />
               <SummaryCard title="Anúncios Criados" value={adsThisWeek} description="Esta semana" />
@@ -94,8 +94,8 @@ const Dashboard: React.FC = () => {
             </div>
           </section>
 
-          <section className="mb-8">
-            <h3 className="text-xl font-semibold text-gray-700 mb-4">Visão Geral</h3>
+          <section className="mb-10">
+            <h3 className="text-2xl font-semibold text-textlight mb-5">Visão Geral</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
               <SummaryCard title="Total de Posts" value={totalPosts} description="Em toda a plataforma" />
               <SummaryCard title="Total de Anúncios" value={totalAds} description="Em toda a plataforma" />
@@ -105,14 +105,14 @@ const Dashboard: React.FC = () => {
           </section>
 
           <section>
-            <h3 className="text-xl font-semibold text-gray-700 mb-4">Ações Rápidas</h3>
+            <h3 className="text-2xl font-semibold text-textlight mb-5">Ações Rápidas</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              <Button onClick={() => navigateTo('ContentGenerator')} variant="primary" size="lg">Criar Conteúdo</Button>
-              <Button onClick={() => navigateTo('AdStudio')} variant="primary" size="lg">Criar Anúncio</Button>
-              <Button onClick={() => navigateTo('AIManager')} variant="primary" size="lg">Assistente IA</Button>
-              <Button onClick={() => navigateTo('TrendHunter')} variant="secondary" size="lg">Tendências</Button>
-              <Button onClick={() => navigateTo('CreativeStudio')} variant="secondary" size="lg">Estúdio Criativo</Button>
-              <Button onClick={() => navigateTo('SmartScheduler')} variant="secondary" size="lg">Agendamentos</Button>
+              <Button onClick={() => navigateTo('ContentGenerator')} variant="primary" size="lg" className="w-full">Criar Conteúdo</Button>
+              <Button onClick={() => navigateTo('AdStudio')} variant="primary" size="lg" className="w-full">Criar Anúncio</Button>
+              <Button onClick={() => navigateTo('AIManager')} variant="primary" size="lg" className="w-full">Assistente IA</Button>
+              <Button onClick={() => navigateTo('TrendHunter')} variant="secondary" size="lg" className="w-full">Tendências</Button>
+              <Button onClick={() => navigateTo('CreativeStudio')} variant="secondary" size="lg" className="w-full">Estúdio Criativo</Button>
+              <Button onClick={() => navigateTo('SmartScheduler')} variant="secondary" size="lg" className="w-full">Agendamentos</Button>
             </div>
           </section>
         </>

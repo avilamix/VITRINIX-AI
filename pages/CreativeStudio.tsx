@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef } from 'react';
+import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Textarea from '../components/Textarea';
 import Input from '../components/Input';
 import Button from '../components/Button';
@@ -38,6 +38,10 @@ const CreativeStudio: React.FC = () => {
   const [videoAspectRatio, setVideoAspectRatio] = useState<string>(DEFAULT_ASPECT_RATIO);
   const [videoResolution, setVideoResolution] = useState<string>(DEFAULT_VIDEO_RESOLUTION);
 
+  // State for saving to library
+  const [savedItemName, setSavedItemName] = useState<string>('');
+  const [savedItemTags, setSavedItemTags] = useState<string>('');
+
 
   const userId = 'mock-user-123';
 
@@ -49,6 +53,7 @@ const CreativeStudio: React.FC = () => {
       setGeneratedMediaUrl(null); // Clear generated media when new file is uploaded
       setGeneratedAnalysis(null); // Clear analysis
       setError(null);
+      setSavedItemName(selectedFile.name.split('.').slice(0, -1).join('.')); // Pre-fill name
 
       // Determine media type based on file type
       if (selectedFile.type.startsWith('image')) {
@@ -59,6 +64,7 @@ const CreativeStudio: React.FC = () => {
         setError('Unsupported file type. Please upload an image or video.');
         setFile(null);
         setPreviewUrl(null);
+        setSavedItemName('');
       }
     }
   }, []);
@@ -73,6 +79,8 @@ const CreativeStudio: React.FC = () => {
     setError(null);
     setGeneratedMediaUrl(null);
     setGeneratedAnalysis(null);
+    setSavedItemName(''); // Clear previous save name
+    setSavedItemTags(''); // Clear previous save tags
 
     try {
       if (mediaType === 'image') {
@@ -93,6 +101,7 @@ const CreativeStudio: React.FC = () => {
         });
         setGeneratedMediaUrl(response || null);
       }
+      setSavedItemName(`Generated ${mediaType} - ${prompt.substring(0, 30)}...`); // Pre-fill name based on prompt
     } catch (err) {
       console.error(`Error generating ${mediaType}:`, err);
       setError(`Failed to generate ${mediaType}: ${err instanceof Error ? err.message : String(err)}`);
@@ -111,6 +120,8 @@ const CreativeStudio: React.FC = () => {
     setError(null);
     setGeneratedMediaUrl(null);
     setGeneratedAnalysis(null);
+    setSavedItemName(''); // Clear previous save name
+    setSavedItemTags(''); // Clear previous save tags
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -136,6 +147,7 @@ const CreativeStudio: React.FC = () => {
           });
           setGeneratedMediaUrl(response || null);
         }
+        setSavedItemName(`Edited ${mediaType} - ${prompt.substring(0, 30)}...`); // Pre-fill name based on prompt
       } catch (err) {
         console.error(`Error editing ${mediaType}:`, err);
         setError(`Failed to edit ${mediaType}: ${err instanceof Error ? err.message : String(err)}`);
@@ -159,6 +171,8 @@ const CreativeStudio: React.FC = () => {
     setLoading(true);
     setError(null);
     setGeneratedAnalysis(null); // Clear previous analysis
+    setSavedItemName(''); // Clear previous save name
+    setSavedItemTags(''); // Clear previous save tags
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
@@ -215,31 +229,56 @@ const CreativeStudio: React.FC = () => {
       setError('No generated media to save.');
       return;
     }
-    let fileToUpload = file;
-    let fileName = file?.name || `generated-${mediaType}-${Date.now()}.${mediaType === 'image' ? 'png' : 'mp4'}`;
-    let fileType = file?.type || (mediaType === 'image' ? 'image/png' : 'video/mp4');
-
-    if (!fileToUpload) { // If it was a generation, create a dummy file for upload
-      try {
-        const response = await fetch(generatedMediaUrl);
-        const blob = await response.blob();
-        fileToUpload = new File([blob], fileName, { type: fileType });
-      } catch (fetchError) {
-        console.error('Error fetching generated media for saving:', fetchError);
-        setError(`Failed to fetch generated media to save: ${fetchError instanceof Error ? fetchError.message : String(fetchError)}`);
-        return;
-      }
+    if (!savedItemName.trim()) {
+      setError('Please provide a name for the item.');
+      return;
     }
 
+    setLoading(true);
+    setError(null);
+
+    let fileToUpload: File | null = null;
+    let fileName = savedItemName.trim();
+    let fileType = mediaType === 'image' ? 'image/png' : 'video/mp4'; // Default to common types
+
     try {
-      setLoading(true);
-      setError(null);
+      // Determine the file to upload:
+      // If generatedMediaUrl exists (either direct generation or edited upload), fetch it.
+      const urlToFetch = generatedMediaUrl;
+
+      if (urlToFetch) {
+        const response = await fetch(urlToFetch);
+        const blob = await response.blob();
+        // Try to infer a more specific mimeType from the fetched blob if possible
+        fileType = blob.type || fileType;
+        // Ensure file extension matches type
+        const extension = fileType.split('/')[1] || (mediaType === 'image' ? 'png' : 'mp4');
+        fileName = `${fileName}.${extension.replace('jpeg', 'jpg')}`; // Common file extensions
+        fileToUpload = new File([blob], fileName, { type: fileType });
+      } else if (file) { // Fallback to original uploaded file if no generated URL (e.g., analyzed only)
+        fileToUpload = file;
+        fileName = savedItemName.trim() || file.name;
+        fileType = file.type;
+      }
+
       if (fileToUpload) {
-        const item = await uploadFile(fileToUpload, userId, mediaType); // Upload original or generated as new file
-        await saveLibraryItem({ ...item, file_url: generatedMediaUrl, name: `${prompt || 'Generated'} ${item.name}` });
-        alert('Projeto salvo na biblioteca!');
+        // Upload the actual media file to Cloud Storage (mock)
+        const uploadedItem = await uploadFile(fileToUpload, userId, mediaType); // This returns a LibraryItem with a persistent URL
+
+        const tagsArray = savedItemTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+
+        const libraryItemToSave: LibraryItem = {
+          ...uploadedItem, // Use id, userId, createdAt, file_url, thumbnail_url from the uploadedItem
+          type: mediaType,
+          name: fileName, // Use the user-provided name
+          tags: tagsArray,
+        };
+        await saveLibraryItem(libraryItemToSave); // Save metadata to Firestore
+        alert(`${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} "${fileName}" salvo na biblioteca com sucesso!`);
+        setSavedItemName('');
+        setSavedItemTags('');
       } else {
-        alert('Nenhum arquivo para salvar. Gere algo primeiro.');
+        setError('Nenhum arquivo válido para salvar. Gere ou carregue algo primeiro.');
       }
     } catch (err) {
       console.error('Error saving project:', err);
@@ -247,26 +286,35 @@ const CreativeStudio: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [generatedMediaUrl, file, userId, mediaType, prompt]);
+  }, [generatedMediaUrl, file, userId, mediaType, savedItemName, savedItemTags]);
+
+  useEffect(() => {
+    // Clean up previous preview URL when file changes or component unmounts
+    return () => {
+      if (previewUrl) {
+        URL.revokeObjectURL(previewUrl);
+      }
+    };
+  }, [previewUrl]);
 
   return (
-    <div className="container mx-auto">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Creative Studio</h2>
+    <div className="container mx-auto py-8 lg:py-10">
+      <h2 className="text-3xl font-bold text-textdark mb-8">Creative Studio</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
           <strong className="font-bold">Error!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Input/Controls Panel */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
-          <h3 className="text-xl font-semibold text-gray-700 mb-4">Ferramentas Criativas</h3>
+        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 h-full flex flex-col">
+          <h3 className="text-xl font-semibold text-textlight mb-5">Ferramentas Criativas</h3>
 
-          <div className="mb-4">
-            <label htmlFor="mediaType" className="block text-sm font-medium text-gray-700 mb-1">
+          <div className="mb-6">
+            <label htmlFor="mediaType" className="block text-sm font-medium text-textlight mb-1">
               Tipo de Mídia:
             </label>
             <select
@@ -278,9 +326,11 @@ const CreativeStudio: React.FC = () => {
                 setPreviewUrl(null);
                 setGeneratedMediaUrl(null);
                 setGeneratedAnalysis(null);
+                setSavedItemName('');
+                setSavedItemTags('');
                 if (fileInputRef.current) fileInputRef.current.value = '';
               }}
-              className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+              className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
             >
               <option value="image">Imagem</option>
               <option value="video">Vídeo</option>
@@ -294,41 +344,41 @@ const CreativeStudio: React.FC = () => {
             accept={mediaType === 'image' ? 'image/*' : 'video/*'}
             onChange={handleFileChange}
             ref={fileInputRef}
-            className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-indigo-700"
+            className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/80 mb-6"
           />
 
           {previewUrl && (
-            <div className="mt-4 mb-4">
-              <p className="text-sm font-medium text-gray-700 mb-1">Pré-visualização:</p>
+            <div className="mt-4 mb-6">
+              <p className="text-sm font-medium text-textlight mb-1">Pré-visualização:</p>
               {mediaType === 'image' ? (
-                <img src={previewUrl} alt="Preview" className="w-full h-auto max-h-48 object-contain rounded-md border border-gray-200" />
+                <img src={previewUrl} alt="Preview" className="w-full h-auto max-h-48 object-contain rounded-md border border-gray-700" />
               ) : (
-                <video src={previewUrl} controls className="w-full h-auto max-h-48 object-contain rounded-md border border-gray-200"></video>
+                <video src={previewUrl} controls className="w-full h-auto max-h-48 object-contain rounded-md border border-gray-700"></video>
               )}
             </div>
           )}
 
           {/* Image Generation Specific Controls */}
           {mediaType === 'image' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
-                <label htmlFor="imageAspectRatio" className="block text-sm font-medium text-gray-700 mb-1">Aspect Ratio:</label>
+                <label htmlFor="imageAspectRatio" className="block text-sm font-medium text-textlight mb-1">Aspect Ratio:</label>
                 <select
                   id="imageAspectRatio"
                   value={imageAspectRatio}
                   onChange={(e) => setImageAspectRatio(e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
                 >
                   {IMAGE_ASPECT_RATIOS.map(ratio => <option key={ratio} value={ratio}>{ratio}</option>)}
                 </select>
               </div>
               <div>
-                <label htmlFor="imageSize" className="block text-sm font-medium text-gray-700 mb-1">Image Size:</label>
+                <label htmlFor="imageSize" className="block text-sm font-medium text-textlight mb-1">Image Size:</label>
                 <select
                   id="imageSize"
                   value={imageSize}
                   onChange={(e) => setImageSize(e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
                 >
                   {IMAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
                 </select>
@@ -338,25 +388,25 @@ const CreativeStudio: React.FC = () => {
 
           {/* Video Generation Specific Controls */}
           {mediaType === 'video' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
-                <label htmlFor="videoAspectRatio" className="block text-sm font-medium text-gray-700 mb-1">Aspect Ratio:</label>
+                <label htmlFor="videoAspectRatio" className="block text-sm font-medium text-textlight mb-1">Aspect Ratio:</label>
                 <select
                   id="videoAspectRatio"
                   value={videoAspectRatio}
                   onChange={(e) => setVideoAspectRatio(e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
                 >
                   {VIDEO_ASPECT_RATIOS.map(ratio => <option key={ratio} value={ratio}>{ratio}</option>)}
                 </select>
               </div>
               <div>
-                <label htmlFor="videoResolution" className="block text-sm font-medium text-gray-700 mb-1">Resolution:</label>
+                <label htmlFor="videoResolution" className="block text-sm font-medium text-textlight mb-1">Resolution:</label>
                 <select
                   id="videoResolution"
                   value={videoResolution}
                   onChange={(e) => setVideoResolution(e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+                  className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
                 >
                   {VIDEO_RESOLUTIONS.map(res => <option key={res} value={res}>{res}</option>)}
                 </select>
@@ -374,24 +424,24 @@ const CreativeStudio: React.FC = () => {
             className="flex-1 min-h-[100px]"
           />
 
-          <div className="flex flex-col sm:flex-row gap-2 mt-4 pt-4 border-t border-gray-100">
-            <Button onClick={handleGenerateMedia} isLoading={loading && !file} variant="primary">
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-4 pt-4 border-t border-gray-900">
+            <Button onClick={handleGenerateMedia} isLoading={loading && !file} variant="primary" className="w-full sm:w-auto">
               {loading && !file ? `Gerando ${mediaType}...` : `Gerar ${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} IA`}
             </Button>
-            <Button onClick={handleEditMedia} isLoading={loading && !!file} variant="secondary" disabled={!file}>
+            <Button onClick={handleEditMedia} isLoading={loading && !!file} variant="secondary" disabled={!file} className="w-full sm:w-auto">
               {loading && !!file ? `Editando ${mediaType}...` : `Editar com IA`}
             </Button>
-            <Button onClick={handleAnalyzeMedia} isLoading={loading && !!file && generatedAnalysis === null} variant="outline" disabled={!file || !prompt.trim()}>
+            <Button onClick={handleAnalyzeMedia} isLoading={loading && !!file && generatedAnalysis === null} variant="outline" disabled={!file || !prompt.trim()} className="w-full sm:w-auto">
               {loading && !!file && generatedAnalysis === null ? `Analisando ${mediaType}...` : `Analisar ${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}`}
             </Button>
           </div>
         </div>
 
         {/* Output/Viewer Panel */}
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 h-full flex flex-col">
-          <h3 className="text-xl font-semibold text-gray-700 mb-4">Resultados e Exportação</h3>
-          <div className="relative w-full aspect-video bg-gray-100 rounded-md flex items-center justify-center overflow-hidden border border-gray-200 mb-4 flex-1">
-            {loading ? (
+        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 h-full flex flex-col">
+          <h3 className="text-xl font-semibold text-textlight mb-5">Resultados e Exportação</h3>
+          <div className="relative w-full aspect-video bg-gray-900 rounded-md flex items-center justify-center overflow-hidden border border-gray-700 mb-6 flex-1">
+            {loading && !generatedMediaUrl && !generatedAnalysis ? ( // Show spinner only if actively generating/analyzing and no result yet
               <LoadingSpinner />
             ) : generatedMediaUrl ? (
               mediaType === 'image' ? (
@@ -403,17 +453,40 @@ const CreativeStudio: React.FC = () => {
               <img src={PLACEHOLDER_IMAGE_BASE64} alt="Placeholder" className="w-full h-full object-contain p-8" />
             )}
           </div>
+
           {generatedAnalysis && (
-            <div className="mt-4 p-4 bg-gray-50 rounded-md border border-gray-200 flex-1 overflow-y-auto">
-              <h4 className="text-lg font-semibold text-gray-700 mb-2">Análise da IA:</h4>
-              <p className="prose max-w-none text-gray-700 leading-relaxed" style={{ whiteSpace: 'pre-wrap' }}>
+            <div className="mt-4 p-4 bg-darkbg rounded-md border border-gray-700 flex-1 overflow-y-auto min-h-[100px] mb-6">
+              <h4 className="text-lg font-semibold text-textlight mb-3">Análise da IA:</h4>
+              <p className="prose max-w-none text-textlight leading-relaxed" style={{ whiteSpace: 'pre-wrap' }}>
                 {generatedAnalysis}
               </p>
             </div>
           )}
-          <div className="flex flex-col sm:flex-row gap-2 mt-auto pt-4 border-t border-gray-100">
-            <Button onClick={handleExport} variant="primary" disabled={!generatedMediaUrl}>Exportar</Button>
-            <Button onClick={handleSaveProject} variant="secondary" disabled={!generatedMediaUrl}>Salvar Projeto</Button>
+
+          {(generatedMediaUrl || generatedAnalysis) && ( // Show save options if something was generated or analyzed
+            <div className="mt-4 pt-4 border-t border-gray-900">
+              <h4 className="text-lg font-semibold text-textlight mb-4">Salvar na Biblioteca:</h4>
+              <Input
+                id="savedItemName"
+                label="Nome do Item:"
+                value={savedItemName}
+                onChange={(e) => setSavedItemName(e.target.value)}
+                placeholder={`Nome para o ${mediaType} gerado`}
+              />
+              <Textarea
+                id="savedItemTags"
+                label="Tags (separadas por vírgula):"
+                value={savedItemTags}
+                onChange={(e) => setSavedItemTags(e.target.value)}
+                placeholder="Ex: 'ai, criativo, campanha, verão'"
+                rows={2}
+              />
+            </div>
+          )}
+
+          <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-auto pt-4 border-t border-gray-900">
+            <Button onClick={handleExport} variant="primary" disabled={!generatedMediaUrl || loading} className="w-full sm:w-auto">Exportar</Button>
+            <Button onClick={handleSaveProject} variant="primary" disabled={(!generatedMediaUrl && !generatedAnalysis) || loading || !savedItemName.trim()} className="w-full sm:w-auto">Salvar Projeto</Button>
           </div>
         </div>
       </div>

@@ -81,31 +81,31 @@ const Chatbot: React.FC = () => {
   }, [inputMessage, loading, chatSession]);
 
   return (
-    <div className="container mx-auto max-w-3xl flex flex-col h-[calc(100vh-140px)]">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">AI Chatbot</h2>
+    <div className="container mx-auto max-w-3xl flex flex-col h-[calc(100vh-140px)] py-8 lg:py-10">
+      <h2 className="text-3xl font-bold text-textdark mb-8">AI Chatbot</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
           <strong className="font-bold">Error!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
 
-      <div className="flex-1 bg-white p-6 rounded-lg shadow-sm border border-gray-200 overflow-y-auto mb-4 flex flex-col">
-        <div className="flex-1 space-y-4">
+      <div className="flex-1 bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 overflow-y-auto mb-6 flex flex-col">
+        <div className="flex-1 space-y-5">
           {messages.map((msg, index) => (
             <div
               key={index}
               className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}
             >
               <div
-                className={`max-w-[70%] p-3 rounded-lg ${msg.role === 'user'
-                    ? 'bg-primary text-white'
-                    : 'bg-gray-200 text-gray-800'
+                className={`max-w-[75%] p-4 rounded-lg ${msg.role === 'user'
+                    ? 'bg-primary text-white' // User messages still purple
+                    : 'bg-darkbg text-textlight' // Model messages darkbg
                   } shadow-md`}
               >
                 <p className="text-sm" style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</p>
-                <span className="block text-xs text-right opacity-75 mt-1">
+                <span className="block text-xs text-right text-textmuted mt-1">
                   {new Date(msg.timestamp).toLocaleTimeString()}
                 </span>
               </div>
@@ -113,7 +113,7 @@ const Chatbot: React.FC = () => {
           ))}
           {loading && (
             <div className="flex justify-start">
-              <div className="bg-gray-200 text-gray-800 p-3 rounded-lg shadow-md flex items-center">
+              <div className="bg-darkbg text-textlight p-4 rounded-lg shadow-md flex items-center">
                 <LoadingSpinner />
                 <span className="ml-2 text-sm">Digitando...</span>
               </div>
@@ -123,21 +123,21 @@ const Chatbot: React.FC = () => {
         </div>
       </div>
 
-      <form onSubmit={handleSendMessage} className="bg-white p-4 rounded-lg shadow-sm border border-gray-200 flex items-center">
+      <form onSubmit={handleSendMessage} className="bg-lightbg p-4 rounded-lg shadow-sm border border-gray-800 flex items-center">
         <Input
           id="chatInput"
           type="text"
           value={inputMessage}
           onChange={(e) => setInputMessage(e.target.value)}
           placeholder="Pergunte algo sobre marketing ou gere ideias..."
-          className="flex-1 mr-2 p-2 border rounded-md"
+          className="flex-1 mr-4 p-3 border rounded-md"
           disabled={loading || !chatSession}
         />
         <Button
           type="submit"
           isLoading={loading}
           variant="primary"
-          className="px-4 py-2"
+          className="px-5 py-2"
           disabled={!inputMessage.trim() || !chatSession}
         >
           {loading ? <LoadingSpinner /> : <PaperAirplaneIcon className="h-5 w-5" />}

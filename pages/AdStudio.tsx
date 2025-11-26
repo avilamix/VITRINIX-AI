@@ -76,7 +76,7 @@ const AdStudio: React.FC = () => {
       setGeneratedImageUrl(imageResponse.imageUrl || PLACEHOLDER_IMAGE_BASE64);
       newAd.media_url = imageResponse.imageUrl || undefined; // Add image URL to ad object
 
-      await saveAd(newAd); // Save to mock Firestore
+      // No immediate save here, user explicitly clicks 'Salvar Anúncio'
     } catch (err) {
       console.error('Error generating ad:', err);
       setError(`Failed to generate ad: ${err instanceof Error ? err.message : String(err)}`);
@@ -98,19 +98,38 @@ const AdStudio: React.FC = () => {
     document.body.removeChild(link);
   }, [generatedImageUrl, selectedPlatform]);
 
+  const handleSaveAd = useCallback(async () => {
+    if (!generatedAd) {
+      setError('Nenhum anúncio para salvar. Gere um anúncio primeiro.');
+      return;
+    }
+    setLoading(true); // Re-use loading state for saving
+    setError(null);
+    try {
+      const savedAd = await saveAd(generatedAd); // Save to mock Firestore
+      alert(`Anúncio para "${savedAd.platform}" salvo com sucesso!`);
+    } catch (err) {
+      console.error('Error saving ad:', err);
+      setError(`Falha ao salvar anúncio: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [generatedAd]);
+
+
   return (
-    <div className="container mx-auto">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Ad Studio</h2>
+    <div className="container mx-auto py-8 lg:py-10">
+      <h2 className="text-3xl font-bold text-textdark mb-8">Ad Studio</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
           <strong className="font-bold">Error!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
 
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">Detalhes do Anúncio</h3>
+      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
+        <h3 className="text-xl font-semibold text-textlight mb-5">Detalhes do Anúncio</h3>
         <Textarea
           id="productDescription"
           label="Descrição do Produto/Serviço:"
@@ -127,15 +146,15 @@ const AdStudio: React.FC = () => {
           placeholder="Ex: 'Empreendedores, gerentes de equipe, freelancers que buscam eficiência.'"
         />
 
-        <div className="mb-4">
-          <label htmlFor="platform" className="block text-sm font-medium text-gray-700 mb-1">
+        <div className="mb-6">
+          <label htmlFor="platform" className="block text-sm font-medium text-textlight mb-1">
             Plataforma:
           </label>
           <select
             id="platform"
             value={selectedPlatform}
             onChange={(e) => setSelectedPlatform(e.target.value as Platform)}
-            className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-primary focus:border-primary sm:text-sm"
+            className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
           >
             {platforms.map((platform) => (
               <option key={platform} value={platform}>
@@ -147,47 +166,52 @@ const AdStudio: React.FC = () => {
 
         <Button
           onClick={handleGenerateAd}
-          isLoading={loading}
+          isLoading={loading && !generatedAd}
           variant="primary"
           className="w-full md:w-auto mt-4"
         >
-          {loading ? 'Gerando Anúncio...' : 'Gerar Anúncio'}
+          {loading && !generatedAd ? 'Gerando Anúncio...' : 'Gerar Anúncio'}
         </Button>
       </div>
 
       {generatedAd && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-xl font-semibold text-gray-700 mb-4">Anúncio Gerado para {generatedAd.platform}</h3>
+        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+          <h3 className="text-xl font-semibold text-textlight mb-5">Anúncio Gerado para {generatedAd.platform}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="text-lg font-semibold text-gray-700 mb-2">Headline:</h4>
-              <p className="text-gray-800 text-xl font-medium mb-4">{generatedAd.headline}</p>
+              <h4 className="text-lg font-semibold text-textlight mb-3">Headline:</h4>
+              <p className="text-textdark text-xl font-medium mb-4">{generatedAd.headline}</p>
 
-              <h4 className="text-lg font-semibold text-gray-700 mb-2">Copy:</h4>
-              <p className="prose max-w-none text-gray-700 leading-relaxed bg-gray-50 p-4 rounded-md h-auto" style={{ whiteSpace: 'pre-wrap' }}>
+              <h4 className="text-lg font-semibold text-textlight mb-3">Copy:</h4>
+              <p className="prose max-w-none text-textlight leading-relaxed bg-darkbg p-4 rounded-md h-auto min-h-[150px]" style={{ whiteSpace: 'pre-wrap' }}>
                 {generatedAd.copy}
               </p>
-              <div className="mt-4 flex gap-2">
+              <div className="mt-6 flex flex-wrap gap-3">
                 <Button variant="secondary" onClick={() => alert('Gerar Variações not implemented.')}>Gerar Variações</Button>
                 <Button variant="outline" onClick={() => alert('Editar not implemented.')}>Editar</Button>
               </div>
             </div>
             <div>
-              <h4 className="text-lg font-semibold text-gray-700 mb-2">Criativo Visual:</h4>
-              <div className="w-full aspect-square bg-gray-100 rounded-md flex items-center justify-center overflow-hidden border border-gray-200">
-                {loading ? (
+              <h4 className="text-lg font-semibold text-textlight mb-3">Criativo Visual:</h4>
+              <div className="w-full aspect-square bg-gray-900 rounded-md flex items-center justify-center overflow-hidden border border-gray-700">
+                {loading && !generatedImageUrl ? ( // Only show spinner if image is actively loading
                   <LoadingSpinner />
                 ) : (
                   <img
                     src={generatedImageUrl}
                     alt="Generated ad creative"
-                    className="w-full h-full object-cover"
+                    className="w-full h-full object-contain"
                   />
                 )}
               </div>
-              <Button onClick={handleDownload} className="mt-4 w-full" variant="primary">
-                Baixar Criativo
-              </Button>
+              <div className="mt-6 flex flex-wrap gap-3">
+                <Button onClick={handleDownload} variant="primary" className="w-full sm:w-auto">
+                  Baixar Criativo
+                </Button>
+                <Button onClick={handleSaveAd} variant="primary" isLoading={loading} disabled={!generatedAd} className="w-full sm:w-auto">
+                  {loading && generatedAd ? 'Salvando Anúncio...' : 'Salvar Anúncio'}
+                </Button>
+              </div>
             </div>
           </div>
         </div>

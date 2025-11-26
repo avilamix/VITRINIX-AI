@@ -61,6 +61,7 @@ const TrendHunter: React.FC = () => {
       for (const trend of trendsWithUserId) {
         await saveTrend(trend);
       }
+      alert(`${trendsWithUserId.length} tendências encontradas e salvas com sucesso!`);
 
     } catch (err) {
       console.error('Error searching trends:', err);
@@ -85,20 +86,28 @@ const TrendHunter: React.FC = () => {
     alert(`Adding trend "${trend.query}" to calendar (not implemented).`);
   }, [navigateTo]);
 
+  const hasActiveFilters = query.trim() || city.trim();
+
+  const handleClearSearch = useCallback(() => {
+    setQuery('');
+    setCity('');
+    setTrends([]);
+    setError(null);
+  }, []);
 
   return (
-    <div className="container mx-auto">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Trend Hunter</h2>
+    <div className="container mx-auto py-8 lg:py-10">
+      <h2 className="text-3xl font-bold text-textdark mb-8">Trend Hunter</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
           <strong className="font-bold">Error!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
 
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">Buscar Tendências</h3>
+      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
+        <h3 className="text-xl font-semibold text-textlight mb-5">Buscar Tendências</h3>
         <Input
           id="trendQuery"
           label="Nicho ou Tópico:"
@@ -114,39 +123,50 @@ const TrendHunter: React.FC = () => {
           placeholder="Ex: 'São Paulo', 'Rio de Janeiro'"
         />
         {!userLocation && city.trim() && (
-          <p className="text-sm text-yellow-700 bg-yellow-100 p-2 rounded-md mb-2">
+          <p className="text-sm text-yellow-300 bg-yellow-900 p-3 rounded-md mb-6">
             A geolocalização não está disponível. Tendências por cidade podem ser menos precisas.
           </p>
         )}
-        <Button
-          onClick={handleSearchTrends}
-          isLoading={loading}
-          variant="primary"
-          className="w-full md:w-auto mt-4"
-        >
-          {loading ? 'Buscando Tendências...' : 'Buscar Tendências'}
-        </Button>
+        <div className="flex flex-col sm:flex-row gap-3 mt-4">
+          <Button
+            onClick={handleSearchTrends}
+            isLoading={loading}
+            variant="primary"
+            className="w-full sm:w-auto"
+          >
+            {loading ? 'Buscando Tendências...' : 'Buscar Tendências'}
+          </Button>
+          {hasActiveFilters && (
+            <Button
+              onClick={handleClearSearch}
+              variant="outline"
+              className="w-full sm:w-auto"
+            >
+              Limpar Busca
+            </Button>
+          )}
+        </div>
       </div>
 
       {trends.length > 0 && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200">
-          <h3 className="text-xl font-semibold text-gray-700 mb-4">Resultados de Tendências</h3>
-          <div className="space-y-6">
+        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+          <h3 className="text-xl font-semibold text-textlight mb-5">Resultados de Tendências</h3>
+          <div className="space-y-8">
             {trends.map((trend) => (
-              <div key={trend.id} className="p-4 border border-gray-200 rounded-md">
-                <div className="flex justify-between items-center mb-2">
-                  <h4 className="text-lg font-semibold text-gray-800">{trend.query}</h4>
-                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${trend.score > 70 ? 'bg-green-100 text-green-800' : trend.score > 40 ? 'bg-yellow-100 text-yellow-800' : 'bg-blue-100 text-blue-800'}`}>
+              <div key={trend.id} className="p-5 border border-gray-700 rounded-md">
+                <div className="flex justify-between items-center mb-3">
+                  <h4 className="text-lg font-semibold text-textdark">{trend.query}</h4>
+                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${trend.score > 70 ? 'bg-green-800 text-green-200' : trend.score > 40 ? 'bg-yellow-800 text-yellow-200' : 'bg-primary/50 text-textdark'}`}>
                     Score Viral: {trend.score}
                   </span>
                 </div>
-                <p className="text-gray-700 leading-relaxed mb-3" style={{ whiteSpace: 'pre-wrap' }}>
+                <p className="text-textlight leading-relaxed mb-4" style={{ whiteSpace: 'pre-wrap' }}>
                   {trend.data}
                 </p>
                 {trend.sources && trend.sources.length > 0 && (
-                  <div className="mt-2">
-                    <p className="text-sm font-semibold text-gray-600 mb-1">Fontes:</p>
-                    <ul className="list-disc list-inside text-sm text-blue-600">
+                  <div className="mt-3">
+                    <p className="text-sm font-semibold text-textmuted mb-2">Fontes:</p>
+                    <ul className="list-disc list-inside text-sm text-primary space-y-1">
                       {trend.sources.map((source, idx) => (
                         <li key={idx}>
                           <a href={source.uri} target="_blank" rel="noopener noreferrer" className="hover:underline">
@@ -157,9 +177,9 @@ const TrendHunter: React.FC = () => {
                     </ul>
                   </div>
                 )}
-                <div className="flex gap-2 mt-4">
-                  <Button onClick={() => handleCreateContentFromTrend(trend)} variant="primary">Criar Conteúdo da Tendência</Button>
-                  <Button onClick={() => handleAddTrendToCalendar(trend)} variant="secondary">Adicionar ao Calendário</Button>
+                <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                  <Button onClick={() => handleCreateContentFromTrend(trend)} variant="primary" className="w-full sm:w-auto">Criar Conteúdo da Tendência</Button>
+                  <Button onClick={() => handleAddTrendToCalendar(trend)} variant="secondary" className="w-full sm:w-auto">Adicionar ao Calendário</Button>
                 </div>
               </div>
             ))}

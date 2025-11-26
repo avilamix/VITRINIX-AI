@@ -17,14 +17,14 @@ const Button: React.FC<ButtonProps> = ({
   ...props
 }) => {
   const baseStyles = 'font-semibold rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-200 ease-in-out';
-  const disabledStyles = 'opacity-60 cursor-not-allowed';
+  const disabledStyles = 'opacity-60 cursor-not-allowed text-textmuted'; // Text muted for disabled state
 
   const variantStyles = {
-    primary: 'bg-primary text-white hover:bg-indigo-700 focus:ring-primary',
-    secondary: 'bg-secondary text-white hover:bg-violet-500 focus:ring-secondary',
-    outline: 'bg-transparent border border-primary text-primary hover:bg-primary hover:text-white focus:ring-primary',
-    ghost: 'bg-transparent text-primary hover:bg-indigo-100 focus:ring-primary',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500',
+    primary: 'bg-accent text-darkbg shadow-lg shadow-accent/50 hover:bg-neonGreen/80 focus:ring-neonGreen focus:ring-offset-lightbg',
+    secondary: 'bg-primary text-white hover:bg-primary/80 focus:ring-primary focus:ring-offset-lightbg',
+    outline: 'bg-transparent border border-primary text-primary hover:bg-primary hover:text-white focus:ring-primary focus:ring-offset-lightbg',
+    ghost: 'bg-transparent text-primary hover:bg-primary/20 focus:ring-primary focus:ring-offset-lightbg',
+    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 focus:ring-offset-lightbg',
   };
 
   const sizeStyles = {
@@ -35,7 +35,7 @@ const Button: React.FC<ButtonProps> = ({
 
   return (
     <button
-      className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${isLoading ? disabledStyles : ''} ${className}`}
+      className={`${baseStyles} ${variantStyles[variant]} ${isLoading || disabled ? disabledStyles : ''} ${className}`}
       disabled={isLoading || disabled}
       {...props}
     >

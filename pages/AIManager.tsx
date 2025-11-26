@@ -2,7 +2,6 @@ import React, { useState, useEffect, useCallback } from 'react';
 import Textarea from '../components/Textarea';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
-// FIX: Import Input component
 import Input from '../components/Input';
 import { aiManagerStrategy } from '../services/geminiService';
 import { getUserProfile, updateUserProfile } from '../services/firestoreService';
@@ -80,24 +79,24 @@ const AIManager: React.FC = () => {
     return (
       <div className="flex justify-center items-center h-48">
         <LoadingSpinner />
-        <p className="ml-2 text-gray-600">Loading business profile...</p>
+        <p className="ml-2 text-textlight">Loading business profile...</p>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto">
-      <h2 className="text-3xl font-bold text-gray-800 mb-6">Assistente IA (AI Manager)</h2>
+    <div className="container mx-auto py-8 lg:py-10">
+      <h2 className="text-3xl font-bold text-textdark mb-8">Assistente IA (AI Manager)</h2>
 
       {error && (
-        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
           <strong className="font-bold">Error!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
 
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">Informações do Negócio (para IA)</h3>
+      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
+        <h3 className="text-xl font-semibold text-textlight mb-5">Informações do Negócio (para IA)</h3>
         <Input
           id="businessName"
           label="Nome da Empresa"
@@ -126,13 +125,13 @@ const AIManager: React.FC = () => {
           onChange={(e) => handleUpdateProfile('visualStyle', e.target.value)}
           placeholder="Ex: Moderno, Minimalista, Vibrante, Profissional"
         />
-        <p className="text-sm text-gray-500 mt-2">
+        <p className="text-sm text-textmuted mt-2">
           Estas informações ajudam a IA a gerar estratégias mais precisas para o seu negócio.
         </p>
       </div>
 
-      <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
-        <h3 className="text-xl font-semibold text-gray-700 mb-4">Solicitação ao Assistente IA</h3>
+      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
+        <h3 className="text-xl font-semibold text-textlight mb-5">Solicitação ao Assistente IA</h3>
         <Textarea
           id="aiManagerPrompt"
           label="Descreva sua situação de marketing ou o que você gostaria de analisar/criar:"
@@ -145,28 +144,28 @@ const AIManager: React.FC = () => {
           onClick={handleGenerateStrategy}
           isLoading={loading}
           variant="primary"
-          className="w-full md:w-auto"
+          className="w-full md:w-auto mt-4"
         >
           {loading ? 'Gerando Estratégia...' : 'Gerar Estratégia'}
         </Button>
       </div>
 
       {strategyText && (
-        <div className="bg-white p-6 rounded-lg shadow-sm border border-gray-200 mb-6">
-          <h3 className="text-xl font-semibold text-gray-700 mb-4">Estratégia Gerada</h3>
-          <div className="prose max-w-none text-gray-700 leading-relaxed" style={{ whiteSpace: 'pre-wrap' }}>
+        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
+          <h3 className="text-xl font-semibold text-textlight mb-5">Estratégia Gerada</h3>
+          <div className="prose max-w-none text-textlight leading-relaxed mb-6" style={{ whiteSpace: 'pre-wrap' }}>
             {strategyText}
           </div>
 
           {suggestions.length > 0 && (
             <div className="mt-6">
-              <h4 className="text-lg font-semibold text-gray-700 mb-3">Sugestões Adicionais:</h4>
-              <ul className="list-disc list-inside space-y-2 text-gray-700">
+              <h4 className="text-lg font-semibold text-textlight mb-4">Sugestões Adicionais:</h4>
+              <ul className="list-disc list-inside space-y-2 text-textlight">
                 {suggestions.map((s, index) => (
                   <li key={index}>{s}</li>
                 ))}
               </ul>
-              <div className="mt-4 flex gap-2">
+              <div className="mt-6 flex flex-wrap gap-3">
                 <Button variant="secondary">Criar Calendário</Button>
                 <Button variant="secondary">Criar Campanha</Button>
                 <Button variant="secondary">Adicionar ao Calendário</Button>

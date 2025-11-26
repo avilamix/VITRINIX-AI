@@ -11,10 +11,10 @@ import {
   ArchiveBoxIcon,
   CalendarDaysIcon,
   Cog6ToothIcon,
-  ChatBubbleLeftRightIcon, // New icon for Chatbot
-  MicrophoneIcon, // New icon for Live Conversation
-  SpeakerWaveIcon // New icon for Audio Tools
-} from '@heroicons/react/24/outline'; // Importing icons from heroicons
+  ChatBubbleLeftRightIcon,
+  MicrophoneIcon,
+  SpeakerWaveIcon
+} from '@heroicons/react/24/outline';
 
 interface SidebarProps {
   activeModule: ModuleName;
@@ -23,23 +23,23 @@ interface SidebarProps {
 
 interface NavItemProps {
   name: ModuleName;
-  icon: React.ElementType; // Type for Heroicon components
+  icon: React.ElementType;
   activeModule: ModuleName;
   setActiveModule: (moduleName: ModuleName) => void;
 }
 
 const NavItem: React.FC<NavItemProps> = ({ name, icon: Icon, activeModule, setActiveModule }) => {
   const isActive = activeModule === name;
-  const activeClasses = 'bg-primary text-white';
-  const inactiveClasses = 'text-gray-600 hover:bg-gray-200';
+  const activeClasses = 'bg-primary text-white'; // Soft purple background with white text
+  const inactiveClasses = 'text-textlight hover:bg-primary/20'; // Light gray text, subtle purple hover
 
   return (
     <li>
       <button
         onClick={() => setActiveModule(name)}
-        className={`flex items-center p-3 rounded-lg w-full text-left transition-colors duration-200 ${isActive ? activeClasses : inactiveClasses}`}
+        className={`flex items-center p-4 rounded-lg w-full text-left transition-colors duration-200 ${isActive ? activeClasses : inactiveClasses}`}
       >
-        <Icon className="h-5 w-5 mr-3" />
+        <Icon className={`h-5 w-5 mr-4 ${isActive ? 'text-white' : 'text-primary'}`} /> {/* Active icon white, inactive primary */}
         <span className="text-sm font-medium">{name}</span>
       </button>
     </li>
@@ -48,7 +48,7 @@ const NavItem: React.FC<NavItemProps> = ({ name, icon: Icon, activeModule, setAc
 
 const Sidebar: React.FC<SidebarProps> = ({ activeModule, setActiveModule }) => {
   return (
-    <aside className="w-56 bg-white p-4 shadow-lg sticky top-0 h-screen overflow-y-auto hidden md:block">
+    <aside className="w-56 bg-lightbg p-6 shadow-lg sticky top-0 h-screen overflow-y-auto hidden md:block border-r border-gray-800">
       <nav>
         <ul className="space-y-2">
           <NavItem name="Dashboard" icon={RocketLaunchIcon} activeModule={activeModule} setActiveModule={setActiveModule} />

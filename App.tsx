@@ -112,28 +112,28 @@ function App() {
 
   if (loadingApiKeyCheck) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-100">
+      <div className="flex items-center justify-center h-full bg-darkbg">
         <LoadingSpinner />
-        <p className="ml-2 text-lg text-gray-700">Checking API key status...</p>
+        <p className="ml-2 text-textlight">Checking API key status...</p>
       </div>
     );
   }
 
   if (!hasApiKey && window.aistudio) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-gray-100 p-4 text-center">
-        <h1 className="text-3xl font-bold text-gray-800 mb-4">VitrineX AI</h1>
-        <p className="text-lg text-gray-600 mb-8">
+      <div className="flex flex-col items-center justify-center h-full bg-darkbg p-4 text-center">
+        <h1 className="text-3xl font-bold text-textdark mb-4">VitrineX AI</h1>
+        <p className="text-lg text-textlight mb-8">
           To use VitrineX AI, please select your Google Gemini API key.
           Veo video generation models require a paid GCP project API key.
         </p>
         <button
           onClick={handleOpenApiKeySelection}
-          className="px-6 py-3 bg-primary text-white font-semibold rounded-lg shadow-md hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition duration-200"
+          className="px-6 py-3 bg-accent text-darkbg font-semibold rounded-lg shadow-lg shadow-accent/50 hover:bg-neonGreen/80 focus:outline-none focus:ring-2 focus:ring-neonGreen focus:ring-offset-2 focus:ring-offset-darkbg transition duration-200"
         >
           Select Gemini API Key
         </button>
-        <p className="mt-4 text-sm text-gray-500">
+        <p className="mt-4 text-sm text-textmuted">
           Need help? <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Learn about billing</a>.
         </p>
       </div>
@@ -142,7 +142,7 @@ function App() {
 
   return (
     <NavigationContext.Provider value={{ setActiveModule }}>
-      <div className="flex flex-col min-h-screen bg-lightbg">
+      <div className="flex flex-col h-full bg-darkbg">
         <Navbar />
         <div className="flex flex-1">
           <Sidebar activeModule={activeModule} setActiveModule={setActiveModule} />
