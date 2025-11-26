@@ -15,6 +15,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import Chatbot from './pages/Chatbot';
 import LiveConversation from './pages/LiveConversation';
 import AudioTools from './pages/AudioTools';
+import Logo from './components/Logo'; // Import Logo
 import { NavigationContext } from './hooks/useNavigate';
 
 export type ModuleName =
@@ -122,19 +123,21 @@ function App() {
   if (!hasApiKey && window.aistudio) {
     return (
       <div className="flex flex-col items-center justify-center h-full bg-darkbg p-4 text-center">
-        <h1 className="text-3xl font-bold text-textdark mb-4">VitrineX AI</h1>
-        <p className="text-lg text-textlight mb-8">
-          To use VitrineX AI, please select your Google Gemini API key.
-          Veo video generation models require a paid GCP project API key.
+        <div className="mb-8 transform scale-150">
+           <Logo className="h-16 w-16" showText={true} />
+        </div>
+        <p className="text-lg text-textlight mb-8 max-w-md">
+          Para usar a VitrineX AI, selecione sua chave API do Google Gemini.
+          Modelos avançados como Veo requerem uma chave de projeto pago no GCP.
         </p>
         <button
           onClick={handleOpenApiKeySelection}
           className="px-6 py-3 bg-accent text-darkbg font-semibold rounded-lg shadow-lg shadow-accent/50 hover:bg-neonGreen/80 focus:outline-none focus:ring-2 focus:ring-neonGreen focus:ring-offset-2 focus:ring-offset-darkbg transition duration-200"
         >
-          Select Gemini API Key
+          Selecionar Chave API Gemini
         </button>
         <p className="mt-4 text-sm text-textmuted">
-          Need help? <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Learn about billing</a>.
+          Precisa de ajuda? <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Saiba mais sobre faturamento</a>.
         </p>
       </div>
     );
@@ -144,7 +147,7 @@ function App() {
     <NavigationContext.Provider value={{ setActiveModule }}>
       <div className="flex flex-col h-full bg-darkbg">
         <Navbar />
-        <div className="flex flex-1">
+        <div className="flex flex-1 overflow-hidden">
           <Sidebar activeModule={activeModule} setActiveModule={setActiveModule} />
           <main className="flex-1 p-6 md:p-8 lg:p-10 overflow-y-auto">
             {renderModule()}
