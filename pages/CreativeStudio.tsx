@@ -1,12 +1,11 @@
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Textarea from '../components/Textarea';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
+import SaveToLibraryButton from '../components/SaveToLibraryButton';
 import { generateImage, editImage, generateVideo, analyzeImage, analyzeVideo } from '../services/geminiService';
-import { uploadFile } from '../services/cloudStorageService';
-import { saveLibraryItem } from '../services/firestoreService';
-import { LibraryItem } from '../types';
 import {
   GEMINI_IMAGE_PRO_MODEL,
   VEO_FAST_GENERATE_MODEL,
@@ -224,70 +223,6 @@ const CreativeStudio: React.FC = () => {
     document.body.removeChild(link);
   }, [generatedMediaUrl, mediaType]);
 
-  const handleSaveProject = useCallback(async () => {
-    if (!generatedMediaUrl) {
-      setError('No generated media to save.');
-      return;
-    }
-    if (!savedItemName.trim()) {
-      setError('Please provide a name for the item.');
-      return;
-    }
-
-    setLoading(true);
-    setError(null);
-
-    let fileToUpload: File | null = null;
-    let fileName = savedItemName.trim();
-    let fileType = mediaType === 'image' ? 'image/png' : 'video/mp4'; // Default to common types
-
-    try {
-      // Determine the file to upload:
-      // If generatedMediaUrl exists (either direct generation or edited upload), fetch it.
-      const urlToFetch = generatedMediaUrl;
-
-      if (urlToFetch) {
-        const response = await fetch(urlToFetch);
-        const blob = await response.blob();
-        // Try to infer a more specific mimeType from the fetched blob if possible
-        fileType = blob.type || fileType;
-        // Ensure file extension matches type
-        const extension = fileType.split('/')[1] || (mediaType === 'image' ? 'png' : 'mp4');
-        fileName = `${fileName}.${extension.replace('jpeg', 'jpg')}`; // Common file extensions
-        fileToUpload = new File([blob], fileName, { type: fileType });
-      } else if (file) { // Fallback to original uploaded file if no generated URL (e.g., analyzed only)
-        fileToUpload = file;
-        fileName = savedItemName.trim() || file.name;
-        fileType = file.type;
-      }
-
-      if (fileToUpload) {
-        // Upload the actual media file to Cloud Storage (mock)
-        const uploadedItem = await uploadFile(fileToUpload, userId, mediaType); // This returns a LibraryItem with a persistent URL
-
-        const tagsArray = savedItemTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
-
-        const libraryItemToSave: LibraryItem = {
-          ...uploadedItem, // Use id, userId, createdAt, file_url, thumbnail_url from the uploadedItem
-          type: mediaType,
-          name: fileName, // Use the user-provided name
-          tags: tagsArray,
-        };
-        await saveLibraryItem(libraryItemToSave); // Save metadata to Firestore
-        alert(`${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} "${fileName}" salvo na biblioteca com sucesso!`);
-        setSavedItemName('');
-        setSavedItemTags('');
-      } else {
-        setError('Nenhum arquivo válido para salvar. Gere ou carregue algo primeiro.');
-      }
-    } catch (err) {
-      console.error('Error saving project:', err);
-      setError(`Failed to save project: ${err instanceof Error ? err.message : String(err)}`);
-    } finally {
-      setLoading(false);
-    }
-  }, [generatedMediaUrl, file, userId, mediaType, savedItemName, savedItemTags]);
-
   useEffect(() => {
     // Clean up previous preview URL when file changes or component unmounts
     return () => {
@@ -463,30 +398,41 @@ const CreativeStudio: React.FC = () => {
             </div>
           )}
 
-          {(generatedMediaUrl || generatedAnalysis) && ( // Show save options if something was generated or analyzed
+          {(generatedMediaUrl || generatedAnalysis) && (
             <div className="mt-4 pt-4 border-t border-gray-900">
               <h4 className="text-lg font-semibold text-textlight mb-4">Salvar na Biblioteca:</h4>
-              <Input
-                id="savedItemName"
-                label="Nome do Item:"
-                value={savedItemName}
-                onChange={(e) => setSavedItemName(e.target.value)}
-                placeholder={`Nome para o ${mediaType} gerado`}
-              />
-              <Textarea
-                id="savedItemTags"
-                label="Tags (separadas por vírgula):"
-                value={savedItemTags}
-                onChange={(e) => setSavedItemTags(e.target.value)}
-                placeholder="Ex: 'ai, criativo, campanha, verão'"
-                rows={2}
-              />
+              <div className="space-y-4">
+                 <Input
+                    id="savedItemName"
+                    label="Nome do Item:"
+                    value={savedItemName}
+                    onChange={(e) => setSavedItemName(e.target.value)}
+                    placeholder={`Nome para o ${mediaType} gerado`}
+                  />
+                  <Textarea
+                    id="savedItemTags"
+                    label="Tags (separadas por vírgula):"
+                    value={savedItemTags}
+                    onChange={(e) => setSavedItemTags(e.target.value)}
+                    placeholder="Ex: 'ai, criativo, campanha, verão'"
+                    rows={2}
+                  />
+                  <SaveToLibraryButton
+                    content={generatedMediaUrl || generatedAnalysis || null}
+                    type={generatedAnalysis ? 'text' : mediaType}
+                    userId={userId}
+                    initialName={savedItemName}
+                    tags={savedItemTags.split(',').map(t => t.trim()).filter(Boolean)}
+                    variant="primary"
+                    className="w-full sm:w-auto"
+                    disabled={!savedItemName.trim()}
+                  />
+              </div>
             </div>
           )}
 
           <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-auto pt-4 border-t border-gray-900">
-            <Button onClick={handleExport} variant="primary" disabled={!generatedMediaUrl || loading} className="w-full sm:w-auto">Exportar</Button>
-            <Button onClick={handleSaveProject} variant="primary" disabled={(!generatedMediaUrl && !generatedAnalysis) || loading || !savedItemName.trim()} className="w-full sm:w-auto">Salvar Projeto</Button>
+             <Button onClick={handleExport} variant="secondary" disabled={!generatedMediaUrl || loading} className="w-full sm:w-auto">Exportar</Button>
           </div>
         </div>
       </div>
