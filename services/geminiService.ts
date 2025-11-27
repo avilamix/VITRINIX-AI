@@ -420,31 +420,14 @@ export const campaignBuilder = async (
 
 // --- Chatbot Functions ---
 export const startChat = (model: string = GEMINI_PRO_MODEL, provider: ProviderName = 'Google Gemini') => {
-  // Chat object creation needs a client. We can't really create a "Chat" object that auto-rotates keys easily
-  // because the Chat object holds state.
-  // For the purpose of this demo, we will get the BEST key at the start of the chat.
-  // If that key fails mid-chat, the chat might error. A full robust system would rebuild the chat history with a new key.
-  
-  if (provider !== 'Google Gemini') {
-      // Return a mock chat object
-      return {
-          sendMessageStream: async ({ message }: { message: string }) => {
-               // Async generator for stream
-               return (async function* () {
-                   yield { text: `[${provider}]: ${message} (Simulated)` } as GenerateContentResponse;
-               })();
-          }
-      } as unknown as Chat;
-  }
-
-  // Get current best key synchronously-ish (async wrapper needed in component or we await here)
-  // Since this function is synchronous in the original signature, we must modify consumer or cheat.
-  // We'll throw if no key is found immediately for simplicity, or consumers should ensure keys exist.
-  // Ideally, startChat should be async.
   throw new Error("startChat should be called asynchronously via startChatAsync or similar in this new architecture.");
 };
 
-export const startChatAsync = async (model: string = GEMINI_PRO_MODEL, provider: ProviderName = 'Google Gemini'): Promise<Chat> => {
+export const startChatAsync = async (
+  model: string = GEMINI_FLASH_MODEL, 
+  provider: ProviderName = 'Google Gemini',
+  systemInstruction?: string
+): Promise<Chat> => {
     if (provider !== 'Google Gemini') {
          return {
           sendMessageStream: async ({ message }: { message: string }) => {
@@ -460,7 +443,15 @@ export const startChatAsync = async (model: string = GEMINI_PRO_MODEL, provider:
 
     const apiKey = await getBestApiKey(provider);
     const ai = createGeminiClient(apiKey);
-    return ai.chats.create({ model: model });
+    
+    // Create config object only if parameters exist
+    const config: any = {};
+    if (systemInstruction) config.systemInstruction = systemInstruction;
+
+    return ai.chats.create({ 
+      model: model,
+      config: Object.keys(config).length > 0 ? config : undefined
+    });
 };
 
 export const sendMessageToChat = async (

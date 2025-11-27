@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChatMessage as ChatMessageType, ProviderName } from '../types';
 import { startChatAsync, sendMessageToChat } from '../services/geminiService';
 import { Chat } from '@google/genai';
-import { GEMINI_PRO_MODEL } from '../constants';
+import { GEMINI_FLASH_MODEL } from '../constants';
 import { TrashIcon, SparklesIcon, CpuChipIcon } from '@heroicons/react/24/outline';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
@@ -17,6 +17,11 @@ const SUGGESTIONS = [
 ];
 
 const PROVIDERS: ProviderName[] = ['Google Gemini', 'OpenAI', 'Anthropic', 'Mistral', 'Meta LLaMA'];
+
+const SYSTEM_INSTRUCTION = `Você é a VitrineX AI, uma assistente virtual avançada especializada em Marketing Digital, Copywriting e Estratégia de Conteúdo.
+Seu objetivo é ajudar empreendedores e profissionais de marketing a criar campanhas eficazes, textos persuasivos e planejamentos estratégicos.
+Adote um tom profissional, criativo e encorajador. Seja concisa mas detalhada quando necessário.
+Se o usuário pedir para criar conteúdo, forneça exemplos práticos e prontos para uso.`;
 
 const Chatbot: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
@@ -32,8 +37,9 @@ const Chatbot: React.FC = () => {
   const initChat = useCallback(async () => {
     try {
       setLoading(true);
-      // We use the async version now to support key retrieval
-      const newChat = await startChatAsync(GEMINI_PRO_MODEL, selectedProvider);
+      // We use the async version now to support key retrieval and pass System Instruction
+      // Also using GEMINI_FLASH_MODEL (gemini-2.5-flash) for faster, more efficient chat
+      const newChat = await startChatAsync(GEMINI_FLASH_MODEL, selectedProvider, SYSTEM_INSTRUCTION);
       setChatSession(newChat);
       setMessages([
         {

@@ -16,8 +16,16 @@ import {
   ShieldCheckIcon,
   ArrowPathIcon,
   BeakerIcon,
-  SparklesIcon
+  SparklesIcon,
+  StarIcon,
+  ChevronDownIcon,
+  ChevronUpIcon,
+  KeyIcon,
+  EyeIcon,
+  EyeSlashIcon,
+  BoltIcon
 } from '@heroicons/react/24/outline';
+import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
 const PROVIDERS: ProviderName[] = [
   'Google Gemini', 'OpenAI', 'Anthropic', 'Mistral', 'Groq', 
@@ -41,6 +49,8 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
   // Key Manager State
   const [apiKeys, setApiKeys] = useState<ApiKeyConfig[]>([]);
   const [keysLoading, setKeysLoading] = useState<boolean>(true);
+  const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
+  const [showKeySecret, setShowKeySecret] = useState<Record<string, boolean>>({});
   
   // Add Key Form State
   const [newKeyProvider, setNewKeyProvider] = useState<ProviderName>('Google Gemini');
@@ -96,6 +106,13 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
     try {
       const keys = await getApiKeys();
       setApiKeys(keys);
+      
+      // Auto-expand providers that have keys
+      const newExpanded: Record<string, boolean> = {};
+      keys.forEach(k => {
+        newExpanded[k.provider] = true;
+      });
+      setExpandedProviders(prev => ({ ...newExpanded, ...prev })); // Keep user interactions, but expand existing
     } catch (err) {
       console.error('Error fetching keys:', err);
     } finally {
@@ -206,6 +223,9 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
       
       // Clear success message after 3 seconds
       setTimeout(() => setTestResult(null), 3000);
+      
+      // Ensure the provider is expanded
+      setExpandedProviders(prev => ({ ...prev, [newKeyProvider]: true }));
     } catch (err) {
       alert('Error adding key');
     } finally {
@@ -237,19 +257,52 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
   };
 
   const handleSetDefault = async (key: ApiKeyConfig) => {
+    if (key.isDefault) return; // Already default
     const updated = { ...key, isDefault: true };
     await saveApiKey(updated);
     await fetchKeys();
   };
 
-  const getStatusBadge = (status: KeyStatus) => {
-    switch (status) {
-      case 'valid': return <span className="flex items-center text-green-400 text-xs bg-green-900/20 px-2 py-0.5 rounded border border-green-800"><CheckCircleIcon className="w-3.5 h-3.5 mr-1"/> Valid</span>;
-      case 'invalid': return <span className="flex items-center text-red-400 text-xs bg-red-900/20 px-2 py-0.5 rounded border border-red-800"><XCircleIcon className="w-3.5 h-3.5 mr-1"/> Invalid</span>;
-      case 'rate-limited': return <span className="flex items-center text-yellow-400 text-xs bg-yellow-900/20 px-2 py-0.5 rounded border border-yellow-800"><ExclamationTriangleIcon className="w-3.5 h-3.5 mr-1"/> Limited</span>;
-      case 'expired': return <span className="flex items-center text-orange-400 text-xs bg-orange-900/20 px-2 py-0.5 rounded border border-orange-800"><ExclamationTriangleIcon className="w-3.5 h-3.5 mr-1"/> Expired</span>;
-      default: return <span className="flex items-center text-gray-400 text-xs bg-gray-800 px-2 py-0.5 rounded border border-gray-700"><ArrowPathIcon className="w-3.5 h-3.5 mr-1"/> Unchecked</span>;
-    }
+  const toggleAccordion = (provider: string) => {
+    setExpandedProviders(prev => ({ ...prev, [provider]: !prev[provider] }));
+  };
+
+  const toggleKeyVisibility = (id: string) => {
+    setShowKeySecret(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // Visual Components
+  const StatusBadge = ({ status }: { status: KeyStatus }) => {
+    const styles = {
+      valid: 'bg-green-500/10 text-green-400 border-green-500/20',
+      invalid: 'bg-red-500/10 text-red-400 border-red-500/20',
+      expired: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+      'rate-limited': 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
+      unchecked: 'bg-gray-700/30 text-gray-400 border-gray-600/30',
+    };
+
+    const icons = {
+      valid: <CheckCircleIcon className="w-3 h-3" />,
+      invalid: <XCircleIcon className="w-3 h-3" />,
+      expired: <ExclamationTriangleIcon className="w-3 h-3" />,
+      'rate-limited': <BoltIcon className="w-3 h-3" />,
+      unchecked: <ArrowPathIcon className="w-3 h-3" />,
+    };
+
+    const labels = {
+      valid: 'Valid',
+      invalid: 'Invalid',
+      expired: 'Expired',
+      'rate-limited': 'Rate Limited',
+      unchecked: 'Unchecked',
+    };
+
+    return (
+      <span className={`inline-flex items-center gap-1.5 px-2 py-0.5 rounded text-[10px] font-medium border ${styles[status]}`}>
+        {icons[status]}
+        {labels[status]}
+      </span>
+    );
   };
 
   return (
@@ -293,7 +346,7 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
            <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
              <div className="flex items-center justify-between mb-6">
                 <h3 className="text-lg font-semibold text-textlight flex items-center">
-                   <SparklesIcon className="w-5 h-5 mr-2 text-accent" /> Gerenciar Chaves
+                   <PlusIcon className="w-5 h-5 mr-2 text-accent" /> Adicionar Nova Chave
                 </h3>
              </div>
              
@@ -310,25 +363,34 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
                </div>
                
                <div className="md:col-span-3">
-                  <Input id="keyLabel" placeholder="Ex: Produção..." value={newKeyLabel} onChange={(e) => setNewKeyLabel(e.target.value)} label="Nome" className="mb-0" />
+                  <Input id="keyLabel" placeholder="Ex: Produção, Teste..." value={newKeyLabel} onChange={(e) => setNewKeyLabel(e.target.value)} label="Nome/Rótulo" className="mb-0" />
                </div>
                
-               <div className="md:col-span-4 relative">
-                  <Input id="keyValue" type="password" placeholder="sk-..." value={newKeyValue} onChange={(e) => setNewKeyValue(e.target.value)} label="Chave API" className="mb-0 pr-10" />
-                  {/* Test button inside/near input context could go here, but placing it as a main action is cleaner */}
+               <div className="md:col-span-4 relative group">
+                  <Input 
+                    id="keyValue" 
+                    type="password" 
+                    placeholder="Cole sua chave aqui..." 
+                    value={newKeyValue} 
+                    onChange={(e) => setNewKeyValue(e.target.value)} 
+                    label="Chave API" 
+                    className="mb-0 pr-10" 
+                  />
+                  <div className="absolute right-0 top-[28px] h-[38px] flex items-center pr-1">
+                      <button
+                        onClick={handleTestConnection}
+                        disabled={testingKey || !newKeyValue}
+                        className="text-xs bg-gray-700 hover:bg-gray-600 text-white px-2 py-1 rounded mr-1 disabled:opacity-50 transition-colors"
+                        title="Testar Conexão"
+                      >
+                         {testingKey ? '...' : 'Testar'}
+                      </button>
+                  </div>
                </div>
                
-               <div className="md:col-span-2 flex gap-2">
-                 <button 
-                   onClick={handleTestConnection} 
-                   disabled={testingKey || !newKeyValue}
-                   className="flex items-center justify-center px-3 py-2 border border-gray-600 rounded-md text-textlight hover:bg-gray-800 hover:text-white transition-colors disabled:opacity-50"
-                   title="Testar Conexão"
-                 >
-                    {testingKey ? <LoadingSpinner /> : <BeakerIcon className="w-5 h-5" />}
-                 </button>
-                 <Button onClick={handleAddKey} isLoading={addingKey} variant="primary" className="w-full flex-1" disabled={!newKeyValue || !newKeyLabel}>
-                   Salvar
+               <div className="md:col-span-2">
+                 <Button onClick={handleAddKey} isLoading={addingKey} variant="primary" className="w-full" disabled={!newKeyValue || !newKeyLabel}>
+                   Salvar Chave
                  </Button>
                </div>
              </div>
@@ -340,93 +402,133 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
                     {testResult.message}
                 </div>
              )}
-
-             <p className="text-xs text-textmuted mt-4 flex items-center opacity-70">
-               <ShieldCheckIcon className="w-4 h-4 mr-1" />
-               Chaves são armazenadas com segurança. A validação automática ocorre ao salvar.
-             </p>
+             
+             <div className="mt-4 flex items-center text-xs text-textmuted opacity-70">
+               <ShieldCheckIcon className="w-4 h-4 mr-1.5" />
+               <span>Suas chaves são armazenadas localmente no seu navegador para esta demonstração.</span>
+             </div>
            </div>
 
            {/* Keys List */}
-           <div className="space-y-6">
+           <div className="space-y-4">
              {keysLoading ? (
                <div className="flex justify-center p-8"><LoadingSpinner /></div>
              ) : apiKeys.length === 0 ? (
                <div className="text-center p-12 text-textmuted border border-dashed border-gray-800 rounded-lg bg-lightbg/50">
-                 <PlusIcon className="w-10 h-10 mx-auto mb-3 opacity-20" />
+                 <KeyIcon className="w-10 h-10 mx-auto mb-3 opacity-20" />
                  <p>Nenhuma chave configurada.</p>
-                 <p className="text-sm opacity-60">Adicione suas chaves de API acima para ativar os recursos de IA.</p>
+                 <p className="text-sm opacity-60">Adicione suas chaves de API acima para começar.</p>
                </div>
              ) : (
                PROVIDERS.map(provider => {
                  const providerKeys = apiKeys.filter(k => k.provider === provider);
                  if (providerKeys.length === 0) return null;
+                 const isExpanded = expandedProviders[provider];
 
                  return (
                    <div key={provider} className="bg-lightbg rounded-lg shadow-sm border border-gray-800 overflow-hidden">
-                     <div className="bg-gray-900/50 px-6 py-3 border-b border-gray-800 flex justify-between items-center">
-                        <div className="flex items-center gap-2">
-                            <span className="w-2 h-2 rounded-full bg-accent"></span>
-                            <h4 className="font-semibold text-textlight">{provider}</h4>
+                     <button 
+                       onClick={() => toggleAccordion(provider)}
+                       className="w-full bg-gray-900/50 px-6 py-4 border-b border-gray-800 flex justify-between items-center hover:bg-gray-800/50 transition-colors"
+                     >
+                        <div className="flex items-center gap-3">
+                            <span className="w-2 h-2 rounded-full bg-accent shadow-[0_0_8px_rgba(0,255,153,0.4)]"></span>
+                            <h4 className="font-semibold text-textlight text-sm uppercase tracking-wide">{provider}</h4>
                         </div>
-                        <span className="text-xs bg-gray-800 text-textmuted px-2 py-1 rounded-full border border-gray-700">{providerKeys.length} chave(s)</span>
-                     </div>
-                     <div className="divide-y divide-gray-800">
-                       {providerKeys.map(key => (
-                         <div key={key.id} className={`p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-colors hover:bg-white/[0.02] ${!key.isActive ? 'opacity-60 bg-gray-900/30' : ''}`}>
-                           <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                <span className="font-medium text-textdark truncate">{key.label}</span>
-                                {key.isDefault && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded border border-primary/30 font-bold tracking-wide">DEFAULT</span>}
-                                {getStatusBadge(key.status)}
-                              </div>
-                              <div className="flex items-center text-xs text-textmuted gap-3 mt-1.5">
-                                <span className="font-mono bg-darkbg px-1.5 py-0.5 rounded border border-gray-700">•••• {key.key.slice(-4)}</span>
-                                <span className="hidden sm:inline">Criada: {new Date(key.createdAt).toLocaleDateString()}</span>
-                                <span className="hidden sm:inline">•</span>
-                                <span>Uso: {key.usageCount}</span>
-                              </div>
-                              {key.errorMessage && (
-                                <p className="text-xs text-red-400 mt-2 bg-red-900/10 p-1.5 rounded border border-red-900/20 max-w-xl">
-                                    <span className="font-bold">Erro:</span> {key.errorMessage}
-                                </p>
-                              )}
+                        <div className="flex items-center gap-4">
+                            <span className="text-xs bg-darkbg text-textmuted px-2.5 py-0.5 rounded-full border border-gray-700 font-mono">
+                                {providerKeys.length} {providerKeys.length === 1 ? 'chave' : 'chaves'}
+                            </span>
+                            {isExpanded ? <ChevronUpIcon className="w-4 h-4 text-textmuted" /> : <ChevronDownIcon className="w-4 h-4 text-textmuted" />}
+                        </div>
+                     </button>
+                     
+                     {isExpanded && (
+                       <div className="divide-y divide-gray-800/50">
+                         {providerKeys.map(key => (
+                           <div key={key.id} className={`p-4 transition-colors ${!key.isActive ? 'opacity-60 bg-gray-900/20' : 'hover:bg-white/[0.01]'}`}>
+                             <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+                               {/* Left Section: Info */}
+                               <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 mb-1.5">
+                                    <span className="font-medium text-textdark truncate text-sm">{key.label}</span>
+                                    <StatusBadge status={key.status} />
+                                  </div>
+                                  
+                                  <div className="flex items-center text-xs text-textmuted gap-3 font-mono">
+                                    <div className="flex items-center bg-darkbg px-2 py-1 rounded border border-gray-700/50">
+                                      <span className="mr-2">
+                                        {showKeySecret[key.id] ? key.key : `••••••••••••${key.key.slice(-4)}`}
+                                      </span>
+                                      <button onClick={() => toggleKeyVisibility(key.id)} className="text-gray-500 hover:text-white">
+                                        {showKeySecret[key.id] ? <EyeSlashIcon className="w-3 h-3" /> : <EyeIcon className="w-3 h-3" />}
+                                      </button>
+                                    </div>
+                                    <span className="hidden sm:inline text-gray-600">|</span>
+                                    <span>Adicionada: {new Date(key.createdAt).toLocaleDateString()}</span>
+                                  </div>
+
+                                  {key.errorMessage && (
+                                    <div className="mt-2 text-xs text-red-400 bg-red-900/10 p-2 rounded border border-red-900/20 flex items-start">
+                                        <ExclamationTriangleIcon className="w-4 h-4 mr-1.5 shrink-0" />
+                                        <span>{key.errorMessage}</span>
+                                    </div>
+                                  )}
+                               </div>
+                               
+                               {/* Right Section: Actions */}
+                               <div className="flex items-center gap-2 shrink-0 self-end md:self-center">
+                                 {/* Default Toggle */}
+                                 <button 
+                                   onClick={() => handleSetDefault(key)}
+                                   disabled={key.isDefault}
+                                   className={`p-1.5 rounded-md transition-all ${
+                                     key.isDefault 
+                                     ? 'text-yellow-400 cursor-default' 
+                                     : 'text-gray-600 hover:text-yellow-400 hover:bg-yellow-900/10'
+                                   }`}
+                                   title={key.isDefault ? "Chave Padrão" : "Definir como Padrão"}
+                                 >
+                                   {key.isDefault ? <StarIconSolid className="w-5 h-5" /> : <StarIcon className="w-5 h-5" />}
+                                 </button>
+
+                                 {/* Validate */}
+                                 <button 
+                                   onClick={() => handleValidateKey(key)} 
+                                   disabled={validatingId === key.id}
+                                   className="p-1.5 text-textmuted hover:text-accent hover:bg-accent/10 rounded-md transition-colors" 
+                                   title="Revalidar Conexão"
+                                 >
+                                   {validatingId === key.id ? <LoadingSpinner /> : <ArrowPathIcon className="w-5 h-5" />}
+                                 </button>
+
+                                 {/* Pause/Active Toggle */}
+                                 <button 
+                                   onClick={() => handleToggleActive(key)}
+                                   className={`px-2 py-1 rounded text-[10px] font-bold uppercase tracking-wider border transition-colors ${
+                                     key.isActive 
+                                     ? 'border-green-600/30 text-green-400 hover:bg-green-900/20' 
+                                     : 'border-gray-600 text-gray-400 hover:bg-gray-800'
+                                   }`}
+                                 >
+                                   {key.isActive ? 'ON' : 'OFF'}
+                                 </button>
+
+                                 {/* Delete */}
+                                 <div className="w-px h-4 bg-gray-700 mx-1"></div>
+                                 <button 
+                                   onClick={() => handleDeleteKey(key.id)}
+                                   className="p-1.5 text-textmuted hover:text-red-400 hover:bg-red-900/20 rounded-md transition-colors"
+                                   title="Excluir Chave"
+                                 >
+                                   <TrashIcon className="w-4 h-4" />
+                                 </button>
+                               </div>
+                             </div>
                            </div>
-                           
-                           <div className="flex items-center gap-2 shrink-0">
-                             <button 
-                               onClick={() => handleValidateKey(key)} 
-                               disabled={validatingId === key.id}
-                               className="p-2 text-textmuted hover:text-accent hover:bg-white/5 rounded-md transition-colors" 
-                               title="Testar/Revalidar"
-                             >
-                               {validatingId === key.id ? <LoadingSpinner /> : <ArrowPathIcon className="w-5 h-5" />}
-                             </button>
-                             <button 
-                               onClick={() => handleToggleActive(key)}
-                               className={`px-3 py-1.5 rounded text-xs font-medium border transition-colors ${key.isActive ? 'border-green-600/30 text-green-400 hover:bg-green-900/20' : 'border-gray-600 text-gray-400 hover:bg-gray-800'}`}
-                             >
-                               {key.isActive ? 'Ativa' : 'Pausada'}
-                             </button>
-                             {!key.isDefault && (
-                               <button 
-                                 onClick={() => handleSetDefault(key)}
-                                 className="px-3 py-1.5 rounded text-xs font-medium border border-gray-600 text-gray-400 hover:bg-gray-800 hover:text-white transition-colors"
-                               >
-                                 Definir Padrão
-                               </button>
-                             )}
-                             <button 
-                               onClick={() => handleDeleteKey(key.id)}
-                               className="p-2 text-textmuted hover:text-red-400 hover:bg-red-900/20 rounded-md transition-colors"
-                               title="Excluir Chave"
-                             >
-                               <TrashIcon className="w-5 h-5" />
-                             </button>
-                           </div>
-                         </div>
-                       ))}
-                     </div>
+                         ))}
+                       </div>
+                     )}
                    </div>
                  );
                })
