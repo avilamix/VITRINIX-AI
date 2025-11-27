@@ -1,3 +1,5 @@
+
+
 export interface TranscriptionSegment {
   text: string;
   isFinal: boolean;
@@ -94,16 +96,45 @@ export interface ChatMessage {
   timestamp: string; // ISO date string
 }
 
+// --- API Key Management Types ---
+
+export type ProviderName =
+  | 'Google Gemini'
+  | 'OpenAI'
+  | 'Anthropic'
+  | 'Mistral'
+  | 'Groq'
+  | 'DeepSeek'
+  | 'Cohere'
+  | 'Meta LLaMA'
+  | 'Replicate'
+  | 'Hugging Face'
+  | 'Together AI';
+
+export type KeyStatus = 'valid' | 'invalid' | 'expired' | 'rate-limited' | 'unchecked';
+
+export interface ApiKeyConfig {
+  id: string;
+  provider: ProviderName;
+  key: string; // Stored "encrypted" in backend, plaintext here for mock
+  label: string;
+  isActive: boolean;
+  isDefault: boolean;
+  createdAt: string;
+  lastValidatedAt?: string;
+  status: KeyStatus;
+  errorMessage?: string;
+  usageCount: number;
+}
+
+export interface ApiKeySystemConfig {
+  defaultProvider: ProviderName;
+}
+
 // FIX: Define AIStudio interface explicitly to avoid type conflicts
-// This interface is exported for use within the module context.
 export interface AIStudio {
   hasSelectedApiKey: () => Promise<boolean>;
   openSelectKey: () => Promise<void>;
 }
 
-// For Gemini API window object
-declare global {
-  interface Window {
-    aistudio?: AIStudio;
-  }
-}
+// REMOVED Global declaration to avoid conflict with src/types.ts

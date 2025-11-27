@@ -1,9 +1,10 @@
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
-import { ChatMessage as ChatMessageType } from '../types';
-import { startChat, sendMessageToChat } from '../services/geminiService';
+import { ChatMessage as ChatMessageType, ProviderName } from '../types';
+import { startChatAsync, sendMessageToChat } from '../services/geminiService';
 import { Chat } from '@google/genai';
 import { GEMINI_PRO_MODEL } from '../constants';
-import { TrashIcon, SparklesIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, SparklesIcon, CpuChipIcon } from '@heroicons/react/24/outline';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
 import TypingIndicator from '../components/TypingIndicator';
@@ -15,33 +16,38 @@ const SUGGESTIONS = [
   "Melhore este texto para torná-lo mais profissional: [Cole seu texto]"
 ];
 
+const PROVIDERS: ProviderName[] = ['Google Gemini', 'OpenAI', 'Anthropic', 'Mistral', 'Meta LLaMA'];
+
 const Chatbot: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [chatSession, setChatSession] = useState<Chat | null>(null);
+  const [selectedProvider, setSelectedProvider] = useState<ProviderName>('Google Gemini');
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
 
   const initChat = useCallback(async () => {
     try {
       setLoading(true);
-      const newChat = startChat(GEMINI_PRO_MODEL);
+      // We use the async version now to support key retrieval
+      const newChat = await startChatAsync(GEMINI_PRO_MODEL, selectedProvider);
       setChatSession(newChat);
       setMessages([
         {
           role: 'model',
-          text: 'Olá! Sou a VitrineX AI. Como posso impulsionar seu marketing hoje?',
+          text: `Olá! Sou a VitrineX AI (${selectedProvider}). Como posso impulsionar seu marketing hoje?`,
           timestamp: new Date().toISOString(),
         },
       ]);
       setLoading(false);
     } catch (err) {
       console.error('Error starting chat:', err);
-      setError(`Failed to start chat: ${err instanceof Error ? err.message : String(err)}`);
+      setError(`Failed to start chat with ${selectedProvider}. Please check your keys in Settings.`);
       setLoading(false);
     }
-  }, []);
+  }, [selectedProvider]);
 
   useEffect(() => {
     initChat();
@@ -77,7 +83,7 @@ const Chatbot: React.FC = () => {
       setMessages((prev) => [...prev, newModelMessage]);
     } catch (err) {
       console.error('Error sending message:', err);
-      setError('Ocorreu um erro ao processar sua mensagem. Tente novamente.');
+      setError('Ocorreu um erro ao processar sua mensagem. Tente novamente ou troque de provedor.');
       setMessages((prev) => [...prev, {
         role: 'model',
         text: '⚠️ Tive um problema de conexão. Poderia repetir?',
@@ -94,6 +100,11 @@ const Chatbot: React.FC = () => {
     }
   };
 
+  const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      setSelectedProvider(e.target.value as ProviderName);
+      // Chat will re-init via useEffect dependency
+  };
+
   return (
     <div className="flex flex-col h-full bg-darkbg relative">
       {/* Header */}
@@ -105,12 +116,15 @@ const Chatbot: React.FC = () => {
             </div>
             <div>
               <h1 className="text-base font-bold text-textdark leading-tight">Assistente de Marketing</h1>
-              <div className="flex items-center gap-1.5">
-                <span className="relative flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                </span>
-                <p className="text-xs text-textmuted font-medium">Gemini Pro Ativo</p>
+              <div className="flex items-center gap-2 mt-1">
+                 <CpuChipIcon className="w-3 h-3 text-textmuted" />
+                 <select 
+                    value={selectedProvider} 
+                    onChange={handleProviderChange}
+                    className="bg-transparent text-xs text-textmuted font-medium border-none p-0 focus:ring-0 cursor-pointer hover:text-textlight"
+                 >
+                    {PROVIDERS.map(p => <option key={p} value={p}>{p}</option>)}
+                 </select>
               </div>
             </div>
           </div>
@@ -181,7 +195,7 @@ const Chatbot: React.FC = () => {
           
           <div className="mt-2 text-center">
              <p className="text-[10px] text-gray-600">
-                O assistente pode cometer erros. Considere verificar informações importantes.
+                Usando {selectedProvider}. O assistente pode cometer erros.
              </p>
           </div>
         </div>

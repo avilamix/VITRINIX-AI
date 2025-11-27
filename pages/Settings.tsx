@@ -1,29 +1,56 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { getUserProfile, updateUserProfile } from '../services/firestoreService';
-import { UserProfile } from '../types';
+import { getUserProfile, updateUserProfile, getApiKeys, saveApiKey, deleteApiKey } from '../services/firestoreService';
+import { validateKey } from '../services/keyManagerService';
+import { UserProfile, ApiKeyConfig, ProviderName, KeyStatus } from '../types';
 import { DEFAULT_BUSINESS_PROFILE } from '../constants';
+import { 
+  CheckCircleIcon, 
+  XCircleIcon, 
+  ExclamationTriangleIcon, 
+  KeyIcon, 
+  TrashIcon, 
+  PlusIcon,
+  ShieldCheckIcon,
+  ArrowPathIcon
+} from '@heroicons/react/24/outline';
+
+const PROVIDERS: ProviderName[] = [
+  'Google Gemini', 'OpenAI', 'Anthropic', 'Mistral', 'Groq', 
+  'DeepSeek', 'Cohere', 'Meta LLaMA', 'Replicate', 'Hugging Face', 'Together AI'
+];
 
 interface SettingsProps {
-  onApiKeySelected: () => void; // Callback to re-check API key status
-  onOpenApiKeySelection: () => void; // Callback to open API key selection dialog
+  onApiKeySelected: () => void;
+  onOpenApiKeySelection: () => void;
 }
 
 const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelection }) => {
+  const [activeTab, setActiveTab] = useState<'profile' | 'keys'>('keys');
+  
+  // Profile State
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [businessProfileForm, setBusinessProfileForm] = useState<UserProfile['businessProfile']>(DEFAULT_BUSINESS_PROFILE);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [saving, setSaving] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
-  const [hasApiSelectionWindow, setHasApiSelectionWindow] = useState<boolean>(false);
+  const [profileLoading, setProfileLoading] = useState<boolean>(true);
+  const [savingProfile, setSavingProfile] = useState<boolean>(false);
 
-  const userId = 'mock-user-123'; // Mock user ID
+  // Key Manager State
+  const [apiKeys, setApiKeys] = useState<ApiKeyConfig[]>([]);
+  const [keysLoading, setKeysLoading] = useState<boolean>(true);
+  const [newKeyProvider, setNewKeyProvider] = useState<ProviderName>('Google Gemini');
+  const [newKeyLabel, setNewKeyLabel] = useState<string>('');
+  const [newKeyValue, setNewKeyValue] = useState<string>('');
+  const [addingKey, setAddingKey] = useState<boolean>(false);
+  const [validatingId, setValidatingId] = useState<string | null>(null);
 
+  const userId = 'mock-user-123';
+
+  // --- Profile Logic ---
   const fetchUserProfile = useCallback(async () => {
-    setLoading(true);
-    setError(null);
+    setProfileLoading(true);
     try {
       const profile = await getUserProfile(userId);
       if (profile) {
@@ -32,168 +59,267 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
       }
     } catch (err) {
       console.error('Failed to fetch user profile:', err);
-      setError('Failed to load user profile. Please try again.');
     } finally {
-      setLoading(false);
+      setProfileLoading(false);
     }
   }, [userId]);
 
-  useEffect(() => {
-    fetchUserProfile();
-    if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
-      setHasApiSelectionWindow(true);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
   const handleBusinessProfileChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
-    setBusinessProfileForm((prev) => ({
-      ...prev,
-      [id]: value,
-    }));
+    setBusinessProfileForm((prev) => ({ ...prev, [id]: value }));
   }, []);
 
   const handleSaveSettings = useCallback(async () => {
     if (!userProfile) return;
-
-    setSaving(true);
-    setError(null);
+    setSavingProfile(true);
     try {
-      const updatedProfile: UserProfile = {
-        ...userProfile,
-        businessProfile: businessProfileForm,
-      };
+      const updatedProfile: UserProfile = { ...userProfile, businessProfile: businessProfileForm };
       await updateUserProfile(userId, updatedProfile);
       setUserProfile(updatedProfile);
       alert('Configurações salvas com sucesso!');
     } catch (err) {
-      console.error('Error saving settings:', err);
-      setError(`Failed to save settings: ${err instanceof Error ? err.message : String(err)}`);
+      alert(`Falha ao salvar: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      setSaving(false);
+      setSavingProfile(false);
     }
   }, [userProfile, businessProfileForm, userId]);
 
+  // --- Key Manager Logic ---
+  const fetchKeys = useCallback(async () => {
+    setKeysLoading(true);
+    try {
+      const keys = await getApiKeys();
+      setApiKeys(keys);
+    } catch (err) {
+      console.error('Error fetching keys:', err);
+    } finally {
+      setKeysLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchUserProfile();
+    fetchKeys();
+  }, []); // Run once on mount
+
+  const handleAddKey = async () => {
+    if (!newKeyValue.trim() || !newKeyLabel.trim()) return;
+    setAddingKey(true);
+    try {
+      const newKey: ApiKeyConfig = {
+        id: `key-${Date.now()}`,
+        provider: newKeyProvider,
+        key: newKeyValue.trim(),
+        label: newKeyLabel.trim(),
+        isActive: true,
+        isDefault: apiKeys.filter(k => k.provider === newKeyProvider).length === 0,
+        createdAt: new Date().toISOString(),
+        status: 'unchecked',
+        usageCount: 0
+      };
+      
+      // Auto-validate on add
+      const validation = await validateKey(newKey);
+      const validatedKey = { ...newKey, ...validation };
+
+      await saveApiKey(validatedKey);
+      await fetchKeys();
+      setNewKeyValue('');
+      setNewKeyLabel('');
+    } catch (err) {
+      alert('Error adding key');
+    } finally {
+      setAddingKey(false);
+    }
+  };
+
+  const handleValidateKey = async (key: ApiKeyConfig) => {
+    setValidatingId(key.id);
+    try {
+      const res = await validateKey(key);
+      // Update local state to reflect change immediately
+      setApiKeys(prev => prev.map(k => k.id === key.id ? { ...k, status: res.status, errorMessage: res.error } : k));
+    } finally {
+      setValidatingId(null);
+    }
+  };
+
+  const handleDeleteKey = async (id: string) => {
+    if (!window.confirm('Remover esta chave API?')) return;
+    await deleteApiKey(id);
+    await fetchKeys();
+  };
+
+  const handleToggleActive = async (key: ApiKeyConfig) => {
+    const updated = { ...key, isActive: !key.isActive };
+    await saveApiKey(updated);
+    await fetchKeys();
+  };
+
+  const handleSetDefault = async (key: ApiKeyConfig) => {
+    const updated = { ...key, isDefault: true };
+    await saveApiKey(updated);
+    await fetchKeys();
+  };
+
+  const getStatusBadge = (status: KeyStatus) => {
+    switch (status) {
+      case 'valid': return <span className="flex items-center text-green-400 text-xs"><CheckCircleIcon className="w-4 h-4 mr-1"/> Valid</span>;
+      case 'invalid': return <span className="flex items-center text-red-400 text-xs"><XCircleIcon className="w-4 h-4 mr-1"/> Invalid</span>;
+      case 'rate-limited': return <span className="flex items-center text-yellow-400 text-xs"><ExclamationTriangleIcon className="w-4 h-4 mr-1"/> Rate Limit</span>;
+      case 'expired': return <span className="flex items-center text-orange-400 text-xs"><ExclamationTriangleIcon className="w-4 h-4 mr-1"/> Expired</span>;
+      default: return <span className="flex items-center text-gray-400 text-xs"><ArrowPathIcon className="w-4 h-4 mr-1"/> Unchecked</span>;
+    }
+  };
+
   return (
     <div className="container mx-auto py-8 lg:py-10">
-      <h2 className="text-3xl font-bold text-textdark mb-8">Configurações</h2>
-
-      {error && (
-        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
-          <strong className="font-bold">Error!</strong>
-          <span className="block sm:inline"> {error}</span>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <h2 className="text-3xl font-bold text-textdark">Configurações</h2>
+        <div className="flex bg-lightbg rounded-lg p-1 border border-gray-800">
+          <button 
+            onClick={() => setActiveTab('keys')}
+            className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'keys' ? 'bg-accent text-darkbg shadow-sm' : 'text-textlight hover:text-white'}`}
+          >
+            Chaves de API (Multi-Provedor)
+          </button>
+          <button 
+             onClick={() => setActiveTab('profile')}
+             className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${activeTab === 'profile' ? 'bg-accent text-darkbg shadow-sm' : 'text-textlight hover:text-white'}`}
+          >
+            Perfil do Negócio
+          </button>
         </div>
+      </div>
+
+      {activeTab === 'profile' && (
+         <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 max-w-2xl">
+            <h3 className="text-xl font-semibold text-textlight mb-5">Perfil do Negócio</h3>
+            {profileLoading ? <LoadingSpinner /> : (
+              <>
+                <Input id="name" label="Nome da Empresa" value={businessProfileForm.name} onChange={handleBusinessProfileChange} />
+                <Input id="industry" label="Indústria" value={businessProfileForm.industry} onChange={handleBusinessProfileChange} />
+                <Input id="targetAudience" label="Público-alvo" value={businessProfileForm.targetAudience} onChange={handleBusinessProfileChange} />
+                <Input id="visualStyle" label="Estilo Visual" value={businessProfileForm.visualStyle} onChange={handleBusinessProfileChange} />
+                <Button onClick={handleSaveSettings} isLoading={savingProfile} variant="primary" className="mt-4">Salvar Configurações</Button>
+              </>
+            )}
+         </div>
       )}
 
-      {loading ? (
-        <div className="flex justify-center items-center h-48">
-          <LoadingSpinner />
-          <p className="ml-2 text-textlight">Loading settings...</p>
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Business Profile */}
-          <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
-            <h3 className="text-xl font-semibold text-textlight mb-5">Perfil do Negócio</h3>
-            <Input
-              id="name"
-              label="Nome da Empresa"
-              value={businessProfileForm.name}
-              onChange={handleBusinessProfileChange}
-              placeholder="Nome da sua empresa"
-            />
-            <Input
-              id="industry"
-              label="Indústria"
-              value={businessProfileForm.industry}
-              onChange={handleBusinessProfileChange}
-              placeholder="Ex: E-commerce de moda, Consultoria de TI"
-            />
-            <Input
-              id="targetAudience"
-              label="Público-alvo"
-              value={businessProfileForm.targetAudience}
-              onChange={handleBusinessProfileChange}
-              placeholder="Ex: Jovens adultos (18-35), Pequenas empresas"
-            />
-            <Input
-              id="visualStyle"
-              label="Estilo Visual"
-              value={businessProfileForm.visualStyle}
-              onChange={handleBusinessProfileChange}
-              placeholder="Ex: Moderno, Minimalista, Vibrante"
-            />
-            <Button
-              onClick={handleSaveSettings}
-              isLoading={saving}
-              variant="primary"
-              className="w-full md:w-auto mt-4"
-            >
-              {saving ? 'Salvando...' : 'Salvar Configurações'}
-            </Button>
-          </div>
+      {activeTab === 'keys' && (
+        <div className="space-y-8">
+           {/* Add Key Section */}
+           <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+             <h3 className="text-lg font-semibold text-textlight mb-4 flex items-center">
+               <PlusIcon className="w-5 h-5 mr-2 text-accent" /> Adicionar Nova Chave
+             </h3>
+             <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+               <div className="col-span-1">
+                 <label className="block text-sm font-medium text-textlight mb-1">Provedor</label>
+                 <select 
+                    value={newKeyProvider} 
+                    onChange={(e) => setNewKeyProvider(e.target.value as ProviderName)}
+                    className="block w-full px-3 py-2 border border-gray-700 rounded-md bg-darkbg text-textdark focus:ring-accent focus:border-accent sm:text-sm"
+                 >
+                    {PROVIDERS.map(p => <option key={p} value={p}>{p}</option>)}
+                 </select>
+               </div>
+               <div className="col-span-1">
+                  <Input id="keyLabel" placeholder="Ex: Produção, Backup..." value={newKeyLabel} onChange={(e) => setNewKeyLabel(e.target.value)} label="Nome/Rótulo" className="mb-0" />
+               </div>
+               <div className="col-span-1">
+                  <Input id="keyValue" type="password" placeholder="sk-..." value={newKeyValue} onChange={(e) => setNewKeyValue(e.target.value)} label="Chave API" className="mb-0" />
+               </div>
+               <div className="col-span-1">
+                 <Button onClick={handleAddKey} isLoading={addingKey} variant="primary" className="w-full" disabled={!newKeyValue || !newKeyLabel}>
+                   Salvar Chave
+                 </Button>
+               </div>
+             </div>
+             <p className="text-xs text-textmuted mt-3 flex items-center">
+               <ShieldCheckIcon className="w-4 h-4 mr-1" />
+               Chaves são armazenadas de forma "encriptada" no backend (simulado). Validação automática ao salvar.
+             </p>
+           </div>
 
-          {/* API Key & Subscription */}
-          <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
-            <h3 className="text-xl font-semibold text-textlight mb-5">API Key & Plano</h3>
+           {/* Keys List */}
+           <div className="space-y-6">
+             {keysLoading ? (
+               <div className="flex justify-center p-8"><LoadingSpinner /></div>
+             ) : apiKeys.length === 0 ? (
+               <div className="text-center p-8 text-textmuted border border-dashed border-gray-700 rounded-lg">
+                 Nenhuma chave configurada. Adicione uma acima para começar.
+               </div>
+             ) : (
+               PROVIDERS.map(provider => {
+                 const providerKeys = apiKeys.filter(k => k.provider === provider);
+                 if (providerKeys.length === 0) return null;
 
-            <div className="mb-8">
-              <label className="block text-sm font-medium text-textlight mb-2">Gemini API Key:</label>
-              {hasApiSelectionWindow ? (
-                <>
-                  <p className="text-sm text-textlight mb-3">
-                    Gerencie sua chave API do Google Gemini. Para usar modelos como Veo e o Gemini 3 Pro Image, você precisará de uma chave vinculada a um projeto de GCP pago.
-                  </p>
-                  <Button
-                    onClick={onOpenApiKeySelection}
-                    variant="secondary"
-                    className="w-full md:w-auto"
-                  >
-                    Alterar Chave API
-                  </Button>
-                  <p className="mt-3 text-sm text-textmuted">
-                    <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Saiba mais sobre faturamento</a>.
-                  </p>
-                </>
-              ) : (
-                <p className="text-sm text-yellow-300 bg-yellow-900 p-3 rounded-md">
-                  A ferramenta de seleção de API Key não está disponível neste ambiente. Por favor, certifique-se de que a variável de ambiente `API_KEY` esteja configurada.
-                </p>
-              )}
-            </div>
-
-            <div className="border-t border-gray-900 pt-6 mt-6">
-              <label className="block text-sm font-medium text-textlight mb-2">Plano de Assinatura:</label>
-              <p className="text-lg font-bold text-primary mb-3">
-                {userProfile?.plan ? userProfile.plan.charAt(0).toUpperCase() + userProfile.plan.slice(1) : 'Carregando...'}
-              </p>
-              <p className="text-sm text-textlight">
-                Gerencie seu plano de assinatura para ter acesso a mais recursos e usos.
-              </p>
-              <Button
-                onClick={() => alert('Gerenciar Plano not implemented.')}
-                variant="outline"
-                className="w-full md:w-auto mt-4"
-              >
-                Gerenciar Plano
-              </Button>
-            </div>
-
-            <div className="border-t border-gray-900 pt-6 mt-6">
-              <label className="block text-sm font-medium text-textlight mb-2">Exportação de Dados:</label>
-              <p className="text-sm text-textlight">
-                Baixe todos os seus dados gerados e configurados pela VitrineX AI.
-              </p>
-              <Button
-                onClick={() => alert('Baixar Dados not implemented.')}
-                variant="outline"
-                className="w-full md:w-auto mt-4"
-              >
-                Baixar Dados
-              </Button>
-            </div>
-          </div>
+                 return (
+                   <div key={provider} className="bg-lightbg rounded-lg shadow-sm border border-gray-800 overflow-hidden">
+                     <div className="bg-gray-900/50 px-6 py-3 border-b border-gray-800 flex justify-between items-center">
+                        <h4 className="font-semibold text-textlight">{provider}</h4>
+                        <span className="text-xs bg-gray-800 text-textmuted px-2 py-1 rounded-full">{providerKeys.length} chaves</span>
+                     </div>
+                     <div className="divide-y divide-gray-800">
+                       {providerKeys.map(key => (
+                         <div key={key.id} className={`p-4 flex flex-col md:flex-row items-start md:items-center justify-between gap-4 transition-colors ${!key.isActive ? 'opacity-60 bg-gray-900/30' : ''}`}>
+                           <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-textdark">{key.label}</span>
+                                {key.isDefault && <span className="text-[10px] bg-primary/20 text-primary px-1.5 py-0.5 rounded border border-primary/30">DEFAULT</span>}
+                                {getStatusBadge(key.status)}
+                              </div>
+                              <div className="flex items-center text-xs text-textmuted gap-3">
+                                <span className="font-mono">•••• {key.key.slice(-4)}</span>
+                                <span>Criada em: {new Date(key.createdAt).toLocaleDateString()}</span>
+                                <span>Uso: {key.usageCount} reqs</span>
+                              </div>
+                              {key.errorMessage && (
+                                <p className="text-xs text-red-400 mt-1">Erro: {key.errorMessage}</p>
+                              )}
+                           </div>
+                           
+                           <div className="flex items-center gap-2">
+                             <button 
+                               onClick={() => handleValidateKey(key)} 
+                               disabled={validatingId === key.id}
+                               className="p-1.5 text-textmuted hover:text-accent hover:bg-white/5 rounded" 
+                               title="Revalidar"
+                             >
+                               {validatingId === key.id ? <LoadingSpinner /> : <ArrowPathIcon className="w-5 h-5" />}
+                             </button>
+                             <button 
+                               onClick={() => handleToggleActive(key)}
+                               className={`px-3 py-1 rounded text-xs font-medium border ${key.isActive ? 'border-green-600/30 text-green-400 hover:bg-green-900/20' : 'border-gray-600 text-gray-400 hover:bg-gray-800'}`}
+                             >
+                               {key.isActive ? 'Ativa' : 'Inativa'}
+                             </button>
+                             {!key.isDefault && (
+                               <button 
+                                 onClick={() => handleSetDefault(key)}
+                                 className="px-3 py-1 rounded text-xs font-medium border border-gray-600 text-gray-400 hover:bg-gray-800 hover:text-white"
+                               >
+                                 Tornar Padrão
+                               </button>
+                             )}
+                             <button 
+                               onClick={() => handleDeleteKey(key.id)}
+                               className="p-1.5 text-textmuted hover:text-red-400 hover:bg-red-900/20 rounded"
+                               title="Excluir"
+                             >
+                               <TrashIcon className="w-5 h-5" />
+                             </button>
+                           </div>
+                         </div>
+                       ))}
+                     </div>
+                   </div>
+                 );
+               })
+             )}
+           </div>
         </div>
       )}
     </div>
