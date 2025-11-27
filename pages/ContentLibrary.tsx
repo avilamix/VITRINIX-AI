@@ -1,11 +1,13 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { LibraryItem } from '../types';
 import { getLibraryItems, deleteLibraryItem, saveLibraryItem } from '../services/firestoreService';
 import { uploadFile } from '../services/cloudStorageService';
+import { createFileSearchStore, uploadFileToSearchStore } from '../services/geminiService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import { TrashIcon, ArrowDownTrayIcon, ShareIcon, DocumentTextIcon, MusicalNoteIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, ArrowDownTrayIcon, ShareIcon, DocumentTextIcon, MusicalNoteIcon, CircleStackIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from '../hooks/useNavigate'; // Custom hook for navigation
 
 const ContentLibrary: React.FC = () => {
@@ -15,6 +17,11 @@ const ContentLibrary: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState<string>('');
   const [selectedTag, setSelectedTag] = useState<string>('all');
   const [uploading, setUploading] = useState<boolean>(false);
+  
+  // Knowledge Base State
+  const [kbLoading, setKbLoading] = useState<boolean>(false);
+  const [kbStoreName, setKbStoreName] = useState<string | null>(localStorage.getItem('vitrinex_kb_name'));
+  
   const { navigateTo } = useNavigate();
 
   const userId = 'mock-user-123'; // Mock user ID
@@ -38,6 +45,40 @@ const ContentLibrary: React.FC = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const handleCreateKnowledgeBase = async () => {
+     setKbLoading(true);
+     try {
+         const store = await createFileSearchStore(`VitrineX KB - ${new Date().toLocaleDateString()}`);
+         if (store && store.name) {
+             localStorage.setItem('vitrinex_kb_name', store.name);
+             setKbStoreName(store.name);
+             alert('Base de Conhecimento criada com sucesso! Agora você pode indexar arquivos.');
+         }
+     } catch (err) {
+         console.error(err);
+         alert('Erro ao criar base de conhecimento. Verifique sua chave API.');
+     } finally {
+         setKbLoading(false);
+     }
+  };
+
+  const handleIndexFile = async (item: LibraryItem) => {
+      if (!kbStoreName) {
+          alert('Por favor, crie uma Base de Conhecimento primeiro.');
+          return;
+      }
+      if (item.type !== 'text' && item.type !== 'post') {
+          // File Search works best with text/pdf.
+          // In this mock, we assume 'file_url' points to something we can fetch and upload, or we need the original File object.
+          // Since we lost the File object after upload in this mock architecture, we can't truly upload without re-fetching as blob.
+          alert('Nesta demonstração, apenas novos uploads podem ser indexados diretamente (limitação técnica do mock). Tente enviar o arquivo novamente.');
+          return;
+      }
+      
+      // Real implementation would fetch the file blob from item.file_url and send to uploadFileToSearchStore
+      alert('Funcionalidade de re-indexação pendente. Por favor, envie o arquivo novamente para indexar.');
+  };
+
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
@@ -54,10 +95,27 @@ const ContentLibrary: React.FC = () => {
         } else {
           type = 'text'; // Default to text for others
         }
+        
+        // 1. Upload to Storage (Mock)
         const newItem = await uploadFile(file, userId, type);
+        
+        // 2. Optional: Upload to Knowledge Base if exists
+        if (kbStoreName && (type === 'text' || file.type === 'application/pdf')) {
+            const confirmIndex = window.confirm(`Deseja indexar "${file.name}" na sua Base de Conhecimento para pesquisa?`);
+            if (confirmIndex) {
+                try {
+                    await uploadFileToSearchStore(kbStoreName, file);
+                    alert('Arquivo indexado na IA com sucesso!');
+                    newItem.tags.push('indexed');
+                } catch (idxErr) {
+                    console.error('Indexing failed', idxErr);
+                    alert('Upload concluído, mas falha ao indexar na IA.');
+                }
+            }
+        }
+
         await saveLibraryItem(newItem); // Save metadata to Firestore
         setLibraryItems((prev) => [newItem, ...prev]);
-        alert('Arquivo enviado com sucesso!');
       } catch (err) {
         console.error('Error uploading file:', err);
         setError(`Failed to upload file: ${err instanceof Error ? err.message : String(err)}`);
@@ -66,7 +124,7 @@ const ContentLibrary: React.FC = () => {
         event.target.value = ''; // Clear input
       }
     }
-  }, [userId]);
+  }, [userId, kbStoreName]);
 
   const handleDeleteItem = useCallback(async (itemId: string) => {
     if (window.confirm('Tem certeza que deseja excluir este item?')) {
@@ -123,6 +181,32 @@ const ContentLibrary: React.FC = () => {
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
+      
+      {/* Knowledge Base Section */}
+      <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
+          <div>
+              <h3 className="text-xl font-semibold text-white flex items-center gap-2">
+                  <CircleStackIcon className="w-6 h-6 text-accent" /> Base de Conhecimento (IA)
+              </h3>
+              <p className="text-sm text-gray-300 mt-1">
+                  {kbStoreName ? 
+                    `Conectado a: ${kbStoreName}. Arquivos enviados podem ser pesquisados pelo Chatbot.` : 
+                    "Crie um repositório para indexar seus arquivos e permitir que a IA responda com base neles."
+                  }
+              </p>
+          </div>
+          <div>
+              {!kbStoreName ? (
+                  <Button onClick={handleCreateKnowledgeBase} isLoading={kbLoading} variant="secondary">
+                      Criar Base de Conhecimento
+                  </Button>
+              ) : (
+                  <span className="text-xs font-mono bg-black/30 px-3 py-1 rounded text-accent border border-accent/20">
+                      Status: Ativo
+                  </span>
+              )}
+          </div>
+      </div>
 
       <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
         <h3 className="text-xl font-semibold text-textlight mb-5">Gerenciar Conteúdo</h3>
@@ -236,7 +320,10 @@ const ContentLibrary: React.FC = () => {
                 </div>
               </div>
               <div className="p-5">
-                <h4 className="font-semibold text-textdark truncate">{item.name}</h4>
+                <div className="flex justify-between items-start">
+                   <h4 className="font-semibold text-textdark truncate flex-1">{item.name}</h4>
+                   {item.tags.includes('indexed') && <CloudArrowUpIcon className="w-4 h-4 text-accent" title="Indexado na IA" />}
+                </div>
                 <p className="text-sm text-textmuted mt-1">Tipo: {item.type}</p>
                 {item.tags.length > 0 && (
                   <div className="mt-3 flex flex-wrap gap-2">

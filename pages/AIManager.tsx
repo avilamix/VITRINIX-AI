@@ -1,19 +1,27 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Textarea from '../components/Textarea';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Input from '../components/Input';
+import InteractiveActionCenter from '../components/InteractiveActionCenter';
 import { aiManagerStrategy } from '../services/geminiService';
 import { getUserProfile, updateUserProfile } from '../services/firestoreService';
 import { UserProfile } from '../types';
 import { DEFAULT_BUSINESS_PROFILE } from '../constants';
+import { CommandLineIcon, ChartBarIcon } from '@heroicons/react/24/outline';
 
 const AIManager: React.FC = () => {
+  const [activeTab, setActiveTab] = useState<'strategy' | 'command'>('command');
+  
+  // Strategy State
   const [prompt, setPrompt] = useState<string>('');
   const [strategyText, setStrategyText] = useState<string | null>(null);
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Profile State
   const [userProfile, setUserProfile] = useState<UserProfile['businessProfile']>(DEFAULT_BUSINESS_PROFILE);
   const [isProfileLoading, setIsProfileLoading] = useState<boolean>(true);
 
@@ -86,7 +94,26 @@ const AIManager: React.FC = () => {
 
   return (
     <div className="container mx-auto py-8 lg:py-10">
-      <h2 className="text-3xl font-bold text-textdark mb-8">Assistente IA (AI Manager)</h2>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
+        <h2 className="text-3xl font-bold text-textdark">AI Manager</h2>
+        
+        <div className="flex bg-lightbg rounded-lg p-1 border border-gray-800">
+           <button 
+             onClick={() => setActiveTab('command')}
+             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'command' ? 'bg-accent text-darkbg shadow-sm' : 'text-textlight hover:text-white'}`}
+           >
+             <CommandLineIcon className="w-4 h-4" />
+             Central de Comando
+           </button>
+           <button 
+             onClick={() => setActiveTab('strategy')}
+             className={`flex items-center gap-2 px-4 py-2 rounded-md text-sm font-medium transition-all ${activeTab === 'strategy' ? 'bg-accent text-darkbg shadow-sm' : 'text-textlight hover:text-white'}`}
+           >
+             <ChartBarIcon className="w-4 h-4" />
+             Estratégia & Diagnóstico
+           </button>
+        </div>
+      </div>
 
       {error && (
         <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
@@ -95,83 +122,88 @@ const AIManager: React.FC = () => {
         </div>
       )}
 
-      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
-        <h3 className="text-xl font-semibold text-textlight mb-5">Informações do Negócio (para IA)</h3>
-        <Input
-          id="businessName"
-          label="Nome da Empresa"
-          value={userProfile.name}
-          onChange={(e) => handleUpdateProfile('name', e.target.value)}
-          placeholder="Nome da sua empresa"
-        />
-        <Input
-          id="industry"
-          label="Indústria"
-          value={userProfile.industry}
-          onChange={(e) => handleUpdateProfile('industry', e.target.value)}
-          placeholder="Ex: E-commerce de moda, Consultoria de TI"
-        />
-        <Input
-          id="targetAudience"
-          label="Público-alvo"
-          value={userProfile.targetAudience}
-          onChange={(e) => handleUpdateProfile('targetAudience', e.target.value)}
-          placeholder="Ex: Jovens adultos (18-35), Pequenas empresas"
-        />
-        <Input
-          id="visualStyle"
-          label="Estilo Visual Desejado"
-          value={userProfile.visualStyle}
-          onChange={(e) => handleUpdateProfile('visualStyle', e.target.value)}
-          placeholder="Ex: Moderno, Minimalista, Vibrante, Profissional"
-        />
-        <p className="text-sm text-textmuted mt-2">
-          Estas informações ajudam a IA a gerar estratégias mais precisas para o seu negócio.
-        </p>
-      </div>
+      {activeTab === 'command' && (
+         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+             <InteractiveActionCenter />
+             <p className="text-center text-textmuted text-sm mt-6">
+                Use a Central de Comando para executar ações rápidas em qualquer módulo do sistema sem sair desta tela.
+             </p>
+         </div>
+      )}
 
-      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
-        <h3 className="text-xl font-semibold text-textlight mb-5">Solicitação ao Assistente IA</h3>
-        <Textarea
-          id="aiManagerPrompt"
-          label="Descreva sua situação de marketing ou o que você gostaria de analisar/criar:"
-          value={prompt}
-          onChange={(e) => setPrompt(e.target.value)}
-          rows={6}
-          placeholder="Ex: 'Quero um diagnóstico completo do meu marketing digital e ideias para uma campanha de lançamento de um novo produto.', ou 'Minha taxa de conversão de anúncios está baixa, identifique as falhas e sugira funis de vendas.'"
-        />
-        <Button
-          onClick={handleGenerateStrategy}
-          isLoading={loading}
-          variant="primary"
-          className="w-full md:w-auto mt-4"
-        >
-          {loading ? 'Gerando Estratégia...' : 'Gerar Estratégia'}
-        </Button>
-      </div>
-
-      {strategyText && (
-        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
-          <h3 className="text-xl font-semibold text-textlight mb-5">Estratégia Gerada</h3>
-          <div className="prose max-w-none text-textlight leading-relaxed mb-6" style={{ whiteSpace: 'pre-wrap' }}>
-            {strategyText}
-          </div>
-
-          {suggestions.length > 0 && (
-            <div className="mt-6">
-              <h4 className="text-lg font-semibold text-textlight mb-4">Sugestões Adicionais:</h4>
-              <ul className="list-disc list-inside space-y-2 text-textlight">
-                {suggestions.map((s, index) => (
-                  <li key={index}>{s}</li>
-                ))}
-              </ul>
-              <div className="mt-6 flex flex-wrap gap-3">
-                <Button variant="secondary">Criar Calendário</Button>
-                <Button variant="secondary">Criar Campanha</Button>
-                <Button variant="secondary">Adicionar ao Calendário</Button>
-              </div>
+      {activeTab === 'strategy' && (
+        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+            <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+                <h3 className="text-xl font-semibold text-textlight mb-5">Informações do Negócio (Contexto)</h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <Input
+                    id="businessName"
+                    label="Nome da Empresa"
+                    value={userProfile.name}
+                    onChange={(e) => handleUpdateProfile('name', e.target.value)}
+                    />
+                    <Input
+                    id="industry"
+                    label="Indústria"
+                    value={userProfile.industry}
+                    onChange={(e) => handleUpdateProfile('industry', e.target.value)}
+                    />
+                    <Input
+                    id="targetAudience"
+                    label="Público-alvo"
+                    value={userProfile.targetAudience}
+                    onChange={(e) => handleUpdateProfile('targetAudience', e.target.value)}
+                    />
+                    <Input
+                    id="visualStyle"
+                    label="Estilo Visual"
+                    value={userProfile.visualStyle}
+                    onChange={(e) => handleUpdateProfile('visualStyle', e.target.value)}
+                    />
+                </div>
             </div>
-          )}
+
+            <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+                <h3 className="text-xl font-semibold text-textlight mb-5">Solicitação Estratégica</h3>
+                <Textarea
+                id="aiManagerPrompt"
+                label="Qual é o seu desafio de marketing atual?"
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                rows={6}
+                placeholder="Ex: 'Quero um diagnóstico completo do meu marketing digital e ideias para uma campanha de lançamento.'"
+                />
+                <Button
+                onClick={handleGenerateStrategy}
+                isLoading={loading}
+                variant="primary"
+                className="w-full md:w-auto mt-4"
+                >
+                {loading ? 'Gerando Estratégia...' : 'Gerar Estratégia'}
+                </Button>
+            </div>
+
+            {strategyText && (
+                <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+                <h3 className="text-xl font-semibold text-textlight mb-5">Plano Gerado</h3>
+                <div className="prose max-w-none text-textlight leading-relaxed mb-6" style={{ whiteSpace: 'pre-wrap' }}>
+                    {strategyText}
+                </div>
+
+                {suggestions.length > 0 && (
+                    <div className="mt-6 border-t border-gray-800 pt-6">
+                    <h4 className="text-lg font-semibold text-textlight mb-4">Sugestões Acionáveis:</h4>
+                    <ul className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                        {suggestions.map((s, index) => (
+                        <li key={index} className="bg-darkbg p-3 rounded border border-gray-700 text-sm text-textlight flex items-start gap-2">
+                            <span className="text-accent">•</span> {s}
+                        </li>
+                        ))}
+                    </ul>
+                    </div>
+                )}
+                </div>
+            )}
         </div>
       )}
     </div>

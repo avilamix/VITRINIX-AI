@@ -57,7 +57,8 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
   const [newKeyValue, setNewKeyValue] = useState<string>('');
   const [addingKey, setAddingKey] = useState<boolean>(false);
   const [testingKey, setTestingKey] = useState<boolean>(false);
-  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string; status: KeyStatus } | null>(null);
+  const [lastTestedValue, setLastTestedValue] = useState<string>(''); // Cache last tested key
   
   const [validatingId, setValidatingId] = useState<string | null>(null);
 
@@ -145,7 +146,7 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
 
   const handleTestConnection = async () => {
       if (!newKeyValue.trim()) {
-          setTestResult({ success: false, message: 'Insira uma chave para testar.' });
+          setTestResult({ success: false, message: 'Insira uma chave para testar.', status: 'unchecked' });
           return;
       }
 
@@ -168,15 +169,16 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
           const validation = await validateKey(tempConfig);
           
           if (validation.status === 'valid') {
-              setTestResult({ success: true, message: 'Conexão bem-sucedida! Chave válida.' });
+              setTestResult({ success: true, message: 'Conexão bem-sucedida! Chave válida.', status: 'valid' });
+              setLastTestedValue(newKeyValue.trim());
               if (!newKeyLabel.trim()) {
                   setNewKeyLabel(`${newKeyProvider} Key (Nova)`);
               }
           } else {
-              setTestResult({ success: false, message: validation.error || 'Falha na validação da chave.' });
+              setTestResult({ success: false, message: validation.error || 'Falha na validação da chave.', status: validation.status });
           }
       } catch (e: any) {
-          setTestResult({ success: false, message: e.message || 'Erro desconhecido ao testar.' });
+          setTestResult({ success: false, message: e.message || 'Erro desconhecido ao testar.', status: 'invalid' });
       } finally {
           setTestingKey(false);
       }
@@ -185,10 +187,37 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
   const handleAddKey = async () => {
     if (!newKeyValue.trim() || !newKeyLabel.trim()) return;
     setAddingKey(true);
-    setTestResult(null);
+    
     try {
+      const keyId = `key-${Date.now()}`;
+      
+      let initialStatus: KeyStatus = 'unchecked';
+      let errorMessage: string | undefined = undefined;
+
+      // Optimization: If we just tested this exact key and it passed, skip re-validation call
+      if (newKeyValue.trim() === lastTestedValue && testResult) {
+          initialStatus = testResult.status;
+          if (!testResult.success) errorMessage = testResult.message;
+      } else {
+          // Perform validation immediately before saving
+          const tempConfig: ApiKeyConfig = {
+              id: keyId,
+              provider: newKeyProvider,
+              key: newKeyValue.trim(),
+              label: newKeyLabel.trim(),
+              isActive: true,
+              isDefault: false,
+              createdAt: new Date().toISOString(),
+              status: 'unchecked',
+              usageCount: 0
+          };
+          const validation = await validateKey(tempConfig);
+          initialStatus = validation.status;
+          errorMessage = validation.error;
+      }
+
       const newKey: ApiKeyConfig = {
-        id: `key-${Date.now()}`,
+        id: keyId,
         provider: newKeyProvider,
         key: newKeyValue.trim(),
         label: newKeyLabel.trim(),
@@ -196,18 +225,19 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
         // If it's the first key for this provider, make it default automatically
         isDefault: apiKeys.filter(k => k.provider === newKeyProvider).length === 0,
         createdAt: new Date().toISOString(),
-        status: 'unchecked',
+        status: initialStatus,
+        errorMessage: errorMessage,
         usageCount: 0
       };
       
-      const validation = await validateKey(newKey);
-      const validatedKey = { ...newKey, ...validation };
-
-      await saveApiKey(validatedKey);
+      // Save the already validated key
+      await saveApiKey(newKey);
       await fetchKeys();
+      
       setNewKeyValue('');
       setNewKeyLabel('');
-      setTestResult({ success: true, message: 'Chave salva e validada!' });
+      setTestResult({ success: true, message: 'Chave salva e validada!', status: initialStatus });
+      setLastTestedValue('');
       
       setTimeout(() => setTestResult(null), 3000);
       setExpandedProviders(prev => ({ ...prev, [newKeyProvider]: true }));
@@ -222,6 +252,7 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
     setValidatingId(key.id);
     try {
       const res = await validateKey(key);
+      // ValidateKey service saves to DB, we just update local state to reflect change immediately
       setApiKeys(prev => prev.map(k => k.id === key.id ? { ...k, status: res.status, errorMessage: res.error } : k));
     } finally {
       setValidatingId(null);

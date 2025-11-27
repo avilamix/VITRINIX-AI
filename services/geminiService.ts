@@ -10,7 +10,8 @@ import {
   LiveServerMessage,
   Modality,
   Blob,
-  Content
+  Content,
+  File as GenAIFile
 } from '@google/genai';
 import {
   GEMINI_FLASH_MODEL,
@@ -236,6 +237,51 @@ export const generateVideo = async (
   });
 };
 
+// --- Analysis Functions ---
+export const analyzeImage = async (
+  base64ImageData: string,
+  mimeType: string,
+  prompt: string,
+  model: string = GEMINI_PRO_MODEL,
+): Promise<string> => {
+  return executeWithProviderFallback('Google Gemini', async (apiKey) => {
+    const ai = createGeminiClient(apiKey);
+    const response: GenerateContentResponse = await ai.models.generateContent({
+      model: model,
+      contents: {
+        parts: [
+          { inlineData: { data: base64ImageData, mimeType: mimeType } },
+          { text: prompt },
+        ],
+      },
+      config: { thinkingConfig: { thinkingBudget: 32768 } },
+    });
+    return response.text || 'No analysis generated.';
+  });
+};
+
+export const analyzeVideo = async (
+  videoUrl: string,
+  prompt: string,
+  model: string = GEMINI_PRO_MODEL,
+): Promise<string> => {
+    return executeWithProviderFallback('Google Gemini', async (apiKey) => {
+        const ai = createGeminiClient(apiKey);
+        const response: GenerateContentResponse = await ai.models.generateContent({
+          model: model,
+          contents: {
+            parts: [
+              { fileData: { fileUri: videoUrl, mimeType: 'video/mp4' } },
+              { text: prompt },
+            ],
+          },
+          config: { thinkingConfig: { thinkingBudget: 32768 } },
+        });
+        return response.text || 'No analysis generated.';
+    });
+};
+
+// --- AI Manager Strategy ---
 export const aiManagerStrategy = async (
   prompt: string,
   userProfile: UserProfile['businessProfile'],
@@ -279,6 +325,7 @@ export const aiManagerStrategy = async (
   });
 };
 
+// --- Search Trends (Grounding) ---
 export const searchTrends = async (
   query: string,
   location?: { latitude: number; longitude: number },
@@ -324,11 +371,10 @@ export const searchTrends = async (
     });
 };
 
+// --- Campaign Builder ---
 export const campaignBuilder = async (
   campaignPrompt: string,
 ): Promise<{ campaign: Campaign; videoUrl?: string }> => {
-    // Note: Complex flows like this should probably just default to Gemini for simplicity in this demo,
-    // as passing keys around for nested calls is complex. We use 'Google Gemini' explicitly here.
     return executeWithProviderFallback('Google Gemini', async (apiKey) => {
         const ai = createGeminiClient(apiKey);
         // Step 1: Generate campaign plan
@@ -420,6 +466,62 @@ export const campaignBuilder = async (
     });
 };
 
+// --- File Search Functions ---
+
+export const createFileSearchStore = async (displayName: string): Promise<any> => {
+  return executeWithProviderFallback('Google Gemini', async (apiKey) => {
+    const ai = createGeminiClient(apiKey);
+    console.log(`Creating File Search Store: ${displayName}`);
+    // Create the store
+    const store = await ai.fileSearchStores.create({ config: { displayName } });
+    console.log(`Store created: ${store.name}`);
+    return store;
+  });
+};
+
+export const uploadFileToSearchStore = async (storeName: string, file: File): Promise<any> => {
+  return executeWithProviderFallback('Google Gemini', async (apiKey) => {
+    const ai = createGeminiClient(apiKey);
+    
+    // In browser, we use files.upload with the File object
+    console.log(`Uploading file ${file.name} to GenAI Files API...`);
+    const uploadResult = await ai.files.upload({
+      file: file,
+      config: { displayName: file.name }
+    });
+    
+    console.log(`File uploaded: ${uploadResult.name}. Adding to store: ${storeName}...`);
+    return uploadResult;
+  });
+};
+
+export const queryFileSearchStore = async (
+  prompt: string, 
+  storeName: string,
+  model: string = GEMINI_FLASH_MODEL
+): Promise<string> => {
+   return executeWithProviderFallback('Google Gemini', async (apiKey) => {
+      const ai = createGeminiClient(apiKey);
+      console.log(`Querying store ${storeName} with prompt: ${prompt}`);
+      
+      const response = await ai.models.generateContent({
+        model: model,
+        contents: prompt,
+        config: {
+          tools: [
+            {
+              fileSearch: {
+                fileSearchStoreNames: [storeName]
+              }
+            }
+          ]
+        }
+      });
+      
+      return response.text || "No results found in knowledge base.";
+   });
+}
+
 // --- Chatbot Functions ---
 export const startChat = (model: string = GEMINI_PRO_MODEL, provider: ProviderName = 'Google Gemini') => {
   throw new Error("startChat should be called asynchronously via startChatAsync or similar in this new architecture.");
@@ -429,7 +531,8 @@ export const startChatAsync = async (
   model: string = GEMINI_FLASH_MODEL, 
   provider: ProviderName = 'Google Gemini',
   systemInstruction?: string,
-  history?: ChatMessage[]
+  history?: ChatMessage[],
+  knowledgeBaseId?: string // New optional param
 ): Promise<Chat> => {
     if (provider !== 'Google Gemini') {
          return {
@@ -447,11 +550,21 @@ export const startChatAsync = async (
     const apiKey = await getBestApiKey(provider);
     const ai = createGeminiClient(apiKey);
     
-    // Create config object only if parameters exist
     const config: any = {};
     if (systemInstruction) config.systemInstruction = systemInstruction;
+    
+    // Add File Search Tool if KB ID is provided
+    if (knowledgeBaseId) {
+       config.tools = [
+          {
+            fileSearch: {
+              fileSearchStoreNames: [knowledgeBaseId]
+            }
+          }
+       ];
+       console.log(`Chat started with Knowledge Base: ${knowledgeBaseId}`);
+    }
 
-    // Map UI history to Gemini SDK Content format
     let chatHistory: Content[] | undefined = undefined;
     if (history && history.length > 0) {
       chatHistory = history.map(msg => ({
@@ -473,82 +586,25 @@ export const sendMessageToChat = async (
   onChunk?: (text: string) => void,
   signal?: AbortSignal
 ): Promise<string> => {
-  // Check abort status before starting
-  if (signal?.aborted) {
-    return "";
-  }
+  if (signal?.aborted) return "";
 
   try {
     const response = await chat.sendMessageStream({ message: message });
     let fullText = '';
     
     for await (const chunk of response) {
-      if (signal?.aborted) {
-        // Stop processing chunks if aborted
-        break; 
-      }
-      
+      if (signal?.aborted) break;
       const chunkText = chunk.text;
       fullText += chunkText;
-      
-      // Notify caller of progress
-      if (onChunk) {
-        onChunk(fullText);
-      }
+      if (onChunk) onChunk(fullText);
     }
     
     return fullText;
   } catch (error) {
-    if (signal?.aborted) {
-       return ""; // Suppress error if purposefully aborted
-    }
+    if (signal?.aborted) return "";
     console.error('Error sending message to chat:', error);
     throw new Error(`Failed to send message: ${error instanceof Error ? error.message : String(error)}`);
   }
-};
-
-// --- Analysis Functions ---
-export const analyzeImage = async (
-  base64ImageData: string,
-  mimeType: string,
-  prompt: string,
-  model: string = GEMINI_PRO_MODEL,
-): Promise<string> => {
-  return executeWithProviderFallback('Google Gemini', async (apiKey) => {
-    const ai = createGeminiClient(apiKey);
-    const response: GenerateContentResponse = await ai.models.generateContent({
-      model: model,
-      contents: {
-        parts: [
-          { inlineData: { data: base64ImageData, mimeType: mimeType } },
-          { text: prompt },
-        ],
-      },
-      config: { thinkingConfig: { thinkingBudget: 32768 } },
-    });
-    return response.text || 'No analysis generated.';
-  });
-};
-
-export const analyzeVideo = async (
-  videoUrl: string,
-  prompt: string,
-  model: string = GEMINI_PRO_MODEL,
-): Promise<string> => {
-    return executeWithProviderFallback('Google Gemini', async (apiKey) => {
-        const ai = createGeminiClient(apiKey);
-        const response: GenerateContentResponse = await ai.models.generateContent({
-          model: model,
-          contents: {
-            parts: [
-              { fileData: { fileUri: videoUrl, mimeType: 'video/mp4' } },
-              { text: prompt },
-            ],
-          },
-          config: { thinkingConfig: { thinkingBudget: 32768 } },
-        });
-        return response.text || 'No analysis generated.';
-    });
 };
 
 // --- TTS Functions ---
@@ -591,7 +647,6 @@ export const connectLiveSession = async (
   systemInstruction?: string,
   tools?: { functionDeclarations?: FunctionDeclaration[] }[]
 ) => {
-  // Get best key ONCE at start
   const apiKey = await getBestApiKey('Google Gemini');
   const ai = createGeminiClient(apiKey);
 

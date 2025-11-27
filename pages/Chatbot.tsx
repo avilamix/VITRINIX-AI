@@ -4,7 +4,7 @@ import { ChatMessage as ChatMessageType, ProviderName } from '../types';
 import { startChatAsync, sendMessageToChat } from '../services/geminiService';
 import { Chat } from '@google/genai';
 import { GEMINI_FLASH_MODEL } from '../constants';
-import { TrashIcon, SparklesIcon, CpuChipIcon, LightBulbIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, SparklesIcon, CpuChipIcon, LightBulbIcon, CircleStackIcon } from '@heroicons/react/24/outline';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
 import TypingIndicator from '../components/TypingIndicator';
@@ -44,6 +44,10 @@ const Chatbot: React.FC = () => {
   const [selectedProvider, setSelectedProvider] = useState<ProviderName>('Google Gemini');
   const [inputText, setInputText] = useState<string>('');
   
+  // Knowledge Base State
+  const [useKnowledgeBase, setUseKnowledgeBase] = useState<boolean>(false);
+  const kbName = localStorage.getItem('vitrinex_kb_name');
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -82,12 +86,13 @@ const Chatbot: React.FC = () => {
 
       setMessages(initialHistory);
 
-      // Initialize session with history
+      // Initialize session with history and optional KB
       const newChat = await startChatAsync(
         GEMINI_FLASH_MODEL, 
         selectedProvider, 
         SYSTEM_INSTRUCTION,
-        initialHistory // Pass history to restore context
+        initialHistory, // Pass history to restore context
+        useKnowledgeBase && kbName ? kbName : undefined // Pass KB ID if enabled
       );
       
       setChatSession(newChat);
@@ -97,7 +102,7 @@ const Chatbot: React.FC = () => {
       setError(`Failed to start chat with ${selectedProvider}. Please check your keys in Settings.`);
       setLoading(false);
     }
-  }, [selectedProvider]);
+  }, [selectedProvider, useKnowledgeBase, kbName]);
 
   useEffect(() => {
     initChat();
@@ -218,6 +223,20 @@ const Chatbot: React.FC = () => {
                  >
                     {PROVIDERS.map(p => <option key={p} value={p}>{p}</option>)}
                  </select>
+                 
+                 {/* Knowledge Base Toggle */}
+                 {selectedProvider === 'Google Gemini' && kbName && (
+                   <div className="flex items-center gap-2 ml-4 border-l border-gray-700 pl-4">
+                      <button 
+                        onClick={() => setUseKnowledgeBase(!useKnowledgeBase)}
+                        className={`flex items-center gap-1 px-2 py-0.5 rounded text-xs transition-colors ${useKnowledgeBase ? 'bg-accent/10 text-accent border border-accent/20' : 'text-textmuted hover:text-white'}`}
+                        title={useKnowledgeBase ? `Usando Base: ${kbName}` : "Ativar busca em arquivos"}
+                      >
+                         <CircleStackIcon className="w-3 h-3" />
+                         {useKnowledgeBase ? "KB Ativo" : "KB Inativo"}
+                      </button>
+                   </div>
+                 )}
               </div>
             </div>
           </div>
@@ -312,7 +331,7 @@ const Chatbot: React.FC = () => {
 
           <div className="mt-2 text-center">
              <p className="text-[10px] text-gray-600">
-                Usando {selectedProvider}. O assistente pode cometer erros.
+                Usando {selectedProvider} {useKnowledgeBase ? '+ Knowledge Base' : ''}. O assistente pode cometer erros.
              </p>
           </div>
         </div>
