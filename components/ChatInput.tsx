@@ -8,11 +8,25 @@ interface ChatInputProps {
   onStop?: () => void;
   isLoading: boolean;
   disabled?: boolean;
+  value?: string;
+  onChange?: (value: string) => void;
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSend, onStop, isLoading, disabled }) => {
-  const [text, setText] = useState('');
+const ChatInput: React.FC<ChatInputProps> = ({ onSend, onStop, isLoading, disabled, value, onChange }) => {
+  const [internalText, setInternalText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  const isControlled = value !== undefined;
+  const text = isControlled ? value : internalText;
+
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    if (isControlled && onChange) {
+      onChange(val);
+    } else {
+      setInternalText(val);
+    }
+  };
 
   // Auto-resize textarea
   useEffect(() => {
@@ -32,8 +46,16 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, onStop, isLoading, disabl
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!text.trim() || isLoading || disabled) return;
+    
     onSend(text);
-    setText('');
+    
+    // Clear input
+    if (isControlled && onChange) {
+      onChange('');
+    } else {
+      setInternalText('');
+    }
+
     // Reset height
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
@@ -46,7 +68,7 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, onStop, isLoading, disabl
       <textarea
         ref={textareaRef}
         value={text}
-        onChange={(e) => setText(e.target.value)}
+        onChange={handleTextChange}
         onKeyDown={handleKeyDown}
         placeholder="Digite sua mensagem... (Shift+Enter para pular linha)"
         className="w-full bg-transparent text-textdark placeholder-textmuted text-sm md:text-base px-3 py-2 max-h-[150px] resize-none focus:outline-none scrollbar-thin scrollbar-thumb-gray-700"

@@ -4,7 +4,7 @@ import { ChatMessage as ChatMessageType, ProviderName } from '../types';
 import { startChatAsync, sendMessageToChat } from '../services/geminiService';
 import { Chat } from '@google/genai';
 import { GEMINI_FLASH_MODEL } from '../constants';
-import { TrashIcon, SparklesIcon, CpuChipIcon } from '@heroicons/react/24/outline';
+import { TrashIcon, SparklesIcon, CpuChipIcon, LightBulbIcon } from '@heroicons/react/24/outline';
 import ChatMessage from '../components/ChatMessage';
 import ChatInput from '../components/ChatInput';
 import TypingIndicator from '../components/TypingIndicator';
@@ -16,6 +16,17 @@ const SUGGESTIONS = [
   "Melhore este texto para torná-lo mais profissional: [Cole seu texto]"
 ];
 
+const QUICK_PROMPTS = [
+  "Criar Post Instagram",
+  "Reescrever tom profissional",
+  "Ideias de Reels",
+  "Planejar Campanha",
+  "Análise SWOT",
+  "Funil de Vendas",
+  "Responder E-mail",
+  "Gerar Hashtags"
+];
+
 const PROVIDERS: ProviderName[] = ['Google Gemini', 'OpenAI', 'Anthropic', 'Mistral', 'Meta LLaMA'];
 
 const SYSTEM_INSTRUCTION = `Você é a VitrineX AI, uma assistente virtual avançada especializada em Marketing Digital, Copywriting e Estratégia de Conteúdo.
@@ -23,31 +34,63 @@ Seu objetivo é ajudar empreendedores e profissionais de marketing a criar campa
 Adote um tom profissional, criativo e encorajador. Seja concisa mas detalhada quando necessário.
 Se o usuário pedir para criar conteúdo, forneça exemplos práticos e prontos para uso.`;
 
+const STORAGE_KEY = 'vitrinex_chat_history';
+
 const Chatbot: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [chatSession, setChatSession] = useState<Chat | null>(null);
   const [selectedProvider, setSelectedProvider] = useState<ProviderName>('Google Gemini');
+  const [inputText, setInputText] = useState<string>('');
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // Save messages to local storage whenever they change
+  useEffect(() => {
+    if (messages.length > 0) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(messages));
+    }
+  }, [messages]);
+
   const initChat = useCallback(async () => {
     try {
       setLoading(true);
-      // We use the async version now to support key retrieval and pass System Instruction
-      // Also using GEMINI_FLASH_MODEL (gemini-2.5-flash) for faster, more efficient chat
-      const newChat = await startChatAsync(GEMINI_FLASH_MODEL, selectedProvider, SYSTEM_INSTRUCTION);
-      setChatSession(newChat);
-      setMessages([
-        {
+
+      // Check for stored history
+      let initialHistory: ChatMessageType[] = [];
+      const stored = localStorage.getItem(STORAGE_KEY);
+      
+      if (stored) {
+        try {
+          initialHistory = JSON.parse(stored);
+        } catch (e) {
+          console.error("Failed to parse chat history", e);
+        }
+      }
+
+      // If no history, set default greeting
+      if (initialHistory.length === 0) {
+        initialHistory = [{
           role: 'model',
           text: `Olá! Sou a VitrineX AI (${selectedProvider}). Como posso impulsionar seu marketing hoje?`,
           timestamp: new Date().toISOString(),
-        },
-      ]);
+        }];
+      }
+
+      setMessages(initialHistory);
+
+      // Initialize session with history
+      const newChat = await startChatAsync(
+        GEMINI_FLASH_MODEL, 
+        selectedProvider, 
+        SYSTEM_INSTRUCTION,
+        initialHistory // Pass history to restore context
+      );
+      
+      setChatSession(newChat);
       setLoading(false);
     } catch (err) {
       console.error('Error starting chat:', err);
@@ -135,10 +178,13 @@ const Chatbot: React.FC = () => {
   }, []);
 
   const handleClearChat = () => {
-    if (window.confirm('Deseja iniciar uma nova conversa? O histórico atual será limpo.')) {
+    if (window.confirm('Deseja iniciar uma nova conversa? O histórico atual será limpo permanentemente.')) {
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
       }
+      localStorage.removeItem(STORAGE_KEY);
+      // Force re-init which will see empty storage and add greeting
+      setMessages([]); 
       initChat();
     }
   };
@@ -146,6 +192,10 @@ const Chatbot: React.FC = () => {
   const handleProviderChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
       setSelectedProvider(e.target.value as ProviderName);
       // Chat will re-init via useEffect dependency
+  };
+
+  const handleFillInput = (prompt: string) => {
+    setInputText(prompt);
   };
 
   return (
@@ -174,7 +224,7 @@ const Chatbot: React.FC = () => {
           <button
             onClick={handleClearChat}
             className="p-2 text-textmuted hover:text-red-400 hover:bg-red-500/10 rounded-lg transition-all duration-200"
-            title="Limpar Conversa"
+            title="Limpar Conversa e Histórico"
           >
             <TrashIcon className="w-5 h-5" />
           </button>
@@ -236,8 +286,30 @@ const Chatbot: React.FC = () => {
             onStop={handleStopGeneration}
             isLoading={loading} 
             disabled={!chatSession} 
+            value={inputText}
+            onChange={setInputText}
           />
           
+          {/* Quick Prompts Chips Section */}
+          <div className="mt-4">
+             <div className="flex items-center gap-2 mb-2 px-1">
+                <LightBulbIcon className="w-3 h-3 text-accent" />
+                <span className="text-xs font-medium text-textmuted uppercase tracking-wider">Sugestões Rápidas</span>
+             </div>
+             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide mask-fade-sides">
+               {QUICK_PROMPTS.map((prompt, idx) => (
+                 <button
+                   key={idx}
+                   onClick={() => handleFillInput(prompt)}
+                   className="whitespace-nowrap px-3 py-1.5 bg-lightbg border border-gray-700 rounded-full text-xs text-textlight hover:border-accent hover:text-accent hover:bg-accent/5 focus:outline-none focus:ring-1 focus:ring-accent transition-all flex-shrink-0"
+                   title="Clique para preencher"
+                 >
+                   {prompt}
+                 </button>
+               ))}
+             </div>
+          </div>
+
           <div className="mt-2 text-center">
              <p className="text-[10px] text-gray-600">
                 Usando {selectedProvider}. O assistente pode cometer erros.

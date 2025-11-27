@@ -11,7 +11,7 @@ const mockValidate = async (provider: ProviderName): Promise<boolean> => {
 };
 
 // Real-ish validation for Gemini with detailed error handling
-const validateGeminiKey = async (key: string): Promise<{ isValid: boolean; error?: string }> => {
+const validateGeminiKey = async (key: string): Promise<{ status: KeyStatus; error?: string }> => {
   try {
     const ai = new GoogleGenAI({ apiKey: key });
     
@@ -24,7 +24,7 @@ const validateGeminiKey = async (key: string): Promise<{ isValid: boolean; error
     });
     
     console.log('Gemini Key Validation: Success');
-    return { isValid: true };
+    return { status: 'valid' };
   } catch (error: any) {
     console.error("Gemini Key Validation Failed:", error);
 
@@ -38,49 +38,52 @@ const validateGeminiKey = async (key: string): Promise<{ isValid: boolean; error
 
     // Categorize errors for better UI feedback
     if (status === '401' || message.includes('401') || message.toLowerCase().includes('invalid api key')) {
-        return { isValid: false, error: `401 Unauthorized: The API Key is incorrect.` };
+        return { status: 'invalid', error: `401 Unauthorized: The API Key is incorrect.` };
     }
     if (status === '403' || message.includes('403')) {
-        return { isValid: false, error: `403 Forbidden: Key lacks permissions or billing is disabled.` };
+        return { status: 'invalid', error: `403 Forbidden: Key lacks permissions or billing is disabled.` };
     }
     if (status === '404' || message.includes('404')) {
-        return { isValid: false, error: `404 Not Found: Validation model (gemini-2.5-flash) unavailable.` };
+        return { status: 'invalid', error: `404 Not Found: Validation model (gemini-2.5-flash) unavailable.` };
     }
     if (status === '429' || message.includes('429')) {
-        return { isValid: false, error: `429 Rate Limit: Quota exceeded for this key.` };
+        return { status: 'rate-limited', error: `429 Rate Limit: Quota exceeded for this key.` };
     }
     if (status === '500' || message.includes('500')) {
-        return { isValid: false, error: `500 Server Error: Google Gemini API internal error.` };
+        return { status: 'invalid', error: `500 Server Error: Google Gemini API internal error.` };
     }
 
     // Network errors (often empty status or specific messages)
     if (message.includes('fetch') || message.includes('network')) {
-         return { isValid: false, error: `Network Error: Could not reach Google API. Check firewall/connection.` };
+         return { status: 'unchecked', error: `Network Error: Could not reach Google API. Check firewall/connection.` };
     }
 
-    return { isValid: false, error: `${status}: ${message}` };
+    return { status: 'invalid', error: `${status}: ${message}` };
   }
 };
 
 export const validateKey = async (config: ApiKeyConfig): Promise<{ status: KeyStatus; error?: string }> => {
-  let isValid = false;
+  let newStatus: KeyStatus = 'unchecked';
   let errorMsg: string | undefined = undefined;
 
   try {
     if (config.provider === 'Google Gemini') {
       const result = await validateGeminiKey(config.key);
-      isValid = result.isValid;
+      newStatus = result.status;
       errorMsg = result.error;
     } else {
-      isValid = await mockValidate(config.provider);
-      if (!isValid) errorMsg = "Mock validation check failed (simulated).";
+      const isValid = await mockValidate(config.provider);
+      if (isValid) {
+        newStatus = 'valid';
+      } else {
+        newStatus = 'invalid';
+        errorMsg = "Mock validation check failed (simulated).";
+      }
     }
   } catch (e: any) {
-    isValid = false;
+    newStatus = 'invalid';
     errorMsg = `System Error: ${e.message || String(e)}`;
   }
-
-  const newStatus: KeyStatus = isValid ? 'valid' : 'invalid';
   
   // Update status in DB
   const updatedConfig = { 

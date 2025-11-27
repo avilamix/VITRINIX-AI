@@ -9,7 +9,8 @@ import {
   Chat,
   LiveServerMessage,
   Modality,
-  Blob
+  Blob,
+  Content
 } from '@google/genai';
 import {
   GEMINI_FLASH_MODEL,
@@ -27,7 +28,8 @@ import {
   Ad,
   Campaign,
   Trend,
-  ProviderName
+  ProviderName,
+  ChatMessage
 } from '../types';
 import { executeWithProviderFallback, getBestApiKey } from './keyManagerService';
 
@@ -426,7 +428,8 @@ export const startChat = (model: string = GEMINI_PRO_MODEL, provider: ProviderNa
 export const startChatAsync = async (
   model: string = GEMINI_FLASH_MODEL, 
   provider: ProviderName = 'Google Gemini',
-  systemInstruction?: string
+  systemInstruction?: string,
+  history?: ChatMessage[]
 ): Promise<Chat> => {
     if (provider !== 'Google Gemini') {
          return {
@@ -448,9 +451,19 @@ export const startChatAsync = async (
     const config: any = {};
     if (systemInstruction) config.systemInstruction = systemInstruction;
 
+    // Map UI history to Gemini SDK Content format
+    let chatHistory: Content[] | undefined = undefined;
+    if (history && history.length > 0) {
+      chatHistory = history.map(msg => ({
+        role: msg.role,
+        parts: [{ text: msg.text }]
+      }));
+    }
+
     return ai.chats.create({ 
       model: model,
-      config: Object.keys(config).length > 0 ? config : undefined
+      config: Object.keys(config).length > 0 ? config : undefined,
+      history: chatHistory
     });
 };
 
