@@ -104,9 +104,6 @@ export interface AIStudio {
 // For Gemini API window object
 declare global {
   interface Window {
-    aistudio?: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
+    aistudio?: AIStudio;
   }
 }

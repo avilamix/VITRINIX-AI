@@ -104,13 +104,6 @@ export interface AIStudio {
 // For Gemini API window object
 declare global {
   interface Window {
-    // Explicitly define the structure inline here.
-    // This can sometimes resolve "subsequent property declarations" errors when
-    // the compiler has trouble reconciling an imported type with a global augmentation,
-    // even if the types are structurally identical.
-    aistudio?: {
-      hasSelectedApiKey: () => Promise<boolean>;
-      openSelectKey: () => Promise<void>;
-    };
+    aistudio?: AIStudio;
   }
 }
