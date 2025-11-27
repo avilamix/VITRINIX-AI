@@ -469,6 +469,11 @@ export const sendMessageToChat = async (
   onChunk?: (text: string) => void,
   signal?: AbortSignal
 ): Promise<string> => {
+  // Check abort status before starting
+  if (signal?.aborted) {
+    return "";
+  }
+
   try {
     const response = await chat.sendMessageStream({ message: message });
     let fullText = '';
