@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="en">
 <head>
@@ -36,6 +37,10 @@
               warning: '#F59E0B',
               error: '#EF4444',
               info: '#3B82F6',
+              
+              // Dark mode specific helpers
+              darkbg: '#0D0D0D', 
+              lightbg: '#1A1A1A',
             },
             boxShadow: {
               'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
@@ -53,33 +58,39 @@
       :root {
         /* 
           WHITE LABEL THEME CONFIGURATION 
-          Change these values to rebrand the application instantly.
+          Light Mode (Default)
+          Bg: #FFFFFF (255 255 255)
+          Text: #1A1A1A (26 26 26)
         */
         
         /* Brand Color (Default: Enterprise Blue) - RGB values */
         --color-primary: 37 99 235; /* Blue-600 */
-        
-        /* Secondary Accent (Default: Slate) */
         --color-secondary: 71 85 105; /* Slate-600 */
 
         /* Light Mode Palette */
-        --color-background: 248 250 252; /* Slate-50 */
-        --color-surface: 255 255 255;    /* White */
+        --color-background: 255 255 255; /* #FFFFFF */
+        --color-surface: 248 250 252;    /* Slate-50 / Very Light Grey for Contrast */
         
         /* Typography */
-        --color-text-title: 15 23 42;    /* Slate-900 */
+        --color-text-title: 26 26 26;    /* #1A1A1A */
         --color-text-body: 51 65 85;     /* Slate-700 */
         --color-text-muted: 100 116 139; /* Slate-500 */
       }
 
-      /* Dark Mode Palette (Optional Override) */
+      /* Dark Mode Palette */
       .dark {
+        /* Dark Mode 
+           Bg: #0D0D0D (13 13 13)
+           Text: #F2F2F2 (242 242 242)
+        */
         --color-primary: 96 165 250;     /* Blue-400 */
-        --color-background: 15 23 42;    /* Slate-900 */
-        --color-surface: 30 41 59;       /* Slate-800 */
-        --color-text-title: 241 245 249; /* Slate-100 */
-        --color-text-body: 203 213 225;  /* Slate-300 */
-        --color-text-muted: 148 163 184; /* Slate-400 */
+        
+        --color-background: 13 13 13;    /* #0D0D0D */
+        --color-surface: 30 30 30;       /* Dark Grey for Surface Cards */
+        
+        --color-text-title: 242 242 242; /* #F2F2F2 */
+        --color-text-body: 209 213 219;  /* Gray-300 */
+        --color-text-muted: 156 163 175; /* Gray-400 */
       }
 
       body {
@@ -87,6 +98,14 @@
         color: rgb(var(--color-text-body));
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
+        transition: background-color 0.2s ease, color 0.2s ease;
+      }
+      
+      /* Apply transition to all major color changing elements */
+      div, nav, aside, section, article, header, footer, button, input, textarea, select {
+         transition-property: background-color, border-color, color, fill, stroke;
+         transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+         transition-duration: 200ms;
       }
       
       /* Scrollbar Styling */

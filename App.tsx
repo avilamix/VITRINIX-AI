@@ -17,6 +17,8 @@ import LiveConversation from './pages/LiveConversation';
 import AudioTools from './pages/AudioTools';
 import Logo from './components/Logo'; 
 import { NavigationContext } from './hooks/useNavigate';
+import { ThemeProvider } from './contexts/ThemeContext';
+import { LanguageProvider } from './contexts/LanguageContext';
 
 export type ModuleName =
   | 'Dashboard'
@@ -33,7 +35,7 @@ export type ModuleName =
   | 'LiveConversation'
   | 'AudioTools';
 
-function App() {
+function AppContent() {
   const [activeModule, setActiveModule] = useState<ModuleName>('Dashboard');
   const [hasApiKey, setHasApiKey] = useState<boolean>(false);
   const [loadingApiKeyCheck, setLoadingApiKeyCheck] = useState<boolean>(true);
@@ -111,7 +113,7 @@ function App() {
 
   if (loadingApiKeyCheck) {
     return (
-      <div className="flex items-center justify-center h-full bg-background">
+      <div className="flex items-center justify-center h-full bg-background transition-colors duration-200">
         <LoadingSpinner />
         <p className="ml-3 text-body font-medium">Initializing secure environment...</p>
       </div>
@@ -120,7 +122,7 @@ function App() {
 
   if (!hasApiKey && window.aistudio) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-background p-6 text-center">
+      <div className="flex flex-col items-center justify-center h-full bg-background p-6 text-center transition-colors duration-200">
         <div className="mb-10 p-8 bg-surface rounded-2xl shadow-soft border border-gray-100 max-w-lg w-full">
             <div className="flex justify-center mb-6">
                  <Logo className="h-16 w-16" showText={false} />
@@ -148,7 +150,7 @@ function App() {
 
   return (
     <NavigationContext.Provider value={{ setActiveModule }}>
-      <div className="flex flex-col h-full bg-background text-body font-sans">
+      <div className="flex flex-col h-full bg-background text-body font-sans transition-colors duration-200">
         <Navbar />
         <div className="flex flex-1 overflow-hidden relative">
           <Sidebar activeModule={activeModule} setActiveModule={setActiveModule} />
@@ -160,6 +162,16 @@ function App() {
         </div>
       </div>
     </NavigationContext.Provider>
+  );
+}
+
+function App() {
+  return (
+    <ThemeProvider>
+      <LanguageProvider>
+        <AppContent />
+      </LanguageProvider>
+    </ThemeProvider>
   );
 }
 
