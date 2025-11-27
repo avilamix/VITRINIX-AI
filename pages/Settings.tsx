@@ -22,7 +22,8 @@ import {
   EyeIcon,
   EyeSlashIcon,
   BoltIcon,
-  ServerStackIcon
+  ServerStackIcon,
+  MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
 
@@ -50,6 +51,7 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
   const [keysLoading, setKeysLoading] = useState<boolean>(true);
   const [expandedProviders, setExpandedProviders] = useState<Record<string, boolean>>({});
   const [showKeySecret, setShowKeySecret] = useState<Record<string, boolean>>({});
+  const [searchTerm, setSearchTerm] = useState<string>('');
   
   // Add Key Form State
   const [newKeyProvider, setNewKeyProvider] = useState<ProviderName>('Google Gemini');
@@ -297,6 +299,16 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
     });
   };
 
+  const filteredApiKeys = apiKeys.filter(key => {
+    if (!searchTerm) return true;
+    const searchLower = searchTerm.toLowerCase();
+    return (
+      key.provider.toLowerCase().includes(searchLower) ||
+      key.label.toLowerCase().includes(searchLower) ||
+      key.status.toLowerCase().includes(searchLower)
+    );
+  });
+
   const StatusBadge = ({ status }: { status: KeyStatus }) => {
     const styles = {
       valid: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 ring-emerald-500/20',
@@ -453,9 +465,23 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
 
            {/* Keys List by Provider */}
            <div className="space-y-4">
-             <h3 className="text-sm font-semibold text-textmuted uppercase tracking-wider ml-1 mb-2 flex items-center gap-2">
-                <ServerStackIcon className="w-4 h-4" /> Provedores Configurados
-             </h3>
+             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-2">
+                <h3 className="text-sm font-semibold text-textmuted uppercase tracking-wider ml-1 flex items-center gap-2">
+                   <ServerStackIcon className="w-4 h-4" /> Provedores Configurados
+                </h3>
+                <div className="relative w-full md:w-64">
+                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <MagnifyingGlassIcon className="h-4 w-4 text-textmuted" />
+                   </div>
+                   <input
+                      type="text"
+                      className="block w-full pl-10 pr-3 py-2 border border-gray-700 rounded-lg leading-5 bg-lightbg text-textdark placeholder-textmuted focus:outline-none focus:ring-1 focus:ring-accent focus:border-accent sm:text-sm transition duration-150 ease-in-out"
+                      placeholder="Buscar chaves (Provedor, Label...)"
+                      value={searchTerm}
+                      onChange={(e) => setSearchTerm(e.target.value)}
+                   />
+                </div>
+             </div>
              
              {keysLoading ? (
                <div className="flex justify-center p-12 bg-lightbg rounded-xl"><LoadingSpinner /></div>
@@ -467,10 +493,16 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
                </div>
              ) : (
                PROVIDERS.map(provider => {
-                 const providerKeys = apiKeys.filter(k => k.provider === provider);
+                 const providerKeys = filteredApiKeys.filter(k => k.provider === provider);
                  const hasKeys = providerKeys.length > 0;
+                 
+                 // If search is active and no keys match for this provider, hide the provider
+                 if (searchTerm && !hasKeys) return null;
+
                  const activeKeysCount = providerKeys.filter(k => k.isActive).length;
-                 const isExpanded = expandedProviders[provider];
+                 // If search matches, expand by default or keep current state?
+                 // Let's rely on user interaction, but maybe force expand if searching?
+                 const isExpanded = searchTerm ? true : expandedProviders[provider];
                  
                  // Sort keys for better UX logic inside the box
                  const sortedKeys = getSortedKeys(providerKeys);

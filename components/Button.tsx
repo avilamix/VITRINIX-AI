@@ -16,30 +16,36 @@ const Button: React.FC<ButtonProps> = ({
   disabled,
   ...props
 }) => {
-  const baseStyles = 'font-semibold rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-200 ease-in-out';
-  const disabledStyles = 'opacity-60 cursor-not-allowed text-textmuted'; // Text muted for disabled state
-
+  const baseStyles = 'inline-flex items-center justify-center font-medium rounded-lg transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed';
+  
   const variantStyles = {
-    primary: 'bg-accent text-darkbg shadow-lg shadow-accent/50 hover:bg-neonGreen/80 focus:ring-neonGreen focus:ring-offset-lightbg',
-    secondary: 'bg-primary text-white hover:bg-primary/80 focus:ring-primary focus:ring-offset-lightbg',
-    outline: 'bg-transparent border border-primary text-primary hover:bg-primary hover:text-white focus:ring-primary focus:ring-offset-lightbg',
-    ghost: 'bg-transparent text-primary hover:bg-primary/20 focus:ring-primary focus:ring-offset-lightbg',
-    danger: 'bg-red-600 text-white hover:bg-red-700 focus:ring-red-500 focus:ring-offset-lightbg',
+    primary: 'bg-primary text-white hover:opacity-90 shadow-sm focus:ring-primary',
+    secondary: 'bg-surface text-title border border-gray-200 hover:bg-gray-50 hover:border-gray-300 focus:ring-gray-200',
+    outline: 'bg-transparent border border-primary text-primary hover:bg-primary/5 focus:ring-primary',
+    ghost: 'bg-transparent text-body hover:bg-gray-100 hover:text-title focus:ring-gray-200',
+    danger: 'bg-error text-white hover:bg-red-600 focus:ring-red-500',
   };
 
   const sizeStyles = {
-    sm: 'px-3 py-1.5 text-sm',
-    md: 'px-4 py-2 text-base',
-    lg: 'px-5 py-3 text-lg',
+    sm: 'px-3 py-1.5 text-xs',
+    md: 'px-4 py-2 text-sm',
+    lg: 'px-6 py-3 text-base',
   };
 
   return (
     <button
-      className={`${baseStyles} ${variantStyles[variant]} ${isLoading || disabled ? disabledStyles : ''} ${className}`}
+      className={`${baseStyles} ${variantStyles[variant]} ${sizeStyles[size]} ${className}`}
       disabled={isLoading || disabled}
       {...props}
     >
-      {isLoading ? <LoadingSpinner /> : children}
+      {isLoading ? (
+        <>
+          <LoadingSpinner className="w-4 h-4 mr-2 border-current border-t-transparent opacity-80" />
+          <span>Processando...</span>
+        </>
+      ) : (
+        children
+      )}
     </button>
   );
 };

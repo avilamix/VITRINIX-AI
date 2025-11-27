@@ -1,6 +1,6 @@
 import React from 'react';
 import { ChatMessage as ChatMessageType } from '../types';
-import { SparklesIcon, UserCircleIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, UserIcon, ClipboardDocumentIcon } from '@heroicons/react/24/outline';
 
 interface ChatMessageProps {
   message: ChatMessageType;
@@ -15,45 +15,46 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
 
   return (
     <div className={`flex w-full ${isUser ? 'justify-end' : 'justify-start'} mb-6 group`}>
-      <div className={`flex max-w-[85%] md:max-w-[75%] gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
+      <div className={`flex max-w-[90%] md:max-w-[80%] gap-4 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}>
         
         {/* Avatar */}
-        <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${isUser ? 'bg-primary/20' : 'bg-accent/10'}`}>
+        <div className={`flex-shrink-0 w-8 h-8 rounded-lg flex items-center justify-center border ${
+          isUser 
+            ? 'bg-primary text-white border-primary' 
+            : 'bg-white text-primary border-gray-200 shadow-sm'
+        }`}>
           {isUser ? (
-            <UserCircleIcon className="w-6 h-6 text-primary" />
+            <UserIcon className="w-4 h-4" />
           ) : (
-            <SparklesIcon className="w-5 h-5 text-accent" />
+            <SparklesIcon className="w-4 h-4" />
           )}
         </div>
 
         {/* Message Bubble */}
-        <div className="flex flex-col">
+        <div className="flex flex-col max-w-full">
           <div
-            className={`relative px-5 py-3.5 rounded-2xl shadow-md text-sm leading-relaxed md:text-base ${
+            className={`relative px-5 py-4 rounded-2xl shadow-sm text-[15px] leading-relaxed border ${
               isUser
-                ? 'bg-primary text-white rounded-tr-none'
-                : 'bg-lightbg text-textdark border border-gray-800 rounded-tl-none'
+                ? 'bg-primary text-white border-primary rounded-tr-sm'
+                : 'bg-surface text-body border-gray-100 rounded-tl-sm'
             }`}
           >
-            <div style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+            <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2" style={{ color: isUser ? 'white' : 'inherit' }}>
               {message.text}
             </div>
             
-            {/* Copy Button (Visible on Hover for AI messages) */}
             {!isUser && (
               <button 
                 onClick={handleCopy}
-                className="absolute top-2 right-2 p-1 text-textmuted opacity-0 group-hover:opacity-100 transition-opacity hover:text-accent"
-                title="Copiar texto"
-                aria-label="Copiar resposta"
+                className="absolute top-3 right-3 p-1.5 text-muted hover:text-primary bg-background/50 hover:bg-background rounded-md opacity-0 group-hover:opacity-100 transition-all"
+                title="Copy to clipboard"
               >
-                <ClipboardDocumentIcon className="w-4 h-4" />
+                <ClipboardDocumentIcon className="w-3.5 h-3.5" />
               </button>
             )}
           </div>
           
-          {/* Timestamp */}
-          <span className={`text-[10px] text-textmuted mt-1 ${isUser ? 'text-right' : 'text-left'}`}>
+          <span className={`text-[10px] text-muted mt-1.5 font-medium ${isUser ? 'text-right' : 'text-left'}`}>
             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>

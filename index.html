@@ -3,29 +3,108 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VitrineX AI</title>
+    <title>Enterprise AI Platform</title>
+    <!-- Google Fonts: Inter -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script>
       tailwind.config = {
+        darkMode: 'class',
         theme: {
           extend: {
+            fontFamily: {
+              sans: ['Inter', 'sans-serif'],
+            },
             colors: {
-              // Dark Theme Palette
-              primary: '#8B5CF6', // Soft purple
-              secondary: '#A78BFA', // Lighter purple/indigo
-              accent: '#00FF99', // Bright neon green for actions/glow
-              darkbg: '#0A0A0F', // Main background
-              lightbg: '#121212', // Card backgrounds, input fields
-              textdark: '#F9FAFB', // Main text, headings (near white)
-              textlight: '#D1D5DB', // Secondary text, placeholders (light gray)
-              textmuted: '#9CA3AF', // Subtle text (medium gray)
-              neonGreen: '#00FF99', // Alias for accent for specific neon effects
+              // Semantic Colors mapped to CSS Variables for Runtime Theming
+              primary: 'rgb(var(--color-primary) / <alpha-value>)', 
+              secondary: 'rgb(var(--color-secondary) / <alpha-value>)',
+              surface: 'rgb(var(--color-surface) / <alpha-value>)',
+              background: 'rgb(var(--color-background) / <alpha-value>)',
+              
+              // Text hierarchy
+              title: 'rgb(var(--color-text-title) / <alpha-value>)',
+              body: 'rgb(var(--color-text-body) / <alpha-value>)',
+              muted: 'rgb(var(--color-text-muted) / <alpha-value>)',
+              
+              // Status
+              success: '#10B981',
+              warning: '#F59E0B',
+              error: '#EF4444',
+              info: '#3B82F6',
+            },
+            boxShadow: {
+              'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
+              'card': '0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.06)',
+            },
+            borderRadius: {
+              'xl': '0.75rem',
+              '2xl': '1rem',
             }
           }
         }
       }
     </script>
+    <style>
+      :root {
+        /* 
+          WHITE LABEL THEME CONFIGURATION 
+          Change these values to rebrand the application instantly.
+        */
+        
+        /* Brand Color (Default: Enterprise Blue) - RGB values */
+        --color-primary: 37 99 235; /* Blue-600 */
+        
+        /* Secondary Accent (Default: Slate) */
+        --color-secondary: 71 85 105; /* Slate-600 */
+
+        /* Light Mode Palette */
+        --color-background: 248 250 252; /* Slate-50 */
+        --color-surface: 255 255 255;    /* White */
+        
+        /* Typography */
+        --color-text-title: 15 23 42;    /* Slate-900 */
+        --color-text-body: 51 65 85;     /* Slate-700 */
+        --color-text-muted: 100 116 139; /* Slate-500 */
+      }
+
+      /* Dark Mode Palette (Optional Override) */
+      .dark {
+        --color-primary: 96 165 250;     /* Blue-400 */
+        --color-background: 15 23 42;    /* Slate-900 */
+        --color-surface: 30 41 59;       /* Slate-800 */
+        --color-text-title: 241 245 249; /* Slate-100 */
+        --color-text-body: 203 213 225;  /* Slate-300 */
+        --color-text-muted: 148 163 184; /* Slate-400 */
+      }
+
+      body {
+        background-color: rgb(var(--color-background));
+        color: rgb(var(--color-text-body));
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+      
+      /* Scrollbar Styling */
+      ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+      }
+      ::-webkit-scrollbar-track {
+        background: transparent;
+      }
+      ::-webkit-scrollbar-thumb {
+        background: rgba(var(--color-text-muted), 0.2);
+        border-radius: 4px;
+      }
+      ::-webkit-scrollbar-thumb:hover {
+        background: rgba(var(--color-text-muted), 0.4);
+      }
+    </style>
 <script type="importmap">
 {
   "imports": {
@@ -38,8 +117,8 @@
 }
 </script>
 </head>
-<body class="bg-darkbg text-textdark h-full">
-    <div id="root"></div>
+<body class="h-full">
+    <div id="root" class="h-full"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
 </html>

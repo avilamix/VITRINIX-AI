@@ -1,10 +1,12 @@
 import React from 'react';
 
-const LoadingSpinner: React.FC = () => {
+interface LoadingSpinnerProps {
+  className?: string;
+}
+
+const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ className = "w-6 h-6" }) => {
   return (
-    <div className="flex items-center justify-center">
-      <div className="w-8 h-8 border-4 border-accent border-t-transparent border-solid rounded-full animate-spin"></div>
-    </div>
+    <div className={`inline-block ${className} border-2 border-gray-200 border-t-primary rounded-full animate-spin`}></div>
   );
 };
 

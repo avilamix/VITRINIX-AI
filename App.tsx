@@ -15,7 +15,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import Chatbot from './pages/Chatbot';
 import LiveConversation from './pages/LiveConversation';
 import AudioTools from './pages/AudioTools';
-import Logo from './components/Logo'; // Import Logo
+import Logo from './components/Logo'; 
 import { NavigationContext } from './hooks/useNavigate';
 
 export type ModuleName =
@@ -52,7 +52,7 @@ function App() {
       }
     } else {
       console.warn("window.aistudio is not available. Proceeding without API key check.");
-      setHasApiKey(true); // Assume API key is not required or handled differently outside this environment
+      setHasApiKey(true); 
       setLoadingApiKeyCheck(false);
     }
   }, []);
@@ -66,8 +66,6 @@ function App() {
     if (window.aistudio && typeof window.aistudio.openSelectKey === 'function') {
       try {
         await window.aistudio.openSelectKey();
-        // Assume success for now, the user has opened the dialog.
-        // The actual key will be available via process.env.API_KEY on subsequent API calls.
         setHasApiKey(true);
       } catch (error) {
         console.error("Error opening API key selection:", error);
@@ -113,32 +111,35 @@ function App() {
 
   if (loadingApiKeyCheck) {
     return (
-      <div className="flex items-center justify-center h-full bg-darkbg">
+      <div className="flex items-center justify-center h-full bg-background">
         <LoadingSpinner />
-        <p className="ml-2 text-textlight">Checking API key status...</p>
+        <p className="ml-3 text-body font-medium">Initializing secure environment...</p>
       </div>
     );
   }
 
   if (!hasApiKey && window.aistudio) {
     return (
-      <div className="flex flex-col items-center justify-center h-full bg-darkbg p-4 text-center">
-        <div className="mb-8 transform scale-150">
-           <Logo className="h-16 w-16" showText={true} />
+      <div className="flex flex-col items-center justify-center h-full bg-background p-6 text-center">
+        <div className="mb-10 p-8 bg-surface rounded-2xl shadow-soft border border-gray-100 max-w-lg w-full">
+            <div className="flex justify-center mb-6">
+                 <Logo className="h-16 w-16" showText={false} />
+            </div>
+            <h1 className="text-2xl font-bold text-title mb-3">Welcome to NexusAI</h1>
+            <p className="text-body mb-8">
+              Please connect your Google Gemini API key to access the enterprise suite.
+              <br/><span className="text-sm text-muted">Paid keys required for advanced media generation.</span>
+            </p>
+            <button
+              onClick={handleOpenApiKeySelection}
+              className="w-full px-6 py-3 bg-primary text-white font-semibold rounded-lg shadow-md hover:opacity-90 transition duration-200"
+            >
+              Connect API Key
+            </button>
+            <p className="mt-6 text-xs text-muted">
+              Secure connection managed by Google AI Studio.
+            </p>
         </div>
-        <p className="text-lg text-textlight mb-8 max-w-md">
-          Para usar a VitrineX AI, selecione sua chave API do Google Gemini.
-          Modelos avançados como Veo requerem uma chave de projeto pago no GCP.
-        </p>
-        <button
-          onClick={handleOpenApiKeySelection}
-          className="px-6 py-3 bg-accent text-darkbg font-semibold rounded-lg shadow-lg shadow-accent/50 hover:bg-neonGreen/80 focus:outline-none focus:ring-2 focus:ring-neonGreen focus:ring-offset-2 focus:ring-offset-darkbg transition duration-200"
-        >
-          Selecionar Chave API Gemini
-        </button>
-        <p className="mt-4 text-sm text-textmuted">
-          Precisa de ajuda? <a href="https://ai.google.dev/gemini-api/docs/billing" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Saiba mais sobre faturamento</a>.
-        </p>
       </div>
     );
   }
@@ -147,12 +148,14 @@ function App() {
 
   return (
     <NavigationContext.Provider value={{ setActiveModule }}>
-      <div className="flex flex-col h-full bg-darkbg text-textdark font-sans selection:bg-accent/30">
+      <div className="flex flex-col h-full bg-background text-body font-sans">
         <Navbar />
         <div className="flex flex-1 overflow-hidden relative">
           <Sidebar activeModule={activeModule} setActiveModule={setActiveModule} />
-          <main className={`flex-1 flex flex-col min-w-0 ${isFullWidthModule ? 'p-0 overflow-hidden' : 'p-6 md:p-8 lg:p-10 overflow-y-auto'}`}>
-            {renderModule()}
+          <main className={`flex-1 flex flex-col min-w-0 ${isFullWidthModule ? 'p-0 overflow-hidden' : 'p-6 md:p-8 overflow-y-auto'}`}>
+            <div className={`mx-auto w-full ${isFullWidthModule ? 'h-full' : 'max-w-7xl'}`}>
+                {renderModule()}
+            </div>
           </main>
         </div>
       </div>
