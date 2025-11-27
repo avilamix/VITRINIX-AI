@@ -1,11 +1,14 @@
+
 import React, { useState, useCallback, useEffect } from 'react';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { searchTrends } from '../services/geminiService';
+import { searchTrends, generateText } from '../services/geminiService';
 import { saveTrend } from '../services/firestoreService';
 import { Trend } from '../types';
-import { useNavigate } from '../hooks/useNavigate'; // Custom hook for navigation
+import { useNavigate } from '../hooks/useNavigate';
+import { GEMINI_FLASH_MODEL } from '../constants';
+import { LightBulbIcon } from '@heroicons/react/24/outline';
 
 const TrendHunter: React.FC = () => {
   const [query, setQuery] = useState<string>('');
@@ -14,6 +17,11 @@ const TrendHunter: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  
+  // New state for inline idea generation
+  const [generatedIdeas, setGeneratedIdeas] = useState<Record<string, string>>({});
+  const [generatingIdeaFor, setGeneratingIdeaFor] = useState<string | null>(null);
+
   const { navigateTo } = useNavigate();
 
   // For now, using a mock user ID. In a real app, this would come from auth context.
@@ -47,6 +55,7 @@ const TrendHunter: React.FC = () => {
     setLoading(true);
     setError(null);
     setTrends([]);
+    setGeneratedIdeas({}); // Clear previous ideas
 
     try {
       // Pass userLocation if city is provided, or undefined otherwise to rely on general search
@@ -71,6 +80,20 @@ const TrendHunter: React.FC = () => {
     }
   }, [query, city, userId, userLocation]);
 
+  const handleGenerateContentIdea = useCallback(async (trend: Trend) => {
+    setGeneratingIdeaFor(trend.id);
+    try {
+      const prompt = `Based on the trending topic "${trend.query}" and the following details: "${trend.data}", suggest a creative and engaging content idea (e.g., a social media post concept or blog title). Keep it concise.`;
+      const idea = await generateText(prompt, { model: GEMINI_FLASH_MODEL });
+      setGeneratedIdeas(prev => ({ ...prev, [trend.id]: idea }));
+    } catch (err) {
+      console.error('Error generating idea:', err);
+      alert('Failed to generate content idea. Please try again.');
+    } finally {
+      setGeneratingIdeaFor(null);
+    }
+  }, []);
+
   const handleCreateContentFromTrend = useCallback((trend: Trend) => {
     // Navigate to ContentGenerator and pre-fill prompt
     console.log('Navigating to ContentGenerator with trend:', trend);
@@ -92,6 +115,7 @@ const TrendHunter: React.FC = () => {
     setQuery('');
     setCity('');
     setTrends([]);
+    setGeneratedIdeas({});
     setError(null);
   }, []);
 
@@ -177,7 +201,27 @@ const TrendHunter: React.FC = () => {
                     </ul>
                   </div>
                 )}
-                <div className="flex flex-col sm:flex-row gap-3 mt-6">
+                
+                {/* Generated Idea Section */}
+                {generatedIdeas[trend.id] && (
+                  <div className="mt-4 mb-4 p-4 bg-accent/5 border border-accent/20 rounded-md animate-in fade-in">
+                     <h5 className="text-sm font-bold text-accent mb-1 flex items-center gap-2">
+                       <LightBulbIcon className="w-4 h-4" />
+                       Content Idea
+                     </h5>
+                     <p className="text-sm text-textlight italic">"{generatedIdeas[trend.id]}"</p>
+                  </div>
+                )}
+
+                <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-6">
+                  <Button 
+                    onClick={() => handleGenerateContentIdea(trend)} 
+                    isLoading={generatingIdeaFor === trend.id}
+                    variant="outline" 
+                    className="w-full sm:w-auto"
+                  >
+                    Generate Content Idea
+                  </Button>
                   <Button onClick={() => handleCreateContentFromTrend(trend)} variant="primary" className="w-full sm:w-auto">Criar Conteúdo da Tendência</Button>
                   <Button onClick={() => handleAddTrendToCalendar(trend)} variant="secondary" className="w-full sm:w-auto">Adicionar ao Calendário</Button>
                 </div>
