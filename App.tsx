@@ -143,13 +143,15 @@ function App() {
     );
   }
 
+  const isFullWidthModule = activeModule === 'Chatbot' || activeModule === 'LiveConversation';
+
   return (
     <NavigationContext.Provider value={{ setActiveModule }}>
-      <div className="flex flex-col h-full bg-darkbg">
+      <div className="flex flex-col h-full bg-darkbg text-textdark font-sans selection:bg-accent/30">
         <Navbar />
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden relative">
           <Sidebar activeModule={activeModule} setActiveModule={setActiveModule} />
-          <main className="flex-1 p-6 md:p-8 lg:p-10 overflow-y-auto">
+          <main className={`flex-1 flex flex-col min-w-0 ${isFullWidthModule ? 'p-0 overflow-hidden' : 'p-6 md:p-8 lg:p-10 overflow-y-auto'}`}>
             {renderModule()}
           </main>
         </div>

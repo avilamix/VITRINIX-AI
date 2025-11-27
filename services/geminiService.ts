@@ -3,9 +3,6 @@ import {
   GenerateContentResponse,
   GenerateContentParameters,
   VideoGenerationReferenceImage,
-  VideoOperation,
-  VideoGenerationConfig,
-  ImageGenerationConfig,
   Type,
   FunctionDeclaration,
   Chat,
@@ -94,8 +91,8 @@ export const generateText = async (
 
 export interface GenerateImageOptions {
   model?: string;
-  aspectRatio?: ImageGenerationConfig['imageConfig']['aspectRatio'];
-  imageSize?: ImageGenerationConfig['imageConfig']['imageSize'];
+  aspectRatio?: string;
+  imageSize?: string;
   tools?: GenerateContentParameters['config']['tools'];
 }
 
@@ -119,8 +116,8 @@ export const generateImage = async (
       },
       config: {
         imageConfig: {
-          aspectRatio,
-          imageSize,
+          aspectRatio: aspectRatio as any,
+          imageSize: imageSize as any,
         },
         tools,
       },
@@ -189,7 +186,7 @@ export interface GenerateVideoOptions {
   image?: { imageBytes: string; mimeType: string };
   lastFrame?: { imageBytes: string; mimeType: string };
   referenceImages?: VideoGenerationReferenceImage[];
-  config?: VideoGenerationConfig;
+  config?: any;
 }
 
 export const generateVideo = async (
@@ -206,13 +203,21 @@ export const generateVideo = async (
 
   try {
     const ai = getGeminiClient();
+    
+    // Prepare config with lastFrame and referenceImages if they exist
+    const videoConfig: any = { ...config };
+    if (lastFrame) {
+      videoConfig.lastFrame = lastFrame;
+    }
+    if (referenceImages) {
+      videoConfig.referenceImages = referenceImages;
+    }
+
     let operation = await ai.models.generateVideos({
       model: model,
       prompt: prompt,
       image: image,
-      lastFrame: lastFrame,
-      referenceImages: referenceImages,
-      config: config,
+      config: videoConfig,
     });
 
     while (!operation.done) {
