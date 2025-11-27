@@ -1,14 +1,16 @@
+
 import React, { useState, useRef, useEffect } from 'react';
-import { PaperAirplaneIcon } from '@heroicons/react/24/outline';
+import { PaperAirplaneIcon, StopIcon } from '@heroicons/react/24/outline';
 import LoadingSpinner from './LoadingSpinner';
 
 interface ChatInputProps {
   onSend: (message: string) => void;
+  onStop?: () => void;
   isLoading: boolean;
   disabled?: boolean;
 }
 
-const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, disabled }) => {
+const ChatInput: React.FC<ChatInputProps> = ({ onSend, onStop, isLoading, disabled }) => {
   const [text, setText] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
@@ -53,24 +55,36 @@ const ChatInput: React.FC<ChatInputProps> = ({ onSend, isLoading, disabled }) =>
         aria-label="Mensagem do chat"
       />
       
-      <button
-        type="submit"
-        disabled={!text.trim() || isLoading || disabled}
-        className={`p-2 rounded-lg mb-0.5 transition-colors duration-200 flex-shrink-0 ${
-          !text.trim() || isLoading || disabled
-            ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
-            : 'bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20'
-        }`}
-        aria-label="Enviar mensagem"
-      >
-        {isLoading ? (
-          <div className="w-5 h-5 flex items-center justify-center">
-             <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-          </div>
-        ) : (
-          <PaperAirplaneIcon className="w-5 h-5" />
-        )}
-      </button>
+      {isLoading && onStop ? (
+        <button
+          type="button"
+          onClick={onStop}
+          className="p-2 rounded-lg mb-0.5 transition-colors duration-200 flex-shrink-0 bg-red-600/20 text-red-400 hover:bg-red-600/40 border border-red-500/30"
+          aria-label="Parar geração"
+          title="Parar geração"
+        >
+          <StopIcon className="w-5 h-5" />
+        </button>
+      ) : (
+        <button
+          type="submit"
+          disabled={!text.trim() || isLoading || disabled}
+          className={`p-2 rounded-lg mb-0.5 transition-colors duration-200 flex-shrink-0 ${
+            !text.trim() || isLoading || disabled
+              ? 'bg-gray-800 text-gray-500 cursor-not-allowed'
+              : 'bg-primary text-white hover:bg-primary/90 shadow-lg shadow-primary/20'
+          }`}
+          aria-label="Enviar mensagem"
+        >
+          {isLoading ? (
+            <div className="w-5 h-5 flex items-center justify-center">
+              <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+            </div>
+          ) : (
+            <PaperAirplaneIcon className="w-5 h-5" />
+          )}
+        </button>
+      )}
     </form>
   );
 };

@@ -10,39 +10,74 @@ const mockValidate = async (provider: ProviderName): Promise<boolean> => {
   return Math.random() > 0.05;
 };
 
-// Real-ish validation for Gemini
-const validateGeminiKey = async (key: string): Promise<boolean> => {
+// Real-ish validation for Gemini with detailed error handling
+const validateGeminiKey = async (key: string): Promise<{ isValid: boolean; error?: string }> => {
   try {
     const ai = new GoogleGenAI({ apiKey: key });
-    // Try a very cheap call, like getting a model info or a simple generate
-    // Note: models.get is deprecated in new SDK, using a simple generate call on flash
+    
+    // Use gemini-2.5-flash for a lightweight validation call
+    // Set maxOutputTokens to 1 to minimize cost/latency
     await ai.models.generateContent({
         model: 'gemini-2.5-flash',
-        contents: 'ping',
+        contents: { parts: [{ text: 'ping' }] },
+        config: { maxOutputTokens: 1 },
     });
-    return true;
-  } catch (error) {
-    console.warn("Gemini Validation Failed:", error);
-    return false;
+    
+    console.log('Gemini Key Validation: Success');
+    return { isValid: true };
+  } catch (error: any) {
+    console.error("Gemini Key Validation Failed:", error);
+
+    // Extract detailed error info
+    let status = 'Unknown';
+    if (error.status) status = error.status.toString();
+    else if (error.response?.status) status = error.response.status.toString();
+    else if (error.message?.match(/(\d{3})/)) status = error.message.match(/(\d{3})/)[1];
+
+    let message = error.message || 'Unknown error occurred';
+
+    // Categorize errors for better UI feedback
+    if (status === '401' || message.includes('401') || message.toLowerCase().includes('invalid api key')) {
+        return { isValid: false, error: `401 Unauthorized: The API Key is incorrect.` };
+    }
+    if (status === '403' || message.includes('403')) {
+        return { isValid: false, error: `403 Forbidden: Key lacks permissions or billing is disabled.` };
+    }
+    if (status === '404' || message.includes('404')) {
+        return { isValid: false, error: `404 Not Found: Validation model (gemini-2.5-flash) unavailable.` };
+    }
+    if (status === '429' || message.includes('429')) {
+        return { isValid: false, error: `429 Rate Limit: Quota exceeded for this key.` };
+    }
+    if (status === '500' || message.includes('500')) {
+        return { isValid: false, error: `500 Server Error: Google Gemini API internal error.` };
+    }
+
+    // Network errors (often empty status or specific messages)
+    if (message.includes('fetch') || message.includes('network')) {
+         return { isValid: false, error: `Network Error: Could not reach Google API. Check firewall/connection.` };
+    }
+
+    return { isValid: false, error: `${status}: ${message}` };
   }
 };
 
 export const validateKey = async (config: ApiKeyConfig): Promise<{ status: KeyStatus; error?: string }> => {
   let isValid = false;
-  let errorMsg = undefined;
+  let errorMsg: string | undefined = undefined;
 
   try {
     if (config.provider === 'Google Gemini') {
-      isValid = await validateGeminiKey(config.key);
+      const result = await validateGeminiKey(config.key);
+      isValid = result.isValid;
+      errorMsg = result.error;
     } else {
       isValid = await mockValidate(config.provider);
+      if (!isValid) errorMsg = "Mock validation check failed (simulated).";
     }
-
-    if (!isValid) {
-        errorMsg = 'Validation failed: Invalid key or network error.';
-    }
-  } catch (e) {
-    errorMsg = e instanceof Error ? e.message : String(e);
+  } catch (e: any) {
+    isValid = false;
+    errorMsg = `System Error: ${e.message || String(e)}`;
   }
 
   const newStatus: KeyStatus = isValid ? 'valid' : 'invalid';
@@ -54,6 +89,8 @@ export const validateKey = async (config: ApiKeyConfig): Promise<{ status: KeySt
       lastValidatedAt: new Date().toISOString(),
       errorMessage: errorMsg 
   };
+  
+  // Only update if it's stored (has an ID that implies persistence, though here we always assume so)
   await saveApiKey(updatedConfig);
 
   return { status: newStatus, error: errorMsg };

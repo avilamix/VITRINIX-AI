@@ -27,6 +27,7 @@ const Chatbot: React.FC = () => {
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const abortControllerRef = useRef<AbortController | null>(null);
 
   const initChat = useCallback(async () => {
     try {
@@ -63,39 +64,75 @@ const Chatbot: React.FC = () => {
   const handleSendMessage = useCallback(async (text: string) => {
     if (!chatSession) return;
 
+    // Reset abort controller for new request
+    abortControllerRef.current = new AbortController();
+
     const newUserMessage: ChatMessageType = {
       role: 'user',
       text: text,
       timestamp: new Date().toISOString(),
     };
     
-    setMessages((prev) => [...prev, newUserMessage]);
+    // Optimistic update: Add user message AND empty model message immediately
+    const newModelMessage: ChatMessageType = {
+      role: 'model',
+      text: '', // Start empty for streaming
+      timestamp: new Date().toISOString(),
+    };
+
+    setMessages((prev) => [...prev, newUserMessage, newModelMessage]);
     setLoading(true);
     setError(null);
 
     try {
-      const modelResponseText = await sendMessageToChat(chatSession, text);
-      const newModelMessage: ChatMessageType = {
-        role: 'model',
-        text: modelResponseText,
-        timestamp: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, newModelMessage]);
+      await sendMessageToChat(
+        chatSession, 
+        text, 
+        (partialText) => {
+          // Update the last message (the model's message) with streaming text
+          setMessages((prev) => {
+            const newMessages = [...prev];
+            const lastMsgIndex = newMessages.length - 1;
+            if (newMessages[lastMsgIndex].role === 'model') {
+               newMessages[lastMsgIndex] = {
+                 ...newMessages[lastMsgIndex],
+                 text: partialText
+               };
+            }
+            return newMessages;
+          });
+        },
+        abortControllerRef.current.signal
+      );
     } catch (err) {
       console.error('Error sending message:', err);
-      setError('Ocorreu um erro ao processar sua mensagem. Tente novamente ou troque de provedor.');
-      setMessages((prev) => [...prev, {
-        role: 'model',
-        text: '⚠️ Tive um problema de conexão. Poderia repetir?',
-        timestamp: new Date().toISOString(),
-      }]);
+      // If manually aborted, don't show generic error
+      if (!abortControllerRef.current?.signal.aborted) {
+        setError('Ocorreu um erro ao processar sua mensagem. Tente novamente ou troque de provedor.');
+        setMessages((prev) => [...prev, {
+          role: 'model',
+          text: '⚠️ Tive um problema de conexão. Poderia repetir?',
+          timestamp: new Date().toISOString(),
+        }]);
+      }
     } finally {
       setLoading(false);
+      abortControllerRef.current = null;
     }
   }, [chatSession]);
 
+  const handleStopGeneration = useCallback(() => {
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+      setLoading(false);
+    }
+  }, []);
+
   const handleClearChat = () => {
     if (window.confirm('Deseja iniciar uma nova conversa? O histórico atual será limpo.')) {
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
       initChat();
     }
   };
@@ -146,10 +183,11 @@ const Chatbot: React.FC = () => {
         <div className="max-w-4xl mx-auto px-4 py-8 flex flex-col min-h-full justify-start">
           
           {messages.map((msg, index) => (
-             <ChatMessage key={index} message={msg} />
+             // Only render if text is not empty, OR if it's the last message (currently streaming)
+             (msg.text || index === messages.length - 1) && <ChatMessage key={index} message={msg} />
           ))}
 
-          {loading && (
+          {loading && messages.length > 0 && !messages[messages.length - 1].text && (
             <div className="flex justify-start mb-6 pl-1 animate-in fade-in slide-in-from-bottom-2 duration-300">
                <TypingIndicator />
             </div>
@@ -189,6 +227,7 @@ const Chatbot: React.FC = () => {
           
           <ChatInput 
             onSend={handleSendMessage} 
+            onStop={handleStopGeneration}
             isLoading={loading} 
             disabled={!chatSession} 
           />

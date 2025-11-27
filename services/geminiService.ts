@@ -463,15 +463,36 @@ export const startChatAsync = async (model: string = GEMINI_PRO_MODEL, provider:
     return ai.chats.create({ model: model });
 };
 
-export const sendMessageToChat = async (chat: Chat, message: string): Promise<string> => {
+export const sendMessageToChat = async (
+  chat: Chat, 
+  message: string,
+  onChunk?: (text: string) => void,
+  signal?: AbortSignal
+): Promise<string> => {
   try {
     const response = await chat.sendMessageStream({ message: message });
     let fullText = '';
+    
     for await (const chunk of response) {
-      fullText += chunk.text;
+      if (signal?.aborted) {
+        // Stop processing chunks if aborted
+        break; 
+      }
+      
+      const chunkText = chunk.text;
+      fullText += chunkText;
+      
+      // Notify caller of progress
+      if (onChunk) {
+        onChunk(fullText);
+      }
     }
+    
     return fullText;
   } catch (error) {
+    if (signal?.aborted) {
+       return ""; // Suppress error if purposefully aborted
+    }
     console.error('Error sending message to chat:', error);
     throw new Error(`Failed to send message: ${error instanceof Error ? error.message : String(error)}`);
   }
