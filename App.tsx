@@ -16,6 +16,7 @@ import Chatbot from './pages/Chatbot';
 import LiveConversation from './pages/LiveConversation';
 import AudioTools from './pages/AudioTools';
 import Logo from './components/Logo'; 
+import BackButton from './components/BackButton'; // Import BackButton
 import { NavigationContext } from './hooks/useNavigate';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
@@ -154,6 +155,8 @@ function AppContent() {
         <Navbar />
         <div className="flex flex-1 overflow-hidden relative">
           <Sidebar activeModule={activeModule} setActiveModule={setActiveModule} />
+          {/* BackButton rendered here, outside the main content div but within the flex container */}
+          <BackButton currentModule={activeModule} />
           <main className={`flex-1 flex flex-col min-w-0 ${isFullWidthModule ? 'p-0 overflow-hidden' : 'p-6 md:p-8 overflow-y-auto'}`}>
             <div className={`mx-auto w-full ${isFullWidthModule ? 'h-full' : 'max-w-7xl'}`}>
                 {renderModule()}

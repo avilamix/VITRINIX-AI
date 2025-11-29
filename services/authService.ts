@@ -1,10 +1,11 @@
 
+
 // In a real application, this would integrate with Firebase Authentication or a similar service.
 // For this frontend-only app, these are mock functions.
 
 import { UserProfile, LoginResponseDto, OrganizationMembership } from '../types';
-import { MOCK_API_DELAY } from '../constants';
-import { getUserProfile } from './firestoreService';
+import { MOCK_API_DELAY, DEFAULT_BUSINESS_PROFILE } from '../constants';
+// import { getUserProfile } from './firestoreService'; // REMOVIDO: FirestoreService não gerencia mais UserProfile diretamente
 
 // TODO: Em um sistema real, a URL do backend viria de uma variável de ambiente ou configuração global
 const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
@@ -43,14 +44,14 @@ export const loginWithGoogle = async (): Promise<UserProfile> => {
     const data: LoginResponseDto = await response.json();
     currentUserId = data.user.id;
     
+    // Constrói o perfil do usuário, adicionando o businessProfile padrão se não existir.
+    // Em um sistema real, o businessProfile viria do backend também.
     currentUserProfile = {
       id: data.user.id,
       email: data.user.email,
       name: data.user.name,
       plan: 'premium', // MOCK: Assumindo premium após login para demo
-      businessProfile: currentUserProfile?.businessProfile || { // Keep existing business profile if any
-        name: 'Minha Empresa', industry: 'Marketing Digital', targetAudience: 'Pequenas e Médias Empresas', visualStyle: 'moderno'
-      },
+      businessProfile: DEFAULT_BUSINESS_PROFILE, // MOCK: Sempre usa o default por enquanto
     };
     currentUserOrganizations = data.organizations;
 
@@ -79,12 +80,17 @@ export const getCurrentUser = async (): Promise<UserProfile | null> => {
   await new Promise(resolve => setTimeout(resolve, MOCK_API_DELAY / 2)); // Simulate network delay
 
   if (currentUserId && !currentUserProfile) {
-    // If we have a currentUserId but no profile, try to fetch it
-    // In a real app, this would be a backend call to /profile
-    const profile = await getUserProfile(currentUserId);
-    if (profile) {
-      currentUserProfile = profile;
-    }
+    // Se temos um ID de usuário, mas não um perfil completo (após um refresh, por exemplo)
+    // Em um app real, faríamos uma chamada ao backend `/profile` ou `/users/:id` para obter
+    // os detalhes do usuário, incluindo o businessProfile.
+    // Por enquanto, recriamos um perfil mock se o ID existir.
+    currentUserProfile = {
+        id: currentUserId,
+        email: 'mock-user@vitrinex.com', // Placeholder
+        name: 'Mock User', // Placeholder
+        plan: 'premium', // Placeholder
+        businessProfile: DEFAULT_BUSINESS_PROFILE, // Always use default for demo
+    };
   }
   return currentUserProfile;
 };

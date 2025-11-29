@@ -29,7 +29,9 @@
     "multer": "^1.4.5-lts.1",
     "@google/generative-ai": "^0.24.1",
     "rxjs": "^7.8.2",
-    "class-transformer": "^0.5.1"
+    "class-transformer": "^0.5.1",
+    "@google-cloud/storage": "^7.17.3",
+    "buffer": "^6.0.3"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

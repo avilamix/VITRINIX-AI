@@ -1,179 +1,262 @@
 
 
-import { UserProfile, Post, Ad, Campaign, Trend, LibraryItem, ScheduleEntry, ApiKeyConfig } from '../types';
+import { UserProfile, Post, Ad, Campaign, Trend, LibraryItem, ScheduleEntry, ApiKeyConfig, OrganizationMembership } from '../types';
 import { MOCK_API_DELAY, DEFAULT_BUSINESS_PROFILE } from '../constants';
+import { getFirebaseIdToken, getActiveOrganization } from './authService';
 
-// In a real application, this would interact with a backend service (e.g., Cloud Functions)
-// which then interacts with Google Firestore.
-// For this frontend-only app, these are mock functions.
+// TODO: Em um sistema real, a URL do backend viria de uma variável de ambiente ou configuração global
+const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
 
-const mockDb = {
-  users: {
-    'mock-user-123': {
-      id: 'mock-user-123',
-      email: 'user@example.com',
-      plan: 'premium',
-      businessProfile: DEFAULT_BUSINESS_PROFILE,
-    } as UserProfile,
-  },
-  posts: {} as { [id: string]: Post },
-  ads: {} as { [id: string]: Ad },
-  campaigns: {} as { [id: string]: Campaign },
-  trends: {} as { [id: string]: Trend },
-  library: {} as { [id: string]: LibraryItem },
-  schedule: {} as { [id: string]: ScheduleEntry },
-  // apiKeys: [] as ApiKeyConfig[], REMOVIDO: API Keys agora são gerenciadas pelo backend
+// Helper para obter o ID da organização ativa
+const getActiveOrganizationId = (): string => {
+  const activeOrg: OrganizationMembership | undefined = getActiveOrganization();
+  if (!activeOrg) {
+    throw new Error('No active organization found. Please login and select an organization.');
+  }
+  return activeOrg.organization.id;
 };
 
-// Generic mock function to simulate Firestore operations
-async function mockFirestoreOperation<T>(operation: () => T | Promise<T>): Promise<T> {
-  await new Promise(resolve => setTimeout(resolve, MOCK_API_DELAY));
-  return await operation();
+// Helper genérico para fazer requisições ao backend
+async function fetchBackend<T>(
+  entityPath: string,
+  method: string = 'GET',
+  body?: any,
+): Promise<T> {
+  const organizationId = getActiveOrganizationId();
+  const idToken = await getFirebaseIdToken();
+
+  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/${entityPath}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`,
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || `Backend call to ${entityPath} failed: ${response.statusText}`);
+  }
+  return response.json();
 }
 
 // --- User Profile Operations ---
+// User profile é gerenciado pelo authService e a resposta de login.
+// O backend ainda não tem um endpoint específico para "profile", então mantém mock por enquanto
+// ou buscaria dados do usuário diretamente do `auth/me` endpoint.
 export const getUserProfile = async (userId: string): Promise<UserProfile | null> => {
-  // console.log(`Simulating fetching user profile for: ${userId}`);
-  return mockFirestoreOperation(() => {
-    const user = mockDb.users[userId];
-    if (!user) {
-      // Create a default profile if not found
-      mockDb.users[userId] = {
-        id: userId,
-        email: 'mock-user@vitrinex.com',
-        plan: 'free',
-        businessProfile: DEFAULT_BUSINESS_PROFILE,
-      };
-      // console.log('Created default user profile for mock user.');
-      return mockDb.users[userId];
-    }
-    return user;
-  });
+  // Simula o perfil do usuário, deve ser substituído por um endpoint de perfil do backend
+  console.log(`Simulating fetching user profile for: ${userId}`);
+  await new Promise(resolve => setTimeout(resolve, MOCK_API_DELAY));
+  return {
+    id: userId,
+    email: 'mock-user@vitrinex.com',
+    name: 'Mock User',
+    plan: 'premium',
+    businessProfile: DEFAULT_BUSINESS_PROFILE,
+  };
 };
 
 export const updateUserProfile = async (userId: string, profile: Partial<UserProfile>): Promise<void> => {
-  // console.log(`Simulating updating user profile for: ${userId}`, profile);
-  return mockFirestoreOperation(() => {
-    if (mockDb.users[userId]) {
-      mockDb.users[userId] = { ...mockDb.users[userId], ...profile };
-      // console.log('User profile updated (mock).');
-    } else {
-      console.warn(`User profile for ${userId} not found (mock).`);
-    }
-  });
+  // Simula atualização do perfil do usuário, deve ser substituído por um endpoint de perfil do backend
+  console.log(`Simulating updating user profile for: ${userId}`, profile);
+  await new Promise(resolve => setTimeout(resolve, MOCK_API_DELAY));
+  // Em um backend real, enviaria `profile.businessProfile` para um endpoint `/users/:id/profile`
 };
 
-// --- Content (Posts, Ads, Campaigns, Trends, Library, Schedule) Operations ---
+
+// --- Post Operations ---
 export const savePost = async (post: Post): Promise<Post> => {
-  return mockFirestoreOperation(() => {
-    if (!post.id) post.id = `post-${Date.now()}`;
-    mockDb.posts[post.id] = post;
-    return post;
-  });
+  const isUpdate = !!post.id;
+  const method = isUpdate ? 'PATCH' : 'POST';
+  const entityPath = isUpdate ? `posts/${post.id}` : 'posts';
+  return fetchBackend<Post>(entityPath, method, post);
 };
 
-export const getPosts = async (userId: string): Promise<Post[]> => {
-  return mockFirestoreOperation(() => Object.values(mockDb.posts).filter(p => p.userId === userId));
+// FIX: Removed userId argument
+export const getPosts = async (): Promise<Post[]> => {
+  return fetchBackend<Post[]>('posts');
 };
 
+export const deletePost = async (postId: string): Promise<void> => {
+  return fetchBackend<void>(`posts/${postId}`, 'DELETE');
+};
+
+// --- Ad Operations ---
 export const saveAd = async (ad: Ad): Promise<Ad> => {
-  return mockFirestoreOperation(() => {
-    if (!ad.id) ad.id = `ad-${Date.now()}`;
-    mockDb.ads[ad.id] = ad;
-    return ad;
-  });
+  const isUpdate = !!ad.id;
+  const method = isUpdate ? 'PATCH' : 'POST';
+  const entityPath = isUpdate ? `ads/${ad.id}` : 'ads';
+  return fetchBackend<Ad>(entityPath, method, ad);
 };
 
-export const getAds = async (userId: string): Promise<Ad[]> => {
-  return mockFirestoreOperation(() => Object.values(mockDb.ads).filter(a => a.userId === userId));
+// FIX: Removed userId argument
+export const getAds = async (): Promise<Ad[]> => {
+  return fetchBackend<Ad[]>('ads');
 };
 
+export const deleteAd = async (adId: string): Promise<void> => {
+  return fetchBackend<void>(`ads/${adId}`, 'DELETE');
+};
+
+// --- Campaign Operations ---
 export const saveCampaign = async (campaign: Campaign): Promise<Campaign> => {
-  return mockFirestoreOperation(() => {
-    if (!campaign.id) campaign.id = `campaign-${Date.now()}`;
-    mockDb.campaigns[campaign.id] = campaign;
-    return campaign;
-  });
+  const isUpdate = !!campaign.id;
+  const method = isUpdate ? 'PATCH' : 'POST';
+  const entityPath = isUpdate ? `campaigns/${campaign.id}` : 'campaigns';
+  return fetchBackend<Campaign>(entityPath, method, campaign);
 };
 
-export const getCampaigns = async (userId: string): Promise<Campaign[]> => {
-  return mockFirestoreOperation(() => Object.values(mockDb.campaigns).filter(c => c.userId === userId));
+// FIX: Removed userId argument
+export const getCampaigns = async (): Promise<Campaign[]> => {
+  return fetchBackend<Campaign[]>('campaigns');
 };
 
+export const deleteCampaign = async (campaignId: string): Promise<void> => {
+  return fetchBackend<void>(`campaigns/${campaignId}`, 'DELETE');
+};
+
+// --- Trend Operations ---
 export const saveTrend = async (trend: Trend): Promise<Trend> => {
-  return mockFirestoreOperation(() => {
-    if (!trend.id) trend.id = `trend-${Date.now()}`;
-    mockDb.trends[trend.id] = trend;
-    return trend;
+  const isUpdate = !!trend.id;
+  const method = isUpdate ? 'PATCH' : 'POST';
+  const entityPath = isUpdate ? `trends/${trend.id}` : 'trends';
+  return fetchBackend<Trend>(entityPath, method, trend);
+};
+
+// FIX: Removed userId argument
+export const getTrends = async (): Promise<Trend[]> => {
+  return fetchBackend<Trend[]>('trends');
+};
+
+export const deleteTrend = async (trendId: string): Promise<void> => {
+  return fetchBackend<void>(`trends/${trendId}`, 'DELETE');
+};
+
+// --- LibraryItem Operations (agora gerenciado pelo módulo Files no backend) ---
+
+/**
+ * Uploads a file to the backend and creates a new LibraryItem entry.
+ */
+export const uploadFileAndCreateLibraryItemViaBackend = async (
+  organizationId: string,
+  userId: string, // Frontend provides, but backend will infer from auth
+  file: File,
+  name: string,
+  type: LibraryItem['type'],
+  tags: string[],
+): Promise<LibraryItem> => {
+  const idToken = await getFirebaseIdToken();
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('name', name);
+  formData.append('type', type);
+  formData.append('tags', tags.join(','));
+
+  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/files/upload`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${idToken}`,
+      // 'Content-Type': 'multipart/form-data' is automatically set by browser for FormData
+    },
+    body: formData,
   });
-};
 
-export const getTrends = async (userId: string): Promise<Trend[]> => {
-  return mockFirestoreOperation(() => Object.values(mockDb.trends).filter(t => t.userId === userId));
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || `File upload failed: ${response.statusText}`);
+  }
+  const uploadedItem = await response.json();
+  // Map the backend response DTO to frontend LibraryItem type
+  return {
+    id: uploadedItem.id,
+    organizationId: uploadedItem.organizationId,
+    userId: uploadedItem.userId,
+    name: uploadedItem.name,
+    type: uploadedItem.type,
+    fileUrl: uploadedItem.fileUrl,
+    thumbnailUrl: uploadedItem.thumbnailUrl,
+    tags: uploadedItem.tags,
+    createdAt: new Date(uploadedItem.createdAt),
+    updatedAt: new Date(uploadedItem.updatedAt),
+  };
 };
-
 
 export const saveLibraryItem = async (item: LibraryItem): Promise<LibraryItem> => {
-  return mockFirestoreOperation(() => {
-    if (!item.id) item.id = `lib-${Date.now()}`;
-    mockDb.library[item.id] = item;
-    return item;
-  });
+  const isUpdate = !!item.id;
+  const method = isUpdate ? 'PATCH' : 'POST';
+  const entityPath = isUpdate ? `files/${item.id}` : 'files';
+  return fetchBackend<LibraryItem>(entityPath, method, item);
 };
 
-export const getLibraryItems = async (userId: string, tags?: string[]): Promise<LibraryItem[]> => {
-  return mockFirestoreOperation(() => {
-    let items = Object.values(mockDb.library).filter(item => item.userId === userId);
-    if (tags && tags.length > 0) {
-      items = items.filter(item => tags.some(tag => item.tags.includes(tag)));
-    }
-    return items;
+// FIX: getLibraryItems now accepts filters directly, not userId
+export const getLibraryItems = async (filters?: { tags?: string[]; type?: string; searchTerm?: string }): Promise<LibraryItem[]> => {
+  const organizationId = getActiveOrganizationId();
+  const idToken = await getFirebaseIdToken();
+  const queryParams = new URLSearchParams();
+  if (filters?.tags && filters.tags.length > 0) {
+    queryParams.append('tags', filters.tags.join(','));
+  }
+  if (filters?.type) {
+    queryParams.append('type', filters.type);
+  }
+  if (filters?.searchTerm) {
+    queryParams.append('searchTerm', filters.searchTerm);
+  }
+
+  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/files?${queryParams.toString()}`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${idToken}`,
+    },
   });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || `Backend call to files failed: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+export const getLibraryItemById = async (itemId: string): Promise<LibraryItem> => {
+  return fetchBackend<LibraryItem>(`files/${itemId}`, 'GET');
 };
 
 export const deleteLibraryItem = async (itemId: string): Promise<void> => {
-  return mockFirestoreOperation(() => {
-    if (mockDb.library[itemId]) {
-      delete mockDb.library[itemId];
-    }
-  });
+  return fetchBackend<void>(`files/${itemId}`, 'DELETE');
 };
 
+// --- ScheduleEntry Operations ---
 export const saveScheduleEntry = async (entry: ScheduleEntry): Promise<ScheduleEntry> => {
-  return mockFirestoreOperation(() => {
-    if (!entry.id) entry.id = `schedule-${Date.now()}`;
-    mockDb.schedule[entry.id] = entry;
-    return entry;
-  });
+  const isUpdate = !!entry.id;
+  const method = isUpdate ? 'PATCH' : 'POST';
+  const entityPath = isUpdate ? `schedules/${entry.id}` : 'schedules';
+  return fetchBackend<ScheduleEntry>(entityPath, method, entry);
 };
 
-export const getScheduleEntries = async (userId: string): Promise<ScheduleEntry[]> => {
-  return mockFirestoreOperation(() => Object.values(mockDb.schedule).filter(s => s.userId === userId));
+// FIX: Removed userId argument
+export const getScheduleEntries = async (): Promise<ScheduleEntry[]> => {
+  return fetchBackend<ScheduleEntry[]>('schedules');
 };
 
 export const deleteScheduleEntry = async (entryId: string): Promise<void> => {
-  return mockFirestoreOperation(() => {
-    if (mockDb.schedule[entryId]) {
-      delete mockDb.schedule[entryId];
-    }
-  });
+  return fetchBackend<void>(`schedules/${entryId}`, 'DELETE');
 };
 
 // --- API Key Management Operations ---
-// REMOVIDO: API Keys agora são gerenciadas pelo backend
+// REMOVIDO: API Keys agora são gerenciadas pelo backend via keyManagerService
 export const getApiKeys = async (): Promise<ApiKeyConfig[]> => {
-  // Em produção, as chaves seriam buscadas do backend e descriptografadas
   return Promise.resolve([]);
 };
 
 export const saveApiKey = async (apiKey: ApiKeyConfig): Promise<ApiKeyConfig> => {
-  // Em produção, a chave seria enviada para o backend para persistência segura
   console.warn("saveApiKey chamado no frontend, mas chaves devem ser gerenciadas pelo backend.");
   return Promise.resolve(apiKey);
 };
 
 export const deleteApiKey = async (keyId: string): Promise<void> => {
-  // Em produção, a requisição seria enviada para o backend
   console.warn("deleteApiKey chamado no frontend, mas chaves devem ser gerenciadas pelo backend.");
   return Promise.resolve();
 };

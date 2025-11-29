@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback } from 'react';
 import Textarea from '../components/Textarea';
 import Input from '../components/Input';
@@ -9,10 +10,45 @@ import { saveAd } from '../services/firestoreService';
 import { Ad } from '../types';
 import { GEMINI_PRO_MODEL, GEMINI_IMAGE_PRO_MODEL, PLACEHOLDER_IMAGE_BASE64 } from '../constants';
 import { Type } from '@google/genai';
+import { getActiveOrganization } from '../services/authService';
 
 type Platform = 'Instagram' | 'Facebook' | 'TikTok' | 'Google' | 'Pinterest';
 
 const platforms: Platform[] = ['Instagram', 'Facebook', 'TikTok', 'Google', 'Pinterest'];
+
+// Helper para fazer requisições ao backend Files (para LibraryItems)
+const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
+async function uploadFileToBackend(
+  file: File,
+  name: string,
+  type: string, // e.g., 'image', 'video', 'audio', 'text'
+  tags: string[],
+): Promise<any> {
+  const activeOrg = getActiveOrganization();
+  if (!activeOrg) throw new Error('No active organization found.');
+  const organizationId = activeOrg.organization.id;
+  const idToken = 'mock-firebase-id-token'; // FIXME: Obter do authService real
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('name', name);
+  formData.append('type', type);
+  formData.append('tags', tags.join(','));
+
+  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/files/upload`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${idToken}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || `File upload failed: ${response.statusText}`);
+  }
+  return response.json();
+}
 
 const AdStudio: React.FC = () => {
   const [productDescription, setProductDescription] = useState<string>('');
@@ -23,11 +59,17 @@ const AdStudio: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const userId = 'mock-user-123';
+  const activeOrganization = getActiveOrganization();
+  const organizationId = activeOrganization?.organization.id;
+  const userId = 'mock-user-123'; // FIXME: Obter do contexto de autenticação real
 
   const handleGenerateAd = useCallback(async () => {
     if (!productDescription.trim() || !targetAudience.trim()) {
       setError('Please provide product description and target audience.');
+      return;
+    }
+    if (!organizationId) {
+      setError('No active organization found. Please login.');
       return;
     }
 
@@ -59,12 +101,14 @@ const AdStudio: React.FC = () => {
 
       const adData = JSON.parse(textResponse);
       const newAd: Ad = {
-        id: `ad-${Date.now()}`,
+        id: '', // Backend will assign
+        organizationId: organizationId,
         userId: userId,
         platform: selectedPlatform,
         headline: adData.headline,
         copy: adData.copy,
-        createdAt: new Date().toISOString(),
+        createdAt: new Date(), // Backend will set
+        updatedAt: new Date(), // Backend will set
       };
 
       setGeneratedAd(newAd);
@@ -75,7 +119,7 @@ const AdStudio: React.FC = () => {
         imageSize: '1K',
       });
       setGeneratedImageUrl(imageResponse.imageUrl || PLACEHOLDER_IMAGE_BASE64);
-      newAd.media_url = imageResponse.imageUrl || undefined; // Add image URL to ad object
+      newAd.mediaUrl = imageResponse.imageUrl || undefined; // Add image URL to ad object
 
       // No immediate save here, user explicitly clicks 'Salvar Anúncio'
     } catch (err) {
@@ -84,30 +128,40 @@ const AdStudio: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [productDescription, targetAudience, selectedPlatform, userId]);
+  }, [productDescription, targetAudience, selectedPlatform, organizationId, userId]);
 
-  const handleDownload = useCallback(() => {
+  const handleDownload = useCallback(async () => {
     if (!generatedImageUrl) {
       setError('No image to download.');
       return;
     }
+
+    // Fetch the image data to create a Blob, then a File
+    const response = await fetch(generatedImageUrl);
+    const blob = await response.blob();
+    const fileName = `vitrinex-ad-${selectedPlatform}-${Date.now()}.png`;
+    const imageFile = new File([blob], fileName, { type: blob.type });
+
+    // Directly use the browser's download mechanism for the File
     const link = document.createElement('a');
-    link.href = generatedImageUrl;
-    link.download = `vitrinex-ad-${selectedPlatform}-${Date.now()}.png`;
+    link.href = URL.createObjectURL(imageFile);
+    link.download = fileName;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    URL.revokeObjectURL(link.href);
+
   }, [generatedImageUrl, selectedPlatform]);
 
   const handleSaveAd = useCallback(async () => {
-    if (!generatedAd) {
+    if (!generatedAd || !organizationId) {
       setError('Nenhum anúncio para salvar. Gere um anúncio primeiro.');
       return;
     }
     setLoading(true); // Re-use loading state for saving
     setError(null);
     try {
-      const savedAd = await saveAd(generatedAd); // Save to mock Firestore
+      const savedAd = await saveAd(generatedAd); // Save to backend
       alert(`Anúncio para "${savedAd.platform}" salvo com sucesso!`);
     } catch (err) {
       console.error('Error saving ad:', err);
@@ -115,7 +169,7 @@ const AdStudio: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [generatedAd]);
+  }, [generatedAd, organizationId]);
 
 
   return (

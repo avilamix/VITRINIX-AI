@@ -1,5 +1,4 @@
 
-
 import {
   GoogleGenAI,
   GenerateContentResponse,
@@ -33,8 +32,10 @@ import {
   ChatMessage,
   KnowledgeBaseQueryResponse,
   OrganizationMembership,
+  LibraryItem
 } from '../types';
 import { getFirebaseIdToken, getActiveOrganization } from './authService';
+import * as firestoreService from './firestoreService'; // Importa o serviço de persistência real
 
 // TODO: Em um sistema real, a URL do backend viria de uma variável de ambiente ou configuração global
 const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
@@ -98,6 +99,38 @@ async function fetchKnowledgeBase<T>(
   return response.json();
 }
 
+// Helper para fazer requisições ao backend Files (para LibraryItems)
+async function fetchFilesBackend<T>(
+  endpoint: string,
+  method: string = 'GET',
+  body?: any,
+  isFormData: boolean = false
+): Promise<T> {
+  const organizationId = getActiveOrganizationId();
+  const idToken = await getFirebaseIdToken();
+
+  const headers: HeadersInit = {
+    'Authorization': `Bearer ${idToken}`,
+  };
+
+  if (!isFormData) {
+    headers['Content-Type'] = 'application/json';
+  }
+
+  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/files/${endpoint}`, {
+    method,
+    headers: headers,
+    body: isFormData ? body : (body ? JSON.stringify(body) : undefined),
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || `Files API call failed: ${response.statusText}`);
+  }
+  return response.json();
+}
+
+
 export interface GenerateTextOptions {
   model?: string;
   systemInstruction?: string;
@@ -138,7 +171,9 @@ export const generateText = async (
       topP: 0.95,       // Padrão
       maxOutputTokens: 1024, // Padrão
       ...(thinkingBudget !== undefined && { thinkingConfig: { thinkingBudget } }),
-      // Outras opções devem ser passadas via 'config' do call-gemini ou DTO específico
+      systemInstruction,
+      responseMimeType,
+      responseSchema,
     },
     tools,
   };
@@ -198,15 +233,11 @@ export const editImage = async (
   mimeType: string,
   model: string = GEMINI_IMAGE_FLASH_MODEL,
 ): Promise<{ imageUrl?: string; text?: string }> => {
-  // Para edição, podemos reutilizar a geração de imagem passando a imagem base64 como parte do prompt
-  // ou criar um endpoint específico no backend para 'edit-image'.
-  // Por simplicidade, faremos uma nova geração que considera a imagem existente.
-  // Isso requer que o backend tenha um endpoint multimodal flexível.
-  // Por enquanto, faremos uma chamada a `call-gemini` com a imagem inline.
-
   const organizationId = getActiveOrganizationId();
   const idToken = await getFirebaseIdToken();
 
+  // A API `call-gemini` do backend espera um array de Contents no body.
+  // Adaptar o DTO para refletir a nova estrutura de `callGemini` do backend.
   const body = {
     model: model,
     contents: [
@@ -215,6 +246,9 @@ export const editImage = async (
     ],
     config: {
       // Adicionar config de imagem se o modelo suportar
+      // Para edição de imagem via generateContent no Gemini, a imageConfig iria aqui.
+      // O endpoint `call-gemini` deve ser capaz de lidar com isso.
+      // Se não, um endpoint `edit-image` mais específico seria necessário no backend.
     },
   };
 
@@ -383,29 +417,40 @@ export const searchTrends = async (
   const text = apiResponse.response.text;
   const groundingChunks = apiResponse.response.groundingMetadata?.groundingChunks || [];
 
-  const trends: Trend[] = [
-    {
-      id: `trend-${Date.now()}`,
-      query: query,
-      score: Math.floor(Math.random() * 100) + 1,
-      data: text || 'No trend data found.',
-      sources: groundingChunks
-        .filter((chunk: any) => chunk.web?.uri || chunk.maps?.uri)
-        .map((chunk: any) => ({
-          uri: chunk.web?.uri || chunk.maps?.uri!,
-          title: chunk.web?.title || chunk.maps?.title || 'External Source',
-        })),
-      createdAt: new Date().toISOString(),
-      userId: 'mock-user-123',
-    },
-  ];
-  return trends;
+  const organizationId = getActiveOrganizationId();
+  const userId = 'mock-user-123'; // FIXME: Replace with actual user ID from auth context
+
+  // Criar o objeto Trend para persistir via firestoreService
+  const newTrend: Trend = {
+    id: `trend-${Date.now()}`, // Backend irá gerar o ID real, este é um placeholder
+    organizationId: organizationId,
+    userId: userId,
+    query: query,
+    score: Math.floor(Math.random() * 100) + 1, // Mock score, backend pode recalcular/ignorar
+    data: text || 'No trend data found.',
+    sources: groundingChunks
+      .filter((chunk: any) => chunk.web?.uri || chunk.maps?.uri)
+      .map((chunk: any) => ({
+        uri: chunk.web?.uri || chunk.maps?.uri!,
+        title: chunk.web?.title || chunk.maps?.title || 'External Source',
+      })),
+    createdAt: new Date(), // Backend definirá a data real
+    updatedAt: new Date(), // Backend definirá a data real
+  };
+
+  // Salvar a tendência via firestoreService (que agora chama o backend)
+  const savedTrend = await firestoreService.saveTrend(newTrend);
+  return [savedTrend]; // Retorna a tendência salva
+
 };
 
 // --- Campaign Builder ---
 export const campaignBuilder = async (
   campaignPrompt: string,
 ): Promise<{ campaign: Campaign; videoUrl?: string }> => {
+  const organizationId = getActiveOrganizationId();
+  const userId = 'mock-user-123'; // FIXME: Replace with actual user ID from auth context
+
   // Step 1: Generate campaign plan (via backend)
   const textPlanBody = {
     model: GEMINI_PRO_MODEL,
@@ -423,10 +468,10 @@ export const campaignBuilder = async (
             items: {
               type: Type.OBJECT,
               properties: {
-                content_text: { type: Type.STRING },
+                contentText: { type: Type.STRING }, // Renomeado
                 keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
               },
-              required: ['content_text', 'keywords'],
+              required: ['contentText', 'keywords'],
             },
           },
           ads: {
@@ -466,38 +511,24 @@ export const campaignBuilder = async (
   const videoResponse = await fetchAiProxy<{ videoUri: string }>('generate-video', 'POST', videoBody);
   const videoUrl = videoResponse.videoUri;
 
-  // Step 3: Integrate
-  const campaignId = `campaign-${Date.now()}`;
-  const generatedPosts: Post[] = plan.posts.map((p: any, index: number) => ({
-    id: `${campaignId}-post-${index}`,
-    userId: 'mock-user-123',
-    content_text: p.content_text,
-    createdAt: new Date().toISOString(),
-    tags: p.keywords,
-  }));
-
-  const generatedAds: Ad[] = plan.ads.map((a: any, index: number) => ({
-    id: `${campaignId}-ad-${index}`,
-    userId: 'mock-user-123',
-    platform: a.platform,
-    headline: a.headline,
-    copy: a.copy,
-    createdAt: new Date().toISOString(),
-  }));
-
-  const campaign: Campaign = {
-    id: campaignId,
-    userId: 'mock-user-123',
+  // Step 3: Create Campaign object and save to backend
+  const newCampaign: Campaign = {
+    id: `campaign-${Date.now()}`, // Placeholder ID, backend will assign
+    organizationId: organizationId,
+    userId: userId,
     name: plan.campaignName,
     type: 'general',
-    posts: generatedPosts,
-    ads: generatedAds,
-    video_url: videoUrl,
+    videoUrl: videoUrl,
     timeline: plan.timeline,
-    createdAt: new Date().toISOString(),
+    generatedPosts: plan.posts, // Stores generated posts as JSON
+    generatedAds: plan.ads,     // Stores generated ads as JSON
+    createdAt: new Date(), // Backend will set
+    updatedAt: new Date(), // Backend will set
   };
 
-  return { campaign, videoUrl };
+  const savedCampaign = await firestoreService.saveCampaign(newCampaign); // Persiste via firestoreService
+
+  return { campaign: savedCampaign, videoUrl: videoUrl };
 };
 
 // --- File Search Functions (REFATORADAS PARA CHAMAR O BACKEND) ---
@@ -754,11 +785,12 @@ export const connectLiveSession = async (
         }
         await callbacks.onmessage(message);
       },
-      onerror: (e: ErrorEvent) => {
+      onerror: (e) => {
         console.error('Live conversation error:', e);
+        // Removed setError call as service functions cannot update React state directly.
         callbacks.onerror(e);
       },
-      onclose: (e: CloseEvent) => {
+      onclose: (e) => {
         console.debug('Live conversation closed:', e);
         callbacks.onclose(e);
       },

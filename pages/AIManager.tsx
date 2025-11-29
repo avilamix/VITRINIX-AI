@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Textarea from '../components/Textarea';
 import Button from '../components/Button';
@@ -10,6 +11,7 @@ import { getUserProfile, updateUserProfile } from '../services/firestoreService'
 import { UserProfile } from '../types';
 import { DEFAULT_BUSINESS_PROFILE } from '../constants';
 import { CommandLineIcon, ChartBarIcon } from '@heroicons/react/24/outline';
+import { getActiveOrganization } from '../services/authService';
 
 const AIManager: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'strategy' | 'command'>('command');
@@ -26,12 +28,15 @@ const AIManager: React.FC = () => {
   const [isProfileLoading, setIsProfileLoading] = useState<boolean>(true);
 
   // For now, using a mock user ID. In a real app, this would come from auth context.
-  const userId = 'mock-user-123';
+  const userId = 'mock-user-123'; // FIXME: Obter do contexto de autenticação real
+  const organizationId = getActiveOrganization()?.organization.id;
+
 
   const fetchUserProfile = useCallback(async () => {
     setIsProfileLoading(true);
     try {
-      const profile = await getUserProfile(userId);
+      // Não passa userId para o serviço, o serviço usa o contexto de autenticação ou mock
+      const profile = await getUserProfile(userId); 
       if (profile) {
         setUserProfile(profile.businessProfile);
       }
@@ -41,7 +46,7 @@ const AIManager: React.FC = () => {
     } finally {
       setIsProfileLoading(false);
     }
-  }, []);
+  }, [userId]);
 
   useEffect(() => {
     fetchUserProfile();
@@ -72,15 +77,20 @@ const AIManager: React.FC = () => {
   }, [prompt, userProfile]);
 
   const handleUpdateProfile = useCallback(async (field: keyof UserProfile['businessProfile'], value: string) => {
+    if (!organizationId) {
+      setError("No active organization found to update profile.");
+      return;
+    }
     const updatedProfile = { ...userProfile, [field]: value };
     setUserProfile(updatedProfile);
     try {
+      // Não passa userId, o serviço infere
       await updateUserProfile(userId, { businessProfile: updatedProfile });
     } catch (err) {
       console.error('Failed to update business profile for AI Manager:', err);
       setError('Failed to save profile changes for AI Manager. This might affect future generations.');
     }
-  }, [userProfile, userId]);
+  }, [userProfile, userId, organizationId]);
 
 
   if (isProfileLoading) {

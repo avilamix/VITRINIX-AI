@@ -1,5 +1,4 @@
 
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Textarea from '../components/Textarea';
 import Input from '../components/Input';
@@ -18,9 +17,11 @@ import {
   DEFAULT_ASPECT_RATIO,
   DEFAULT_IMAGE_SIZE,
   DEFAULT_VIDEO_RESOLUTION,
+  LIBRARY_ITEM_TYPES, // Import from frontend constants
 } from '../constants';
+import { getActiveOrganization } from '../services/authService';
 
-type MediaType = 'image' | 'video';
+type MediaType = 'image' | 'video' | 'audio' | 'text' | 'post' | 'ad'; // Estendido para incluir mais tipos
 
 const CreativeStudio: React.FC = () => {
   const [prompt, setPrompt] = useState<string>('');
@@ -43,7 +44,8 @@ const CreativeStudio: React.FC = () => {
   const [savedItemTags, setSavedItemTags] = useState<string>('');
 
 
-  const userId = 'mock-user-123';
+  const userId = 'mock-user-123'; // FIXME: Obter do contexto de autenticação real
+  const organizationId = getActiveOrganization()?.organization.id;
 
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
@@ -60,8 +62,12 @@ const CreativeStudio: React.FC = () => {
         setMediaType('image');
       } else if (selectedFile.type.startsWith('video')) {
         setMediaType('video');
+      } else if (selectedFile.type.startsWith('audio')) {
+        setMediaType('audio');
+      } else if (selectedFile.type.startsWith('text') || selectedFile.type === 'application/pdf') {
+        setMediaType('text');
       } else {
-        setError('Unsupported file type. Please upload an image or video.');
+        setError('Unsupported file type. Please upload an image, video, audio, or text document.');
         setFile(null);
         setPreviewUrl(null);
         setSavedItemName('');
@@ -72,6 +78,10 @@ const CreativeStudio: React.FC = () => {
   const handleGenerateMedia = useCallback(async () => {
     if (!prompt.trim()) {
       setError('Please enter a prompt for generation.');
+      return;
+    }
+    if (!organizationId) {
+      setError('No active organization found. Please login.');
       return;
     }
 
@@ -90,7 +100,7 @@ const CreativeStudio: React.FC = () => {
           imageSize: imageSize,
         });
         setGeneratedMediaUrl(response.imageUrl || null);
-      } else { // mediaType === 'video'
+      } else if (mediaType === 'video') { 
         const response = await generateVideo(prompt, {
           model: VEO_FAST_GENERATE_MODEL,
           config: {
@@ -100,6 +110,9 @@ const CreativeStudio: React.FC = () => {
           }
         });
         setGeneratedMediaUrl(response || null);
+      } else {
+        setError(`Generation for media type "${mediaType}" is not yet implemented.`);
+        return;
       }
       setSavedItemName(`Generated ${mediaType} - ${prompt.substring(0, 30)}...`); // Pre-fill name based on prompt
     } catch (err) {
@@ -108,11 +121,15 @@ const CreativeStudio: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [prompt, mediaType, imageAspectRatio, imageSize, videoAspectRatio, videoResolution]);
+  }, [prompt, mediaType, imageAspectRatio, imageSize, videoAspectRatio, videoResolution, organizationId]);
 
   const handleEditMedia = useCallback(async () => {
     if (!file || !previewUrl || !prompt.trim()) {
       setError('Please upload a file and enter a prompt for editing.');
+      return;
+    }
+    if (!organizationId) {
+      setError('No active organization found. Please login.');
       return;
     }
 
@@ -133,7 +150,7 @@ const CreativeStudio: React.FC = () => {
         if (mediaType === 'image') {
           const response = await editImage(prompt, base64Data, mimeType, GEMINI_IMAGE_PRO_MODEL);
           setGeneratedMediaUrl(response.imageUrl || null);
-        } else {
+        } else if (mediaType === 'video') {
           // Video editing is complex and usually involves multiple frames or specialized APIs.
           // For this example, we'll simulate video editing as if it's generating a new video based on existing and prompt.
           const response = await generateVideo(prompt, {
@@ -146,6 +163,9 @@ const CreativeStudio: React.FC = () => {
             }
           });
           setGeneratedMediaUrl(response || null);
+        } else {
+          setError(`Editing for media type "${mediaType}" is not yet implemented.`);
+          return;
         }
         setSavedItemName(`Edited ${mediaType} - ${prompt.substring(0, 30)}...`); // Pre-fill name based on prompt
       } catch (err) {
@@ -160,11 +180,15 @@ const CreativeStudio: React.FC = () => {
       setError('Failed to read file for editing.');
       setLoading(false);
     };
-  }, [file, previewUrl, prompt, mediaType, videoAspectRatio, videoResolution]);
+  }, [file, previewUrl, prompt, mediaType, videoAspectRatio, videoResolution, organizationId]);
 
   const handleAnalyzeMedia = useCallback(async () => {
     if (!file || !prompt.trim()) { // Removed previewUrl check as file is sufficient
       setError('Please upload a file and enter a prompt for analysis.');
+      return;
+    }
+    if (!organizationId) {
+      setError('No active organization found. Please login.');
       return;
     }
 
@@ -184,7 +208,7 @@ const CreativeStudio: React.FC = () => {
         if (mediaType === 'image') {
           const analysis = await analyzeImage(base64Data, mimeType, prompt);
           setGeneratedAnalysis(analysis);
-        } else { // mediaType === 'video'
+        } else if (mediaType === 'video') { // mediaType === 'video'
           // For video analysis, Gemini expects a GCS URI or similar, not inlineData.
           // This is a simplification. In a real app, the video would need to be uploaded to GCS first.
           // For now, we'll just log an error or provide a mock analysis.
@@ -195,6 +219,9 @@ const CreativeStudio: React.FC = () => {
             // For this mock, we'll just use the prompt as a basis for a simple response.
             setGeneratedAnalysis(`Simulated video analysis for "${file.name}": "The video aligns with your request regarding ${prompt}."`);
           }
+        } else {
+          setError(`Analysis for media type "${mediaType}" is not yet implemented.`);
+          return;
         }
       } catch (err) {
         console.error(`Error analyzing ${mediaType}:`, err);
@@ -208,7 +235,7 @@ const CreativeStudio: React.FC = () => {
       setError('Failed to read file for analysis.');
       setLoading(false);
     };
-  }, [file, prompt, mediaType]);
+  }, [file, prompt, mediaType, organizationId]);
 
 
   const handleExport = useCallback(() => {
@@ -268,8 +295,9 @@ const CreativeStudio: React.FC = () => {
               }}
               className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
             >
-              <option value="image">Imagem</option>
-              <option value="video">Vídeo</option>
+              {LIBRARY_ITEM_TYPES.map(typeOption => (
+                 <option key={typeOption} value={typeOption}>{typeOption.charAt(0).toUpperCase() + typeOption.slice(1)}</option>
+              ))}
             </select>
           </div>
 
@@ -277,7 +305,14 @@ const CreativeStudio: React.FC = () => {
             id="fileUpload"
             label="Carregar Mídia Existente:"
             type="file"
-            accept={mediaType === 'image' ? 'image/*' : 'video/*'}
+            // Adjust accepted file types based on selected mediaType
+            accept={
+              mediaType === 'image' ? 'image/*' :
+              mediaType === 'video' ? 'video/*' :
+              mediaType === 'audio' ? 'audio/*' :
+              mediaType === 'text' ? 'text/*,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document' :
+              '*/*' // Fallback for 'other' or unspecified
+            }
             onChange={handleFileChange}
             ref={fileInputRef}
             className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/80 mb-6"
@@ -288,8 +323,14 @@ const CreativeStudio: React.FC = () => {
               <p className="text-sm font-medium text-textlight mb-1">Pré-visualização:</p>
               {mediaType === 'image' ? (
                 <img src={previewUrl} alt="Preview" className="w-full h-auto max-h-48 object-contain rounded-md border border-gray-700" />
-              ) : (
+              ) : mediaType === 'video' ? (
                 <video src={previewUrl} controls className="w-full h-auto max-h-48 object-contain rounded-md border border-gray-700"></video>
+              ) : mediaType === 'audio' ? (
+                <audio src={previewUrl} controls className="w-full h-auto max-h-48 object-contain rounded-md border border-gray-700"></audio>
+              ) : ( // Text or other
+                <div className="w-full h-auto max-h-48 overflow-y-auto p-4 bg-darkbg rounded-md border border-gray-700 text-sm text-textlight">
+                  <p>Text file preview not available. File name: {file?.name}</p>
+                </div>
               )}
             </div>
           )}
@@ -364,7 +405,7 @@ const CreativeStudio: React.FC = () => {
             <Button onClick={handleGenerateMedia} isLoading={loading && !file} variant="primary" className="w-full sm:w-auto">
               {loading && !file ? `Gerando ${mediaType}...` : `Gerar ${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} IA`}
             </Button>
-            <Button onClick={handleEditMedia} isLoading={loading && !!file} variant="secondary" disabled={!file} className="w-full sm:w-auto">
+            <Button onClick={handleEditMedia} isLoading={loading && !!file} variant="secondary" disabled={!file || mediaType === 'audio' || mediaType === 'text'} className="w-full sm:w-auto">
               {loading && !!file ? `Editando ${mediaType}...` : `Editar com IA`}
             </Button>
             <Button onClick={handleAnalyzeMedia} isLoading={loading && !!file && generatedAnalysis === null} variant="outline" disabled={!file || !prompt.trim()} className="w-full sm:w-auto">

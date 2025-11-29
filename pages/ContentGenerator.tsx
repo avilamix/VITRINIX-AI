@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback } from 'react';
 import Textarea from '../components/Textarea';
 import Button from '../components/Button';
@@ -7,6 +8,41 @@ import { generateText, generateImage } from '../services/geminiService';
 import { savePost } from '../services/firestoreService';
 import { Post } from '../types';
 import { GEMINI_FLASH_MODEL, GEMINI_IMAGE_FLASH_MODEL, PLACEHOLDER_IMAGE_BASE64 } from '../constants';
+import { getActiveOrganization } from '../services/authService';
+
+// Helper para fazer requisições ao backend Files (para LibraryItems)
+const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
+async function uploadFileToBackend(
+  file: File,
+  name: string,
+  type: string, // e.g., 'image', 'video', 'audio', 'text'
+  tags: string[],
+): Promise<any> {
+  const activeOrg = getActiveOrganization();
+  if (!activeOrg) throw new Error('No active organization found.');
+  const organizationId = activeOrg.organization.id;
+  const idToken = 'mock-firebase-id-token'; // FIXME: Obter do authService real
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('name', name);
+  formData.append('type', type);
+  formData.append('tags', tags.join(','));
+
+  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/files/upload`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${idToken}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || `File upload failed: ${response.statusText}`);
+  }
+  return response.json();
+}
 
 const ContentGenerator: React.FC = () => {
   const [prompt, setPrompt] = useState<string>('');
@@ -16,12 +52,17 @@ const ContentGenerator: React.FC = () => {
   const [loadingImage, setLoadingImage] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Mock user ID
-  const userId = 'mock-user-123';
+  const activeOrganization = getActiveOrganization();
+  const organizationId = activeOrganization?.organization.id;
+  const userId = 'mock-user-123'; // FIXME: Obter do contexto de autenticação real
 
   const generateContent = useCallback(async (isWeekly: boolean = false) => {
     if (!prompt.trim()) {
       setError('Please enter a prompt to generate content.');
+      return;
+    }
+    if (!organizationId) {
+      setError('No active organization found. Please login.');
       return;
     }
 
@@ -73,11 +114,13 @@ const ContentGenerator: React.FC = () => {
       setLoadingImage(false);
 
       const newPost: Post = {
-        id: `post-${Date.now()}`,
+        id: '', // Backend will assign
+        organizationId: organizationId,
         userId: userId,
-        content_text: postContent,
-        image_url: imageResponse.imageUrl || undefined,
-        createdAt: new Date().toISOString(),
+        contentText: postContent,
+        imageUrl: imageResponse.imageUrl || undefined,
+        createdAt: new Date(), // Backend will set
+        updatedAt: new Date(), // Backend will set
       };
       setGeneratedPost(newPost);
       // No immediate save here, user explicitly clicks 'Salvar Post'
@@ -87,52 +130,56 @@ const ContentGenerator: React.FC = () => {
       setLoadingText(false);
       setLoadingImage(false);
     }
-  }, [prompt, userId]);
+  }, [prompt, organizationId, userId]);
 
   const handleGenerateOnePost = useCallback(() => generateContent(false), [generateContent]);
   const handleGenerateWeek = useCallback(() => generateContent(true), [generateContent]);
 
   const handleRegenerateImage = useCallback(async () => {
-    if (!generatedPost) {
+    if (!generatedPost || !organizationId) {
       setError('Please generate a post first to regenerate its image.');
       return;
     }
     setLoadingImage(true);
     setError(null);
     try {
-      const imageDescription = `An alternative image for: "${generatedPost.content_text.substring(0, 100)}..."`;
+      const imageDescription = `An alternative image for: "${generatedPost.contentText.substring(0, 100)}..."`;
       const imageResponse = await generateImage(imageDescription, { model: GEMINI_IMAGE_FLASH_MODEL });
-      setGeneratedImageUrl(imageResponse.imageUrl || PLACEHOLDER_IMAGE_BASE64);
+      const newImageUrl = imageResponse.imageUrl || PLACEHOLDER_IMAGE_BASE64;
+      setGeneratedImageUrl(newImageUrl);
+      
       // Update the stored post with the new image URL
-      if (generatedPost) {
-        const updatedPost = { ...generatedPost, image_url: imageResponse.imageUrl || undefined };
-        setGeneratedPost(updatedPost);
-      }
+      const updatedPost = { ...generatedPost, imageUrl: newImageUrl };
+      setGeneratedPost(updatedPost);
+
+      // Persist the updated post to the backend
+      await savePost(updatedPost); // Save the updated post (will PATCH if ID exists)
+
     } catch (err) {
       console.error('Error regenerating image:', err);
       setError(`Failed to regenerate image: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoadingImage(false);
     }
-  }, [generatedPost]);
+  }, [generatedPost, organizationId]);
 
   const handleSavePost = useCallback(async () => {
-    if (!generatedPost) {
+    if (!generatedPost || !organizationId) {
       setError('Nenhum post para salvar. Gere um post primeiro.');
       return;
     }
     setLoadingText(true); // Re-use loading state for saving
     setError(null);
     try {
-      const savedPost = await savePost(generatedPost); // Save to mock Firestore
-      alert(`Post "${savedPost.content_text.substring(0, 30)}..." salvo com sucesso na biblioteca!`);
+      const savedPost = await savePost(generatedPost); // Save to backend
+      alert(`Post "${savedPost.contentText.substring(0, 30)}..." salvo com sucesso na biblioteca!`);
     } catch (err) {
       console.error('Error saving post:', err);
       setError(`Falha ao salvar post: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoadingText(false);
     }
-  }, [generatedPost]);
+  }, [generatedPost, organizationId]);
 
   // TODO: Implement "Editar no Studio"
   // const handleEditInStudio = useCallback(() => {
@@ -187,11 +234,11 @@ const ContentGenerator: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex flex-col">
               <h4 className="text-lg font-semibold text-textlight mb-3">Texto do Post</h4>
-              {loadingText && !generatedPost.content_text ? ( // Check content_text specifically for text loading
+              {loadingText && !generatedPost.contentText ? ( // Check contentText specifically for text loading
                 <LoadingSpinner />
               ) : (
                 <div className="prose max-w-none text-textlight leading-relaxed bg-darkbg p-4 rounded-md h-full min-h-[150px]" style={{ whiteSpace: 'pre-wrap' }}>
-                  {generatedPost.content_text}
+                  {generatedPost.contentText}
                 </div>
               )}
             </div>

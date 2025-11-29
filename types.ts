@@ -25,69 +25,84 @@ export interface UserProfile {
 // Define Post interface
 export interface Post {
   id: string;
+  organizationId: string; // NEW: Added organizationId
   userId: string;
-  content_text: string;
-  image_url?: string;
-  createdAt: string; // ISO date string
+  contentText: string; // Renamed from content_text
+  imageUrl?: string; // Renamed from image_url
+  createdAt: Date; // Changed from string to Date
+  updatedAt: Date; // NEW: Added updatedAt, changed from string to Date
   tags?: string[];
 }
 
 // Define Ad interface
 export interface Ad {
   id: string;
+  organizationId: string; // NEW: Added organizationId
   userId: string;
   platform: 'Instagram' | 'Facebook' | 'TikTok' | 'Google' | 'Pinterest';
   headline: string;
   copy: string;
-  media_url?: string;
-  createdAt: string; // ISO date string
+  mediaUrl?: string; // Renamed from media_url
+  createdAt: Date; // Changed from string to Date
+  updatedAt: Date; // NEW: Added updatedAt, changed from string to Date
 }
 
 // Define Campaign interface
 export interface Campaign {
   id: string;
+  organizationId: string; // NEW: Added organizationId
   userId: string;
   name: string;
   type: string; // e.g., 'general', 'product_launch'
-  posts: Post[];
-  ads: Ad[];
-  video_url?: string;
+  videoUrl?: string; // Renamed from video_url
   timeline: string;
-  createdAt: string; // ISO date string
+  generatedPosts?: Array<{ contentText: string; keywords: string[] }>; // JSON type
+  generatedAds?: Array<{ platform: string; headline: string; copy: string }>; // JSON type
+  createdAt: Date; // Changed from string to Date
+  updatedAt: Date; // NEW: Added updatedAt, changed from string to Date
 }
 
 // Define Trend interface
 export interface Trend {
   id: string;
+  organizationId: string; // NEW: Added organizationId
   userId: string;
   query: string;
   score: number; // e.g., viral score
   data: string; // summary of the trend
-  sources?: Array<{ uri: string; title: string }>;
-  createdAt: string; // ISO date string
+  sources?: Array<{ uri: string; title?: string }>; // 'title' optional
+  createdAt: Date; // Changed from string to Date
+  updatedAt: Date; // NEW: Added updatedAt, changed from string to Date
 }
 
 // Define LibraryItem interface
 export interface LibraryItem {
   id: string;
+  organizationId: string; // NEW: Added organizationId
   userId: string;
   type: 'image' | 'video' | 'text' | 'post' | 'ad' | 'audio'; // Added 'audio' type
-  file_url: string;
-  thumbnail_url?: string; // For images/videos
+  fileUrl: string; // Renamed from file_url
+  thumbnailUrl?: string; // Renamed from thumbnail_url, For images/videos
   tags: string[];
   name: string;
-  createdAt: string; // ISO date string
+  createdAt: Date; // Changed from string to Date
+  updatedAt: Date; // NEW: Added updatedAt, changed from string to Date
 }
 
 // Define ScheduleEntry interface
 export interface ScheduleEntry {
   id: string;
+  organizationId: string; // NEW: Added organizationId
   userId: string;
-  datetime: string; // ISO date string for scheduling
+  datetime: Date; // Changed from string to Date (ISO date string for scheduling)
   platform: string; // e.g., 'Instagram', 'Facebook'
   contentId: string; // Reference to LibraryItem ID or Post/Ad ID
   contentType: 'post' | 'ad' | 'audio' | 'video' | 'image' | 'text'; // Added types for content
   status: 'scheduled' | 'published' | 'failed';
+  createdAt: Date; // NEW: Added createdAt, changed from string to Date
+  updatedAt: Date; // NEW: Added updatedAt, changed from string to Date
+  libraryItemName?: string; // Added for convenience
+  libraryItemThumbnailUrl?: string; // Added for convenience
 }
 
 // Define ChatMessage interface for Chatbot
@@ -133,12 +148,13 @@ export interface ApiKeySystemConfig {
 }
 
 // FIX: Define AIStudio interface explicitly to avoid type conflicts
+// This interface is exported for use within the module context.
 export interface AIStudio {
   hasSelectedApiKey: () => Promise<boolean>;
   openSelectKey: () => Promise<void>;
 }
 
-// NOVO: Interface para a resposta de consulta RAG do backend
+// NEW: Interface for RAG query response from backend
 export interface KnowledgeBaseQueryResponse {
   resposta: string;
   arquivos_usados: string[];
@@ -146,14 +162,14 @@ export interface KnowledgeBaseQueryResponse {
   confianca: number;
 }
 
-// NOVO: DTOs do Backend para comunicação
+// NEW: Backend DTOs for communication
 export interface OrganizationResponseDto {
   id: string;
   name: string;
-  fileSearchStoreName?: string; // Opcional, nome da loja File Search associada
+  fileSearchStoreName?: string; // Optional, name of associated File Search store
 }
 
-export type Role = 'ADMIN' | 'EDITOR' | 'VIEWER'; // Assumindo enum Role do Prisma
+export type Role = 'ADMIN' | 'EDITOR' | 'VIEWER'; // Assuming Prisma Role enum
 
 export interface OrganizationMembership {
   organization: OrganizationResponseDto;
@@ -168,6 +184,9 @@ export interface LoginResponseDto {
   };
   organizations: OrganizationMembership[];
 }
-
-
-// REMOVED Global declaration to avoid conflict with src/types.ts
+// REMOVED Global declaration to avoid conflict with duplicate declaration in other files.
+// declare global {
+//   interface Window {
+//     aistudio?: AIStudio;
+//   }
+// }

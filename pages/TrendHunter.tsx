@@ -10,6 +10,7 @@ import { Trend } from '../types';
 import { useNavigate } from '../hooks/useNavigate';
 import { GEMINI_FLASH_MODEL } from '../constants';
 import { LightBulbIcon } from '@heroicons/react/24/outline';
+import { getActiveOrganization } from '../services/authService';
 
 const TrendHunter: React.FC = () => {
   const [query, setQuery] = useState<string>('');
@@ -26,7 +27,8 @@ const TrendHunter: React.FC = () => {
   const { navigateTo } = useNavigate();
 
   // For now, using a mock user ID. In a real app, this would come from auth context.
-  const userId = 'mock-user-123';
+  const userId = 'mock-user-123'; // FIXME: Obter do contexto de autenticação real
+  const organizationId = getActiveOrganization()?.organization.id;
 
   // Attempt to get user's geolocation on mount
   useEffect(() => {
@@ -52,6 +54,10 @@ const TrendHunter: React.FC = () => {
       setError('Please enter a search query for trends.');
       return;
     }
+    if (!organizationId) {
+      setError('No active organization found. Please login.');
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -61,17 +67,11 @@ const TrendHunter: React.FC = () => {
     try {
       // Pass userLocation if city is provided, or undefined otherwise to rely on general search
       const location = city.trim() && userLocation ? userLocation : undefined;
-      const fetchedTrends = await searchTrends(query, location);
+      const fetchedTrends = await searchTrends(query, location); // searchTrends agora salva no backend
 
-      // Add mock user ID before saving
-      const trendsWithUserId = fetchedTrends.map(t => ({ ...t, userId: userId }));
-      setTrends(trendsWithUserId);
+      setTrends(fetchedTrends);
 
-      // Save to mock Firestore
-      for (const trend of trendsWithUserId) {
-        await saveTrend(trend);
-      }
-      alert(`${trendsWithUserId.length} tendências encontradas e salvas com sucesso!`);
+      alert(`${fetchedTrends.length} tendências encontradas e salvas com sucesso!`);
 
     } catch (err) {
       console.error('Error searching trends:', err);
@@ -79,7 +79,7 @@ const TrendHunter: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [query, city, userId, userLocation]);
+  }, [query, city, userLocation, organizationId]);
 
   const handleGenerateContentIdea = useCallback(async (trend: Trend) => {
     setGeneratingIdeaFor(trend.id);
@@ -100,7 +100,7 @@ const TrendHunter: React.FC = () => {
     console.log('Navigating to ContentGenerator with trend:', trend);
     navigateTo('ContentGenerator'); // Will need to enhance ContentGenerator to receive initial prompt
     // For now, we can just alert or log
-    alert(`Creating content based on trend: ${trend.query}\nSummary: ${trend.data.substring(0, 100)}...`);
+    alert(`Creating content based on trend: ${trend.query}\nSummary: ${trend.data?.substring(0, 100)}...`);
   }, [navigateTo]);
 
   const handleAddTrendToCalendar = useCallback((trend: Trend) => {

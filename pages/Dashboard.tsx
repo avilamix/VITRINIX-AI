@@ -51,11 +51,11 @@ const Dashboard: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const userId = 'mock-user-123';
-      const fetchedPosts = await getPosts(userId);
-      const fetchedAds = await getAds(userId);
-      const fetchedSchedule = await getScheduleEntries(userId);
-      const fetchedTrends = await getTrends(userId);
+      // const userId = 'mock-user-123'; // Não é mais necessário passar userId diretamente para get/save
+      const fetchedPosts = await getPosts();
+      const fetchedAds = await getAds();
+      const fetchedSchedule = await getScheduleEntries();
+      const fetchedTrends = await getTrends();
 
       setPosts(fetchedPosts);
       setAds(fetchedAds);
@@ -71,7 +71,7 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
-  }, []);
+  }, [fetchDashboardData]); // Dependência adicionada para `fetchDashboardData`
 
   const totalPosts = posts.length;
   const totalAds = ads.length;

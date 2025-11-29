@@ -1,175 +1,232 @@
-
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { LibraryItem } from '../types';
-import { getLibraryItems, deleteLibraryItem, saveLibraryItem } from '../services/firestoreService';
-import { uploadFile } from '../services/cloudStorageService';
+import { getLibraryItems, deleteLibraryItem } from '../services/firestoreService';
 import { createFileSearchStore, uploadFileToSearchStore } from '../services/geminiService';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import { TrashIcon, ArrowDownTrayIcon, ShareIcon, DocumentTextIcon, MusicalNoteIcon, CircleStackIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline';
-import { useNavigate } from '../hooks/useNavigate'; // Custom hook for navigation
+import { TrashIcon, ArrowDownTrayIcon, ShareIcon, DocumentTextIcon, MusicalNoteIcon, CircleStackIcon, CloudArrowUpIcon, LinkIcon, DocumentIcon, ChatBubbleLeftRightIcon, CheckCircleIcon, ArchiveBoxIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from '../hooks/useNavigate';
+import { getActiveOrganization } from '../services/authService';
+import { LIBRARY_ITEM_TYPES } from '../constants'; // Import from frontend constants
+
+// Helper for backend file upload (re-declared here for context)
+const BACKEND_URL = 'http://localhost:3000';
+async function uploadFileToBackend(
+  file: File,
+  name: string,
+  type: string,
+  tags: string[],
+  organizationId: string, // Pass organizationId explicitly
+): Promise<any> {
+  const idToken = 'mock-firebase-id-token'; // FIXME: Obter do authService real
+
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('name', name);
+  formData.append('type', type);
+  formData.append('tags', tags.join(','));
+
+  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/files/upload`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${idToken}`,
+    },
+    body: formData,
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || `File upload failed: ${response.statusText}`);
+  }
+  return response.json();
+}
 
 const ContentLibrary: React.FC = () => {
   const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState<string>('');
-  const [selectedTag, setSelectedTag] = useState<string>('all');
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState<boolean>(false);
-  
-  // Knowledge Base State
-  const [kbLoading, setKbLoading] = useState<boolean>(false);
-  const [kbStoreName, setKbStoreName] = useState<string | null>(localStorage.getItem('vitrinex_kb_name'));
-  
+  const [uploadName, setUploadName] = useState<string>('');
+  const [uploadType, setUploadType] = useState<LibraryItem['type']>('image');
+  const [uploadTags, setUploadTags] = useState<string>('');
+  const [searchTerm, setSearchTerm] = useState<string>('');
+  const [filterType, setFilterType] = useState<string>('all');
+  const [filterTags, setFilterTags] = useState<string>('');
+
+  const [kbStoreName, setKbStoreName] = useState<string | null>(null);
+  const [creatingKb, setCreatingKb] = useState<boolean>(false);
+  const [addingFileToKb, setAddingFileToKb] = useState<boolean>(false);
+
   const { navigateTo } = useNavigate();
+  const organizationId = getActiveOrganization()?.organization.id;
+  const userId = 'mock-user-123'; // FIXME: Get from real auth context
 
-  const userId = 'mock-user-123'; // Mock user ID
-
-  const fetchLibrary = useCallback(async (tags?: string[]) => {
+  const fetchLibraryItems = useCallback(async () => {
+    if (!organizationId) {
+      setError('No active organization found. Please login.');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const items = await getLibraryItems(userId, tags);
+      const filters = {
+        searchTerm: searchTerm || undefined,
+        type: filterType !== 'all' ? filterType : undefined,
+        tags: filterTags ? filterTags.split(',').map(t => t.trim()).filter(Boolean) : undefined,
+      };
+      const items = await getLibraryItems(filters); // Pass filters directly
       setLibraryItems(items);
     } catch (err) {
       console.error('Failed to fetch library items:', err);
-      setError('Failed to load library content. Please try again.');
+      setError(`Failed to load library items: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
-  }, [userId]);
+  }, [organizationId, searchTerm, filterType, filterTags]);
+
+  const fetchKbStoreName = useCallback(async () => {
+    if (!organizationId) return;
+    try {
+      // Assuming getFileSearchStore will fetch the store name from the backend
+      // `createFileSearchStore` now handles both finding and creating.
+      const store = await createFileSearchStore(); 
+      setKbStoreName(store.storeName);
+      localStorage.setItem('vitrinex_kb_name', store.storeName); // Persist for chatbot
+    } catch (err) {
+      console.error('Failed to fetch or create KB store:', err);
+      setError(`Failed to set up Knowledge Base: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }, [organizationId]);
 
   useEffect(() => {
-    fetchLibrary();
+    fetchLibraryItems();
+    fetchKbStoreName();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [fetchLibraryItems, fetchKbStoreName]);
 
-  const handleCreateKnowledgeBase = async () => {
-     setKbLoading(true);
-     try {
-         const store = await createFileSearchStore(`VitrineX KB - ${new Date().toLocaleDateString()}`);
-         if (store && store.storeName) { // Use storeName from backend response
-             localStorage.setItem('vitrinex_kb_name', store.storeName);
-             setKbStoreName(store.storeName);
-             alert('Base de Conhecimento criada com sucesso! Agora você pode indexar arquivos.');
-         }
-     } catch (err) {
-         console.error(err);
-         alert('Erro ao criar base de conhecimento. Verifique sua chave API.');
-     } finally {
-         setKbLoading(false);
-     }
-  };
-
-  const handleIndexFile = async (item: LibraryItem) => {
-      if (!kbStoreName) {
-          alert('Por favor, crie uma Base de Conhecimento primeiro.');
-          return;
-      }
-      if (item.type !== 'text' && item.type !== 'post') {
-          alert('Nesta demonstração, a re-indexação de arquivos não textuais não é suportada. Tente enviar o arquivo novamente.');
-          return;
-      }
-      
-      // In a real scenario, you'd fetch the file blob from item.file_url and send it.
-      // For this mock, we'll inform the user about the limitation.
-      alert('Funcionalidade de re-indexação de arquivos existentes pendente. Por favor, envie o arquivo novamente para indexar.');
-  };
-
-  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      setUploading(true);
+      setSelectedFile(file);
+      setUploadName(file.name.split('.').slice(0, -1).join('.'));
+      if (file.type.startsWith('image')) setUploadType('image');
+      else if (file.type.startsWith('video')) setUploadType('video');
+      else if (file.type.startsWith('audio')) setUploadType('audio');
+      else setUploadType('text'); // Default to text for other types
       setError(null);
-      try {
-        let type: LibraryItem['type'];
-        if (file.type.startsWith('image')) {
-          type = 'image';
-        } else if (file.type.startsWith('video')) {
-          type = 'video';
-        } else if (file.type.startsWith('audio')) { // Handle audio specifically
-          type = 'audio';
-        } else {
-          type = 'text'; // Default to text for others
-        }
-        
-        // 1. Upload to Storage (Mock)
-        const newItem = await uploadFile(file, userId, type);
-        
-        // 2. Optional: Upload to Knowledge Base if exists and is a suitable file type
-        if (kbStoreName && (type === 'text' || file.type === 'application/pdf' || file.type.startsWith('application/vnd.openxmlformats'))) {
-            const confirmIndex = window.confirm(`Deseja indexar "${file.name}" na sua Base de Conhecimento para pesquisa?`);
-            if (confirmIndex) {
-                try {
-                    // Corrected call: uploadFileToSearchStore expects File and MetadataDto
-                    await uploadFileToSearchStore(file, {}); 
-                    alert('Arquivo indexado na IA com sucesso!');
-                    newItem.tags.push('indexed');
-                } catch (idxErr) {
-                    console.error('Indexing failed', idxErr);
-                    alert('Upload concluído, mas falha ao indexar na IA.');
-                }
-            }
-        }
-
-        await saveLibraryItem(newItem); // Save metadata to Firestore
-        setLibraryItems((prev) => [newItem, ...prev]);
-      } catch (err) {
-        console.error('Error uploading file:', err);
-        setError(`Failed to upload file: ${err instanceof Error ? err.message : String(err)}`);
-      } finally {
-        setUploading(false);
-        event.target.value = ''; // Clear input
-      }
     }
-  }, [userId, kbStoreName]);
+  };
+
+  const handleUploadFile = useCallback(async () => {
+    if (!selectedFile) {
+      setError('Please select a file to upload.');
+      return;
+    }
+    if (!uploadName.trim()) {
+      setError('Please provide a name for the file.');
+      return;
+    }
+    if (!organizationId) {
+      setError('No active organization found. Please login.');
+      return;
+    }
+
+    setUploading(true);
+    setError(null);
+
+    try {
+      const tagsArray = uploadTags.split(',').map(tag => tag.trim()).filter(Boolean);
+      // FIX: Passing organizationId to uploadFileToBackend
+      const uploadedItem = await uploadFileToBackend(selectedFile, uploadName, uploadType, tagsArray, organizationId);
+      
+      // The backend now returns a LibraryItemResponseDto which should be mapped to frontend LibraryItem
+      const newLibraryItem: LibraryItem = {
+        id: uploadedItem.id,
+        organizationId: uploadedItem.organizationId,
+        userId: uploadedItem.userId,
+        name: uploadedItem.name,
+        type: uploadedItem.type,
+        fileUrl: uploadedItem.fileUrl,
+        thumbnailUrl: uploadedItem.thumbnailUrl,
+        tags: uploadedItem.tags,
+        createdAt: new Date(uploadedItem.createdAt),
+        updatedAt: new Date(uploadedItem.updatedAt),
+      };
+      setLibraryItems((prev) => [newLibraryItem, ...prev]);
+
+      // If KB is available, also offer to add to KB
+      if (kbStoreName) {
+         setAddingFileToKb(true);
+         try {
+            // Note: uploadFileToSearchStore uses `file` and `metadata`. 
+            // `documentType` could be `uploadedItem.type`. `campaign` is `uploadName`. `sector` can be `tagsArray`.
+            await uploadFileToSearchStore(selectedFile, { documentType: uploadedItem.type, campaign: uploadName, sector: tagsArray.join(', ') });
+            alert('File uploaded to library and added to Knowledge Base!');
+         } catch (kbErr: any) { // Type 'any' for kbErr to handle different error types
+            console.warn('Failed to add file to Knowledge Base:', kbErr);
+            alert(`File uploaded to library, but failed to add to Knowledge Base: ${kbErr.message || String(kbErr)}`);
+         } finally {
+            setAddingFileToKb(false);
+         }
+      } else {
+         alert('File uploaded to library successfully!');
+      }
+
+      setSelectedFile(null);
+      setUploadName('');
+      setUploadTags('');
+      // No need to call fetchLibraryItems, we already updated state with newLibraryItem
+    } catch (err: any) { // Type 'any' for err
+      console.error('Error uploading file:', err);
+      setError(`Failed to upload file: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setUploading(false);
+    }
+  }, [selectedFile, uploadName, uploadType, uploadTags, organizationId, kbStoreName]);
 
   const handleDeleteItem = useCallback(async (itemId: string) => {
-    if (window.confirm('Tem certeza que deseja excluir este item?')) {
-      setError(null);
-      try {
-        await deleteLibraryItem(itemId);
-        // Also delete from cloud storage (mock)
-        // await deleteFile(itemId); // Uncomment and implement if CloudStorageService has delete
-        setLibraryItems((prev) => prev.filter((item) => item.id !== itemId));
-      } catch (err) {
-        console.error('Error deleting item:', err);
-        setError(`Failed to delete item: ${err instanceof Error ? err.message : String(err)}`);
-      }
+    if (!window.confirm('Are you sure you want to delete this item?')) return;
+    if (!organizationId) {
+      setError('No active organization found. Cannot delete item.');
+      return;
     }
-  }, []);
+    setLoading(true); // Reuse loading for delete operation
+    setError(null);
+    try {
+      await deleteLibraryItem(itemId);
+      setLibraryItems((prev) => prev.filter((item) => item.id !== itemId));
+      alert('Item deleted successfully!');
+    } catch (err: any) { // Type 'any' for err
+      console.error('Error deleting library item:', err);
+      setError(`Failed to delete item: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setLoading(false);
+    }
+  }, [organizationId]);
 
-  const handleDownloadItem = useCallback((item: LibraryItem) => {
-    const link = document.createElement('a');
-    link.href = item.file_url;
-    link.download = item.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  }, []);
+  const handleCreateKnowledgeBase = useCallback(async () => {
+    if (!organizationId) {
+      setError('No active organization found. Please login.');
+      return;
+    }
+    setCreatingKb(true);
+    setError(null);
+    try {
+      const store = await createFileSearchStore();
+      setKbStoreName(store.storeName);
+      localStorage.setItem('vitrinex_kb_name', store.storeName);
+      alert('Knowledge Base created successfully!');
+    } catch (err: any) { // Type 'any' for err
+      console.error('Error creating KB:', err);
+      setError(`Failed to create Knowledge Base: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setCreatingKb(false);
+    }
+  }, [organizationId]);
 
-  const handleUseInCalendar = useCallback((item: LibraryItem) => {
-    // Navigate to SmartScheduler and pre-fill with this item
-    console.log('Using item in calendar:', item);
-    navigateTo('SmartScheduler'); // Will need to enhance SmartScheduler to receive item
-    alert(`Item "${item.name}" adicionado ao calendário (funcionalidade completa no SmartScheduler).`);
-  }, [navigateTo]);
-
-  // Extract all unique tags
-  const allTags = Array.from(new Set(libraryItems.flatMap(item => item.tags)));
-  const filteredItems = libraryItems
-    .filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
-    .filter(item => selectedTag === 'all' || item.tags.includes(selectedTag));
-  
-  const hasActiveFilters = searchTerm.trim() !== '' || selectedTag !== 'all';
-
-  const handleClearFilters = useCallback(() => {
-    setSearchTerm('');
-    setSelectedTag('all');
-    fetchLibrary(); // Refetch all items after clearing
-  }, [fetchLibrary]);
 
   return (
     <div className="container mx-auto py-8 lg:py-10">
@@ -181,164 +238,195 @@ const ContentLibrary: React.FC = () => {
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
-      
-      {/* Knowledge Base Section */}
-      <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
+
+      {/* Upload & KB Section */}
+      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
+        <h3 className="text-xl font-semibold text-textlight mb-5 flex items-center gap-2">
+          <CloudArrowUpIcon className="w-5 h-5 text-primary" />
+          Upload & Knowledge Base
+        </h3>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* File Upload */}
           <div>
-              <h3 className="text-xl font-semibold text-white flex items-center gap-2">
-                  <CircleStackIcon className="w-6 h-6 text-accent" /> Base de Conhecimento (IA)
-              </h3>
-              <p className="text-sm text-gray-300 mt-1">
-                  {kbStoreName ? 
-                    `Conectado a: ${kbStoreName}. Arquivos enviados podem ser pesquisados pelo Chatbot.` : 
-                    "Crie um repositório para indexar seus arquivos e permitir que a IA responda com base neles."
-                  }
-              </p>
+            <h4 className="text-lg font-semibold text-textlight mb-3">Upload Novo Arquivo</h4>
+            <Input
+              id="fileInput"
+              type="file"
+              onChange={handleFileChange}
+              className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/80 mb-4"
+            />
+            {selectedFile && (
+              <p className="text-sm text-textmuted mb-4">Selected: {selectedFile.name}</p>
+            )}
+            <Input
+              id="uploadName"
+              label="Nome do Item na Biblioteca:"
+              value={uploadName}
+              onChange={(e) => setUploadName(e.target.value)}
+              placeholder="Ex: 'Relatório Anual 2023'"
+            />
+            <div className="mb-4">
+              <label htmlFor="uploadType" className="block text-sm font-medium text-textlight mb-1">
+                Tipo de Mídia:
+              </label>
+              <select
+                id="uploadType"
+                value={uploadType}
+                onChange={(e) => setUploadType(e.target.value as LibraryItem['type'])}
+                className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
+              >
+                {LIBRARY_ITEM_TYPES.map(typeOption => (
+                  <option key={typeOption} value={typeOption}>{typeOption.charAt(0).toUpperCase() + typeOption.slice(1)}</option>
+                ))}
+              </select>
+            </div>
+            <Input
+              id="uploadTags"
+              label="Tags (separadas por vírgula):"
+              value={uploadTags}
+              onChange={(e) => setUploadTags(e.target.value)}
+              placeholder="Ex: 'financeiro, relatório, 2023'"
+            />
+            <Button
+              onClick={handleUploadFile}
+              isLoading={uploading || addingFileToKb}
+              variant="primary"
+              className="w-full mt-4"
+              disabled={!selectedFile || !uploadName.trim()}
+            >
+              {(uploading || addingFileToKb) ? 'Processando Upload...' : 'Upload para Biblioteca'}
+            </Button>
           </div>
+
+          {/* Knowledge Base */}
           <div>
-              {!kbStoreName ? (
-                  <Button onClick={handleCreateKnowledgeBase} isLoading={kbLoading} variant="secondary">
-                      Criar Base de Conhecimento
+            <h4 className="text-lg font-semibold text-textlight mb-3">Base de Conhecimento (RAG)</h4>
+            {!kbStoreName ? (
+              <>
+                <p className="text-textmuted mb-4">
+                  Integre a IA com seus próprios documentos para respostas contextuais.
+                </p>
+                <Button
+                  onClick={handleCreateKnowledgeBase}
+                  isLoading={creatingKb}
+                  variant="outline"
+                  className="w-full"
+                >
+                  {creatingKb ? 'Criando KB...' : 'Criar Knowledge Base'}
+                </Button>
+              </>
+            ) : (
+              <>
+                <p className="text-textlight mb-2 flex items-center gap-2">
+                  <CheckCircleIcon className="w-5 h-5 text-success" />
+                  Knowledge Base Ativa: <span className="font-mono text-primary">{kbStoreName.split('/').pop()}</span>
+                </p>
+                <p className="text-sm text-textmuted">
+                  Novos arquivos adicionados à biblioteca podem ser automaticamente indexados.
+                </p>
+                 <Button
+                    onClick={() => navigateTo('Chatbot')}
+                    variant="secondary"
+                    className="w-full mt-4"
+                  >
+                    <ChatBubbleLeftRightIcon className="w-5 h-5 mr-2"/> Ir para o Chatbot com KB
                   </Button>
-              ) : (
-                  <span className="text-xs font-mono bg-black/30 px-3 py-1 rounded text-accent border border-accent/20">
-                      Status: Ativo
-                  </span>
-              )}
+              </>
+            )}
           </div>
+        </div>
       </div>
 
-      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
-        <h3 className="text-xl font-semibold text-textlight mb-5">Gerenciar Conteúdo</h3>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
-          <Input
-            id="searchContent"
-            type="text"
-            placeholder="Buscar por nome..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="col-span-1 md:col-span-2"
-          />
-          <div>
-            <label htmlFor="tagFilter" className="sr-only">Filtrar por Tag</label>
+      {/* Library Items List */}
+      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+          <h3 className="text-xl font-semibold text-textlight flex items-center gap-2">
+            <ArchiveBoxIcon className="w-5 h-5 text-primary" />
+            Seus Ativos de Mídia
+          </h3>
+          <div className="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <Input
+              id="searchLibrary"
+              type="text"
+              placeholder="Buscar por nome..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full sm:w-48"
+            />
             <select
-              id="tagFilter"
-              value={selectedTag}
-              onChange={(e) => setSelectedTag(e.target.value)}
-              className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
+              id="filterType"
+              value={filterType}
+              onChange={(e) => setFilterType(e.target.value)}
+              className="block w-full sm:w-auto px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
             >
-              <option value="all">Todas as Tags</option>
-              {allTags.map(tag => (
-                <option key={tag} value={tag}>{tag}</option>
+              <option value="all">Todos os Tipos</option>
+              {LIBRARY_ITEM_TYPES.map(typeOption => (
+                  <option key={typeOption} value={typeOption}>{typeOption.charAt(0).toUpperCase() + typeOption.slice(1)}</option>
               ))}
             </select>
           </div>
         </div>
-        <div className="flex flex-col sm:flex-row gap-3">
-          <label
-            htmlFor="file-upload-input"
-            className={`cursor-pointer inline-flex items-center justify-center px-5 py-2 text-base font-semibold rounded-lg focus:outline-none focus:ring-2 focus:ring-offset-2 transition duration-200 ease-in-out w-full sm:w-auto
-              ${uploading ? 'opacity-60 cursor-not-allowed bg-accent text-darkbg' : 'bg-accent text-darkbg shadow-lg shadow-accent/50 hover:bg-neonGreen/80 focus:ring-neonGreen focus:ring-offset-lightbg'}`}
-          >
-            {uploading ? <LoadingSpinner /> : 'Enviar Arquivo'}
-            <input
-              id="file-upload-input"
-              type="file"
-              onChange={handleFileUpload}
-              className="hidden"
-            />
-          </label>
-          {hasActiveFilters && (
-            <Button variant="primary" onClick={handleClearFilters} className="w-full sm:w-auto">
-              Limpar Filtros
-            </Button>
-          )}
-        </div>
-      </div>
 
-      {loading ? (
-        <div className="flex justify-center items-center h-48">
-          <LoadingSpinner />
-          <p className="ml-2 text-textlight">Loading library...</p>
-        </div>
-      ) : filteredItems.length === 0 ? (
-        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 text-center text-textlight">
-          Nenhum item encontrado na biblioteca.
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
-          {filteredItems.map((item) => (
-            <div key={item.id} className="bg-lightbg rounded-lg shadow-sm border border-gray-800 overflow-hidden group">
-              <div className="relative h-48 bg-gray-900 flex items-center justify-center overflow-hidden">
-                {item.type === 'image' || item.type === 'video' ? (
-                  <img
-                    src={item.thumbnail_url || item.file_url || 'https://picsum.photos/200/150'}
-                    alt={item.name}
-                    className="w-full h-full object-cover"
-                  />
-                ) : item.type === 'audio' ? (
-                  <div className="text-gray-500 text-center p-4">
-                    <MusicalNoteIcon className="w-12 h-12 mx-auto mb-2 text-primary" />
-                    <p className="text-sm text-textlight">Arquivo de Áudio</p>
-                    {/* Optionally add an audio player here */}
-                    {/* <audio src={item.file_url} controls className="w-full mt-2"></audio> */}
-                  </div>
-                ) : (
-                  <div className="text-gray-500 text-center p-4">
-                    <DocumentTextIcon className="w-12 h-12 mx-auto mb-2 text-primary" />
-                    <p className="text-sm text-textlight">Arquivo de Texto</p>
-                  </div>
-                )}
-                <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 gap-2">
-                  <Button
-                    onClick={() => handleDownloadItem(item)}
-                    variant="ghost"
-                    size="sm"
-                    className="text-white hover:bg-primary/20"
-                    title="Baixar"
-                  >
-                    <ArrowDownTrayIcon className="w-5 h-5 text-accent" />
-                  </Button>
-                  <Button
-                    onClick={() => handleUseInCalendar(item)}
-                    variant="ghost"
-                    size="sm"
-                    className="text-white hover:bg-primary/20"
-                    title="Usar no Calendário"
-                  >
-                    <ShareIcon className="w-5 h-5 text-accent" />
-                  </Button>
-                  <Button
-                    onClick={() => handleDeleteItem(item.id)}
-                    variant="danger"
-                    size="sm"
-                    className="text-white hover:bg-red-700"
-                    title="Excluir"
-                  >
-                    <TrashIcon className="w-5 h-5 text-red-400" />
-                  </Button>
+        {loading && (
+          <div className="flex justify-center items-center h-48">
+            <LoadingSpinner />
+            <p className="ml-2 text-textlight">Loading library...</p>
+          </div>
+        )}
+        {!loading && libraryItems.length === 0 && (
+          <div className="text-center text-textmuted p-8 border border-dashed border-gray-700 rounded-lg">
+            Nenhum item na biblioteca. Faça um upload para começar!
+          </div>
+        )}
+        {!loading && libraryItems.length > 0 && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+            {libraryItems.map((item) => (
+              <div key={item.id} className="bg-darkbg rounded-lg shadow-md border border-gray-700 flex flex-col overflow-hidden">
+                <div className="relative w-full aspect-video bg-gray-900 flex items-center justify-center">
+                  {item.thumbnailUrl ? (
+                    item.type === 'video' ? (
+                      <video src={item.thumbnailUrl} className="w-full h-full object-cover" controls muted />
+                    ) : (
+                      <img src={item.thumbnailUrl} alt={item.name} className="w-full h-full object-cover" />
+                    )
+                  ) : item.type === 'audio' ? (
+                    <MusicalNoteIcon className="w-16 h-16 text-gray-500" />
+                  ) : item.type === 'text' ? (
+                    <DocumentIcon className="w-16 h-16 text-gray-500" />
+                  ) : (
+                    <img src="https://via.placeholder.com/150?text=No+Preview" alt="No Preview" className="w-full h-full object-cover" />
+                  )}
+                  <span className="absolute top-2 left-2 px-2 py-1 bg-black/70 text-white text-xs rounded-full capitalize">
+                    {item.type}
+                  </span>
                 </div>
-              </div>
-              <div className="p-5">
-                <div className="flex justify-between items-start">
-                   <h4 className="font-semibold text-textdark truncate flex-1">{item.name}</h4>
-                   {item.tags.includes('indexed') && <CloudArrowUpIcon className="w-4 h-4 text-accent" title="Indexado na IA" />}
-                </div>
-                <p className="text-sm text-textmuted mt-1">Tipo: {item.type}</p>
-                {item.tags.length > 0 && (
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {item.tags.map(tag => (
-                      <span key={tag} className="bg-darkbg text-textlight text-xs px-2 py-1 rounded-full">
-                        {tag}
-                      </span>
+                <div className="p-4 flex-grow flex flex-col">
+                  <h4 className="font-semibold text-textlight text-lg mb-2">{item.name}</h4>
+                  <div className="flex flex-wrap gap-2 text-xs text-textmuted mb-3">
+                    {item.tags.map((tag, idx) => (
+                      <span key={idx} className="bg-gray-700 px-2 py-1 rounded-full">{tag}</span>
                     ))}
                   </div>
-                )}
+                  <p className="text-xs text-textmuted mb-4">
+                    Uploaded: {new Date(item.createdAt).toLocaleDateString()}
+                  </p>
+                  <div className="flex flex-wrap gap-2 mt-auto">
+                    <a href={item.fileUrl} target="_blank" rel="noopener noreferrer">
+                      <Button variant="ghost" size="sm" className="p-2 border border-gray-700 hover:bg-gray-700/50">
+                        <LinkIcon className="w-4 h-4 mr-1" /> Ver
+                      </Button>
+                    </a>
+                    <Button onClick={() => handleDeleteItem(item.id)} variant="danger" size="sm" className="p-2">
+                      <TrashIcon className="w-4 h-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 };

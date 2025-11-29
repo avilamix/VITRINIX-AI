@@ -5,6 +5,8 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { getLibraryItems, getScheduleEntries, saveScheduleEntry, deleteScheduleEntry } from '../services/firestoreService';
 import { ScheduleEntry, LibraryItem } from '../types';
 import { PlusIcon, TrashIcon, CalendarDaysIcon, CheckCircleIcon, XCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { getActiveOrganization } from '../services/authService';
+import { LIBRARY_ITEM_TYPES } from '../constants';
 
 const SmartScheduler: React.FC = () => {
   const [scheduledItems, setScheduledItems] = useState<ScheduleEntry[]>([]);
@@ -20,15 +22,24 @@ const SmartScheduler: React.FC = () => {
   const [newScheduleContentType, setNewScheduleContentType] = useState<ScheduleEntry['contentType']>('post'); // Use generic content type
   const [scheduling, setScheduling] = useState<boolean>(false);
 
-  const userId = 'mock-user-123'; // Mock user ID
+  const activeOrganization = getActiveOrganization();
+  const organizationId = activeOrganization?.organization.id;
+  const userId = 'mock-user-123'; // Mock user ID, will be inferred by backend for persistence operations
 
   const fetchSchedulerData = useCallback(async () => {
+    if (!organizationId) {
+      setError('No active organization found. Please login.');
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
-      const fetchedSchedule = await getScheduleEntries(userId);
-      const fetchedLibrary = await getLibraryItems(userId);
-      setScheduledItems(fetchedSchedule.sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()));
+      // FIX: getScheduleEntries no longer takes userId as an argument
+      const fetchedSchedule = await getScheduleEntries();
+      // FIX: getLibraryItems no longer takes userId as an argument, but filters
+      const fetchedLibrary = await getLibraryItems();
+      setScheduledItems(fetchedSchedule.sort((a, b) => a.datetime.getTime() - b.datetime.getTime()));
       setLibraryItems(fetchedLibrary);
 
       // Set default content for new schedule if available
@@ -42,16 +53,20 @@ const SmartScheduler: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [userId, newScheduleContentId]);
+  }, [organizationId, newScheduleContentId]);
 
   useEffect(() => {
     fetchSchedulerData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [organizationId]); // Depend on organizationId to refetch if active org changes
 
   const handleScheduleContent = useCallback(async () => {
     if (!newSchedulePlatform || !newScheduleDate || !newScheduleTime || !newScheduleContentId) {
       setError('Please fill all fields for scheduling.');
+      return;
+    }
+    if (!organizationId) {
+      setError('No active organization found. Please login.');
       return;
     }
 
@@ -61,16 +76,20 @@ const SmartScheduler: React.FC = () => {
     try {
       const combinedDateTime = `${newScheduleDate}T${newScheduleTime}:00`;
       const newEntry: ScheduleEntry = {
-        id: `schedule-${Date.now()}`,
-        userId: userId,
-        datetime: new Date(combinedDateTime).toISOString(),
+        id: `schedule-${Date.now()}`, // Backend will assign ID
+        organizationId: organizationId, // Explicitly pass organizationId
+        userId: userId, // Mock userId, backend will infer
+        // FIX: datetime should be a Date object, not an ISO string, when assigned to newEntry
+        datetime: new Date(combinedDateTime), 
         platform: newSchedulePlatform,
         contentId: newScheduleContentId,
         contentType: newScheduleContentType, // Use the selected content type
         status: 'scheduled',
+        createdAt: new Date(), // Backend will set
+        updatedAt: new Date(), // Backend will set
       };
       const savedEntry = await saveScheduleEntry(newEntry);
-      setScheduledItems((prev) => [...prev, savedEntry].sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()));
+      setScheduledItems((prev) => [...prev, savedEntry].sort((a, b) => a.datetime.getTime() - b.datetime.getTime()));
 
       // Reset form
       setNewSchedulePlatform('');
@@ -85,10 +104,14 @@ const SmartScheduler: React.FC = () => {
     } finally {
       setScheduling(false);
     }
-  }, [newSchedulePlatform, newScheduleDate, newScheduleTime, newScheduleContentId, newScheduleContentType, userId, libraryItems]);
+  }, [newSchedulePlatform, newScheduleDate, newScheduleTime, newScheduleContentId, newScheduleContentType, organizationId, userId]);
 
   const handleDeleteSchedule = useCallback(async (entryId: string) => {
     if (window.confirm('Tem certeza que deseja cancelar este agendamento?')) {
+      if (!organizationId) {
+        setError('No active organization found. Cannot delete item.');
+        return;
+      }
       setError(null);
       try {
         await deleteScheduleEntry(entryId);
@@ -98,7 +121,7 @@ const SmartScheduler: React.FC = () => {
         setError(`Failed to delete schedule entry: ${err instanceof Error ? err.message : String(err)}`);
       }
     }
-  }, []);
+  }, [organizationId]);
 
   // Helper to get item details for display
   const getItemDetails = useCallback((contentId: string) => {
@@ -155,9 +178,10 @@ const SmartScheduler: React.FC = () => {
                 </option>
               ))}
             </select>
-            {newScheduleContentId && getItemDetails(newScheduleContentId)?.thumbnail_url && (
+            {newScheduleContentId && getItemDetails(newScheduleContentId)?.thumbnailUrl && (
               <img
-                src={getItemDetails(newScheduleContentId)?.thumbnail_url || 'https://picsum.photos/100/100'}
+                // FIX: Changed thumbnail_url to thumbnailUrl
+                src={getItemDetails(newScheduleContentId)?.thumbnailUrl || 'https://picsum.photos/100/100'}
                 alt="Selected content thumbnail"
                 className="w-24 h-24 object-cover rounded-md mt-2 border border-gray-700"
               />
@@ -252,7 +276,7 @@ const SmartScheduler: React.FC = () => {
               <tbody className="bg-lightbg divide-y divide-gray-700">
                 {scheduledItems.map((entry) => {
                   const item = getItemDetails(entry.contentId);
-                  const dateTime = new Date(entry.datetime);
+                  const dateTime = entry.datetime; // Now a Date object
                   const isPast = dateTime < new Date();
                   return (
                     <tr key={entry.id} className={isPast ? 'bg-darkbg text-textmuted' : 'text-textlight'}>

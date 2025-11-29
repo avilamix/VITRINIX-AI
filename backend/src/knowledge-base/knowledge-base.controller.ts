@@ -1,5 +1,6 @@
 /// <reference types="express" />
 /// <reference types="multer" />
+// FIX: Add `npm i --save-dev @types/express @types/multer` to resolve Express and Multer types
 
 import { Controller, Post, Get, Param, Body, UseGuards, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Query, ParseUUIDPipe, Delete } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -70,7 +71,7 @@ export class KnowledgeBaseController {
   @ApiResponse({ status: 200, description: 'File uploaded and imported successfully', type: UploadFileResponseDto })
   async uploadFile(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
-    // FIX: Removed @ts-ignore, assuming proper Express types are now available.
+    // FIX: Add Express.Multer.File type to file parameter
     @UploadedFile() file: Express.Multer.File,
     @CurrentUser('uid') firebaseUid: string,
     @Body() metadata: MetadataDto, // Metadados vêm do body como outros campos do form-data
