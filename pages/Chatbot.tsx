@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChatMessage as ChatMessageType, ProviderName } from '../types';
 import { startChatAsync, sendMessageToChat } from '../services/geminiService';
@@ -87,7 +88,8 @@ const Chatbot: React.FC = () => {
         selectedProvider, 
         SYSTEM_INSTRUCTION,
         initialHistory, 
-        useKnowledgeBase && kbName ? kbName : undefined 
+        useKnowledgeBase && !!kbName, // Pass boolean for useKnowledgeBase
+        kbName || undefined // Pass kbName if it exists, otherwise undefined
       );
       
       setChatSession(newChat);

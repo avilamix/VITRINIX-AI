@@ -137,4 +137,12 @@ export interface AIStudio {
   openSelectKey: () => Promise<void>;
 }
 
+// NOVO: Interface para a resposta de consulta RAG do backend
+export interface KnowledgeBaseQueryResponse {
+  resposta: string;
+  arquivos_usados: string[];
+  trechos_referenciados: string[];
+  confianca: number;
+}
+
 // REMOVED Global declaration to avoid conflict with src/types.ts

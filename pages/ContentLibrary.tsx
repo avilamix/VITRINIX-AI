@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { LibraryItem } from '../types';
 import { getLibraryItems, deleteLibraryItem, saveLibraryItem } from '../services/firestoreService';
@@ -49,9 +50,9 @@ const ContentLibrary: React.FC = () => {
      setKbLoading(true);
      try {
          const store = await createFileSearchStore(`VitrineX KB - ${new Date().toLocaleDateString()}`);
-         if (store && store.name) {
-             localStorage.setItem('vitrinex_kb_name', store.name);
-             setKbStoreName(store.name);
+         if (store && store.storeName) { // Use storeName from backend response
+             localStorage.setItem('vitrinex_kb_name', store.storeName);
+             setKbStoreName(store.storeName);
              alert('Base de Conhecimento criada com sucesso! Agora você pode indexar arquivos.');
          }
      } catch (err) {
@@ -68,15 +69,13 @@ const ContentLibrary: React.FC = () => {
           return;
       }
       if (item.type !== 'text' && item.type !== 'post') {
-          // File Search works best with text/pdf.
-          // In this mock, we assume 'file_url' points to something we can fetch and upload, or we need the original File object.
-          // Since we lost the File object after upload in this mock architecture, we can't truly upload without re-fetching as blob.
-          alert('Nesta demonstração, apenas novos uploads podem ser indexados diretamente (limitação técnica do mock). Tente enviar o arquivo novamente.');
+          alert('Nesta demonstração, a re-indexação de arquivos não textuais não é suportada. Tente enviar o arquivo novamente.');
           return;
       }
       
-      // Real implementation would fetch the file blob from item.file_url and send to uploadFileToSearchStore
-      alert('Funcionalidade de re-indexação pendente. Por favor, envie o arquivo novamente para indexar.');
+      // In a real scenario, you'd fetch the file blob from item.file_url and send it.
+      // For this mock, we'll inform the user about the limitation.
+      alert('Funcionalidade de re-indexação de arquivos existentes pendente. Por favor, envie o arquivo novamente para indexar.');
   };
 
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -99,12 +98,13 @@ const ContentLibrary: React.FC = () => {
         // 1. Upload to Storage (Mock)
         const newItem = await uploadFile(file, userId, type);
         
-        // 2. Optional: Upload to Knowledge Base if exists
-        if (kbStoreName && (type === 'text' || file.type === 'application/pdf')) {
+        // 2. Optional: Upload to Knowledge Base if exists and is a suitable file type
+        if (kbStoreName && (type === 'text' || file.type === 'application/pdf' || file.type.startsWith('application/vnd.openxmlformats'))) {
             const confirmIndex = window.confirm(`Deseja indexar "${file.name}" na sua Base de Conhecimento para pesquisa?`);
             if (confirmIndex) {
                 try {
-                    await uploadFileToSearchStore(kbStoreName, file);
+                    // Corrected call: uploadFileToSearchStore expects File and MetadataDto
+                    await uploadFileToSearchStore(file, {}); 
                     alert('Arquivo indexado na IA com sucesso!');
                     newItem.tags.push('indexed');
                 } catch (idxErr) {

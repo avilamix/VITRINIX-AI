@@ -8,10 +8,10 @@ import {
   FunctionDeclaration,
   Chat,
   LiveServerMessage,
-  Modality,
   Blob,
   Content,
-  File as GenAIFile
+  File as GenAIFile,
+  Modality // Import Modality
 } from '@google/genai';
 import {
   GEMINI_FLASH_MODEL,
@@ -30,9 +30,23 @@ import {
   Campaign,
   Trend,
   ProviderName,
-  ChatMessage
+  ChatMessage,
+  KnowledgeBaseQueryResponse // NOVO
 } from '../types';
 import { executeWithProviderFallback, getBestApiKey } from './keyManagerService';
+
+// TODO: Em um sistema real, a URL do backend viria de uma variável de ambiente ou configuração global
+const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
+// MOCK para obter o ID da organização ativa (deveria vir do contexto de autenticação real)
+const getActiveOrganizationId = (): string => {
+  return localStorage.getItem('vitrinex_active_org_id') || 'mock-org-id'; // Substituir por ID da org real
+};
+// MOCK para obter o token do Firebase (deveria vir do SDK do Firebase Auth no frontend)
+const getFirebaseIdToken = async (): Promise<string> => {
+    // Retorna um token mock para a demo.
+    // Em produção, você usaria firebase.auth().currentUser.getIdToken()
+    return 'mock-firebase-id-token'; 
+};
 
 // Helper to get Gemini client with a specific key
 const createGeminiClient = (apiKey: string) => {
@@ -63,7 +77,7 @@ export const generateText = async (
     provider = 'Google Gemini',
   } = options || {};
 
-  // For non-Gemini providers, we simulate the response since we can't import their SDKs
+  // Para não-Gemini ou Gemini mockado no frontend (para desenvolvimento)
   if (provider !== 'Google Gemini') {
     return executeWithProviderFallback(provider, async (key) => {
         // console.log(`Simulating ${provider} generation with key ending in ...${key.slice(-4)}`);
@@ -73,7 +87,7 @@ export const generateText = async (
     });
   }
 
-  // Gemini Logic with Fallback
+  // Gemini Logic with Fallback via Frontend (Ainda precisa ser movido para o backend)
   return executeWithProviderFallback('Google Gemini', async (apiKey) => {
     const ai = createGeminiClient(apiKey);
     const config: GenerateContentParameters['config'] = {
@@ -466,61 +480,101 @@ export const campaignBuilder = async (
     });
 };
 
-// --- File Search Functions ---
+// --- File Search Functions (REFATORADAS PARA CHAMAR O BACKEND) ---
 
-export const createFileSearchStore = async (displayName: string): Promise<any> => {
-  return executeWithProviderFallback('Google Gemini', async (apiKey) => {
-    const ai = createGeminiClient(apiKey);
-    console.log(`Creating File Search Store: ${displayName}`);
-    // Create the store
-    const store = await ai.fileSearchStores.create({ config: { displayName } });
-    console.log(`Store created: ${store.name}`);
-    return store;
+export const createFileSearchStore = async (displayName?: string): Promise<any> => {
+  const organizationId = getActiveOrganizationId();
+  const idToken = await getFirebaseIdToken();
+  
+  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/knowledge-base/store`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${idToken}`,
+    },
+    body: JSON.stringify({ displayName }),
   });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || `Failed to create File Search Store: ${response.statusText}`);
+  }
+  return response.json();
 };
 
-export const uploadFileToSearchStore = async (storeName: string, file: File): Promise<any> => {
-  return executeWithProviderFallback('Google Gemini', async (apiKey) => {
-    const ai = createGeminiClient(apiKey);
-    
-    // In browser, we use files.upload with the File object
-    console.log(`Uploading file ${file.name} to GenAI Files API...`);
-    const uploadResult = await ai.files.upload({
-      file: file,
-      config: { displayName: file.name }
-    });
-    
-    console.log(`File uploaded: ${uploadResult.name}. Adding to store: ${storeName}...`);
-    return uploadResult;
+export const getFileSearchStore = async (): Promise<any> => {
+  const organizationId = getActiveOrganizationId();
+  const idToken = await getFirebaseIdToken();
+  
+  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/knowledge-base/store`, {
+    method: 'GET',
+    headers: {
+      'Authorization': `Bearer ${idToken}`,
+    },
   });
+  if (!response.ok) {
+    const errorData = await response.json();
+    // Se o store não for encontrado, retornamos null em vez de lançar erro para o frontend lidar.
+    if (response.status === 404) return null; 
+    throw new Error(errorData.message || `Failed to get File Search Store: ${response.statusText}`);
+  }
+  return response.json();
+};
+
+interface UploadFileMetadata {
+  documentType?: string;
+  campaign?: string;
+  sector?: string;
+  client?: string;
+}
+
+export const uploadFileToSearchStore = async (file: File, metadata: UploadFileMetadata): Promise<any> => {
+  const organizationId = getActiveOrganizationId();
+  const idToken = await getFirebaseIdToken();
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  // Anexar metadados
+  if (metadata.documentType) formData.append('documentType', metadata.documentType);
+  if (metadata.campaign) formData.append('campaign', metadata.campaign);
+  if (metadata.sector) formData.append('sector', metadata.sector);
+  if (metadata.client) formData.append('client', metadata.client);
+
+  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/knowledge-base/upload-file`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${idToken}`,
+      // 'Content-Type': 'multipart/form-data' is set automatically by browser with FormData
+    },
+    body: formData,
+  });
+  if (!response.ok) {
+    const errorData = await response.json();
+    throw new Error(errorData.message || `Failed to upload file to File Search Store: ${response.statusText}`);
+  }
+  return response.json();
 };
 
 export const queryFileSearchStore = async (
   prompt: string, 
-  storeName: string,
   model: string = GEMINI_FLASH_MODEL
-): Promise<string> => {
-   return executeWithProviderFallback('Google Gemini', async (apiKey) => {
-      const ai = createGeminiClient(apiKey);
-      console.log(`Querying store ${storeName} with prompt: ${prompt}`);
-      
-      const response = await ai.models.generateContent({
-        model: model,
-        contents: prompt,
-        config: {
-          tools: [
-            {
-              fileSearch: {
-                fileSearchStoreNames: [storeName]
-              }
-            }
-          ]
-        }
-      });
-      
-      return response.text || "No results found in knowledge base.";
+): Promise<KnowledgeBaseQueryResponse> => {
+   const organizationId = getActiveOrganizationId();
+   const idToken = await getFirebaseIdToken();
+   
+   const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/knowledge-base/query`, {
+     method: 'POST',
+     headers: {
+       'Content-Type': 'application/json',
+       'Authorization': `Bearer ${idToken}`,
+     },
+     body: JSON.stringify({ prompt, model }),
    });
-}
+   if (!response.ok) {
+     const errorData = await response.json();
+     throw new Error(errorData.message || `Failed to query File Search Store: ${response.statusText}`);
+   }
+   return response.json();
+};
 
 // --- Chatbot Functions ---
 export const startChat = (model: string = GEMINI_PRO_MODEL, provider: ProviderName = 'Google Gemini') => {
@@ -532,52 +586,61 @@ export const startChatAsync = async (
   provider: ProviderName = 'Google Gemini',
   systemInstruction?: string,
   history?: ChatMessage[],
-  knowledgeBaseId?: string // New optional param
+  useKnowledgeBase?: boolean, // New optional param as boolean
+  kbStoreName?: string // New optional param for KB store name
 ): Promise<Chat> => {
-    if (provider !== 'Google Gemini') {
-         return {
+    // --- Mock para outros provedores e chats sem grounding KB ---
+    if (provider !== 'Google Gemini' || !useKnowledgeBase || !kbStoreName) {
+      // Retorna uma sessão de chat mockada ou usa a lógica existente do frontend para Gemini sem KB
+      return {
           sendMessageStream: async ({ message }: { message: string }) => {
-               return (async function* () {
-                   await new Promise(r => setTimeout(r, 500));
-                   yield { text: `[${provider} Response]: I am a simulated ${provider} agent. ` } as GenerateContentResponse;
-                   await new Promise(r => setTimeout(r, 500));
-                   yield { text: `My integration is being mocked because the SDK is not loaded.` } as GenerateContentResponse;
-               })();
+              return (async function* () {
+                  await new Promise(r => setTimeout(r, 500));
+                  yield { text: `[${provider} Response]: I am a simulated ${provider} agent. ` } as GenerateContentResponse;
+                  await new Promise(r => setTimeout(r, 500));
+                  yield { text: `My integration is being mocked or running without Knowledge Base.` } as GenerateContentResponse;
+              })();
           }
       } as unknown as Chat;
     }
 
-    const apiKey = await getBestApiKey(provider);
-    const ai = createGeminiClient(apiKey);
-    
-    const config: any = {};
-    if (systemInstruction) config.systemInstruction = systemInstruction;
-    
-    // Add File Search Tool if KB ID is provided
-    if (knowledgeBaseId) {
-       config.tools = [
-          {
-            fileSearch: {
-              fileSearchStoreNames: [knowledgeBaseId]
-            }
-          }
-       ];
-       console.log(`Chat started with Knowledge Base: ${knowledgeBaseId}`);
-    }
+    // --- Lógica para Gemini COM grounding KB (via Backend) ---
+    return {
+        sendMessageStream: async ({ message }: { message: string }) => {
+            return (async function* () {
+                const organizationId = getActiveOrganizationId();
+                const idToken = await getFirebaseIdToken();
+                
+                // Chamar o endpoint RAG do backend diretamente
+                const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/knowledge-base/query`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${idToken}`,
+                    },
+                    body: JSON.stringify({ prompt: message, model }),
+                });
 
-    let chatHistory: Content[] | undefined = undefined;
-    if (history && history.length > 0) {
-      chatHistory = history.map(msg => ({
-        role: msg.role,
-        parts: [{ text: msg.text }]
-      }));
-    }
+                if (!response.ok) {
+                    const errorData = await response.json();
+                    yield { text: `Error: ${errorData.message || response.statusText}` } as GenerateContentResponse;
+                } else {
+                    const data: KnowledgeBaseQueryResponse = await response.json();
+                    let fullResponseText = data.resposta;
+                    
+                    if (data.trechos_referenciados && data.trechos_referenciados.length > 0) {
+                        fullResponseText += `\n\n**Trechos Referenciados**:\n${data.trechos_referenciados.map(s => `"${s}"`).join('\n')}`;
+                    }
+                    if (data.arquivos_usados && data.arquivos_usados.length > 0) {
+                        fullResponseText += `\n\n**Fontes**: ${data.arquivos_usados.join(', ')}`;
+                    }
+                    fullResponseText += `\n\n*(Confiança: ${data.confianca.toFixed(2)})*`;
 
-    return ai.chats.create({ 
-      model: model,
-      config: Object.keys(config).length > 0 ? config : undefined,
-      history: chatHistory
-    });
+                    yield { text: fullResponseText } as GenerateContentResponse;
+                }
+            })();
+        },
+    } as unknown as Chat;
 };
 
 export const sendMessageToChat = async (
@@ -589,10 +652,12 @@ export const sendMessageToChat = async (
   if (signal?.aborted) return "";
 
   try {
-    const response = await chat.sendMessageStream({ message: message });
+    // A implementação de sendMessageStream agora é controlada pelo `startChatAsync`
+    // que já retorna um iterador adequado para o frontend.
+    const responseIterable = chat.sendMessageStream({ message: message });
     let fullText = '';
     
-    for await (const chunk of response) {
+    for await (const chunk of responseIterable) {
       if (signal?.aborted) break;
       const chunkText = chunk.text;
       fullText += chunkText;
@@ -692,11 +757,13 @@ export const connectLiveSession = async (
         await callbacks.onmessage(message);
       },
       onerror: (e: ErrorEvent) => {
-        console.error('Live session error:', e);
-        callbacks.onerror(e);
+        console.error('Live conversation error:', e);
+        // Removed direct setError, delegated to callback
+        callbacks.onerror(e); 
       },
       onclose: (e: CloseEvent) => {
-        console.debug('Live session closed:', e);
+        console.debug('Live conversation closed:', e);
+        // Removed direct stopConversation, delegated to callback
         callbacks.onclose(e);
       },
     },

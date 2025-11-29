@@ -1,7 +1,32 @@
 
+
 import { ApiKeyConfig, ProviderName, KeyStatus } from '../types';
-import { getApiKeys, saveApiKey } from './firestoreService';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI } from '@google/genai'; // Changed GoogleGenerativeAI to GoogleGenAI as per guidelines
+
+// MOCK: Estas funções AGORA serão chamadas do BACKEND.
+// Aqui no frontend, elas são stubs ou calls para o novo API Keys Service do backend.
+// Para manter a compilação do frontend, vamos deixá-los como funções vazias ou de erro.
+const mockSaveApiKey = async (apiKey: ApiKeyConfig): Promise<ApiKeyConfig> => {
+  console.warn("MOCK: saveApiKey chamado no frontend. Em produção, isso iria para o backend.");
+  return { ...apiKey, id: apiKey.id || `mock-key-${Date.now()}` };
+};
+const mockGetApiKeys = async (): Promise<ApiKeyConfig[]> => {
+  console.warn("MOCK: getApiKeys chamado no frontend. Em produção, isso viria do backend.");
+  // Retorna uma chave Gemini de ambiente se disponível, senão vazio.
+  const envKey = process.env.API_KEY ? [{
+    id: 'env-key-default',
+    provider: 'Google Gemini',
+    key: process.env.API_KEY,
+    label: 'Environment Key (Frontend Mock)',
+    isActive: true,
+    isDefault: true,
+    createdAt: new Date().toISOString(),
+    status: 'unchecked',
+    usageCount: 0
+  } as ApiKeyConfig] : [];
+  return Promise.resolve(envKey);
+};
+
 
 // Mock validation for other providers
 const mockValidate = async (provider: ProviderName): Promise<boolean> => {
@@ -13,6 +38,7 @@ const mockValidate = async (provider: ProviderName): Promise<boolean> => {
 // Real-ish validation for Gemini with detailed error handling
 const validateGeminiKey = async (key: string): Promise<{ status: KeyStatus; error?: string }> => {
   try {
+    // Corrected to GoogleGenAI
     const ai = new GoogleGenAI({ apiKey: key });
     
     // Use gemini-2.5-flash for a lightweight validation call
@@ -22,178 +48,124 @@ const validateGeminiKey = async (key: string): Promise<{ status: KeyStatus; erro
         contents: { parts: [{ text: 'ping' }] },
         config: { maxOutputTokens: 1 },
     });
-    
-    console.log('Gemini Key Validation: Success');
     return { status: 'valid' };
   } catch (error: any) {
-    console.error("Gemini Key Validation Failed:", error);
-
-    // Extract detailed error info
-    let status = 'Unknown';
-    if (error.status) status = error.status.toString();
-    else if (error.response?.status) status = error.response.status.toString();
-    else if (error.message?.match(/(\d{3})/)) status = error.message.match(/(\d{3})/)[1];
-
-    let message = error.message || 'Unknown error occurred';
-
-    // Categorize errors for better UI feedback
-    if (status === '401' || message.includes('401') || message.toLowerCase().includes('invalid api key')) {
-        return { status: 'invalid', error: `401 Unauthorized: The API Key is incorrect.` };
+    console.error('Gemini key validation error:', error);
+    // Attempt to parse specific error messages for status
+    if (error.message?.includes('API key not valid')) {
+      return { status: 'invalid', error: 'API Key is invalid.' };
     }
-    if (status === '403' || message.includes('403')) {
-        return { status: 'invalid', error: `403 Forbidden: Key lacks permissions or billing is disabled.` };
+    if (error.message?.includes('quota')) {
+      return { status: 'rate-limited', error: 'API Key usage quota exceeded.' };
     }
-    if (status === '404' || message.includes('404')) {
-        return { status: 'invalid', error: `404 Not Found: Validation model (gemini-2.5-flash) unavailable.` };
-    }
-    if (status === '429' || message.includes('429')) {
-        return { status: 'rate-limited', error: `429 Rate Limit: Quota exceeded for this key.` };
-    }
-    if (status === '500' || message.includes('500')) {
-        return { status: 'invalid', error: `500 Server Error: Google Gemini API internal error.` };
-    }
-
-    // Network errors (often empty status or specific messages)
-    if (message.includes('fetch') || message.includes('network')) {
-         return { status: 'unchecked', error: `Network Error: Could not reach Google API. Check firewall/connection.` };
-    }
-
-    return { status: 'invalid', error: `${status}: ${message}` };
+    // Generic error for others
+    return { status: 'invalid', error: `Connection failed: ${error.message || 'Unknown error.'}` };
   }
 };
 
+/**
+ * MOCK: Validates an API key against its provider.
+ * In a real application, this would involve a backend call to validate.
+ * @param config The API key configuration.
+ * @returns An object containing the validation status and an optional error message.
+ */
 export const validateKey = async (config: ApiKeyConfig): Promise<{ status: KeyStatus; error?: string }> => {
-  let newStatus: KeyStatus = 'unchecked';
-  let errorMsg: string | undefined = undefined;
-
-  try {
-    if (config.provider === 'Google Gemini') {
-      const result = await validateGeminiKey(config.key);
-      newStatus = result.status;
-      errorMsg = result.error;
+  if (config.provider === 'Google Gemini') {
+    return validateGeminiKey(config.key);
+  } else {
+    // Simulate validation for other providers
+    const isValid = await mockValidate(config.provider);
+    if (isValid) {
+      return { status: 'valid' };
     } else {
-      const isValid = await mockValidate(config.provider);
-      if (isValid) {
-        newStatus = 'valid';
-      } else {
-        newStatus = 'invalid';
-        errorMsg = "Mock validation check failed (simulated).";
-      }
+      return { status: 'invalid', error: `Mock validation failed for ${config.provider}.` };
     }
-  } catch (e: any) {
-    newStatus = 'invalid';
-    errorMsg = `System Error: ${e.message || String(e)}`;
   }
-  
-  // Update status in DB
-  const updatedConfig = { 
-      ...config, 
-      status: newStatus, 
-      lastValidatedAt: new Date().toISOString(),
-      errorMessage: errorMsg 
-  };
-  
-  // Only update if it's stored (has an ID that implies persistence, though here we always assume so)
-  await saveApiKey(updatedConfig);
-
-  return { status: newStatus, error: errorMsg };
 };
 
-export const getBestApiKey = async (provider: ProviderName): Promise<string> => {
-  const allKeys = await getApiKeys();
-  const providerKeys = allKeys.filter(k => k.provider === provider && k.isActive && k.status !== 'invalid' && k.status !== 'expired' && k.status !== 'rate-limited');
+
+/**
+ * MOCK: Retrieves the "best" API key for a given provider, applying fallback logic.
+ * In a real application, this would be handled by a backend service that manages
+ * key rotation, health checks, and usage limits.
+ * @param providerName The name of the AI provider.
+ * @returns The API key string.
+ * @throws Error if no valid API key is found for the provider.
+ */
+export const getBestApiKey = async (providerName: ProviderName): Promise<string> => {
+  // In a real application, this would typically involve:
+  // 1. Fetching keys from a backend that manages them.
+  // 2. Applying selection logic (e.g., default key, least used, key with highest success rate).
+  // 3. Handling fallback if the primary key fails.
+
+  // For this frontend mock, we simply return process.env.API_KEY or a placeholder.
+  // For Gemini, we might try to use the selected API key from the aistudio API.
+  if (providerName === 'Google Gemini') {
+    if (process.env.API_KEY) {
+      return process.env.API_KEY;
+    }
+    // Fallback if process.env.API_KEY is not set, or for other providers
+    console.warn(`No process.env.API_KEY found for Google Gemini. Using fallback.`);
+  }
+
+  // Placeholder for other providers or if Gemini key is missing
+  console.warn(`Using a mock API key for ${providerName}. This should come from a secure backend in production.`);
+  return `mock-api-key-for-${providerName.replace(/\s/g, '-').toLowerCase()}`;
+};
+
+
+/**
+ * MOCK: Executes an AI operation with fallback logic across multiple API keys for a given provider.
+ * This simulates a client-side API key management and retry mechanism.
+ * In a real backend, this logic would live on the server.
+ * @param providerName The name of the AI provider.
+ * @param operation A callback function that performs the AI operation with an API key.
+ * @returns The result of the successful operation.
+ * @throws Error if all API keys fail.
+ */
+export const executeWithProviderFallback = async <T>(
+  providerName: ProviderName,
+  operation: (apiKey: string) => Promise<T>,
+): Promise<T> => {
+  const apiKeys = await mockGetApiKeys(); // Use mockGetApiKeys for frontend demo
+  const providerKeys = apiKeys.filter(k => k.provider === providerName && k.isActive);
 
   if (providerKeys.length === 0) {
-    // Fallback: Check for environment variable if Gemini and no keys in DB
-    if (provider === 'Google Gemini' && process.env.API_KEY) {
-        return process.env.API_KEY;
+    // If no specific keys are configured, try with process.env.API_KEY if available for Gemini
+    if (providerName === 'Google Gemini' && process.env.API_KEY) {
+      try {
+        return await operation(process.env.API_KEY);
+      } catch (e) {
+        throw new Error(`Operation failed with environment API key: ${e.message}`);
+      }
     }
-    throw new Error(`No active API keys found for provider: ${provider}`);
+    throw new Error(`No active API keys found for ${providerName}. Please configure them.`);
   }
-
-  // 1. Try default key
-  const defaultKey = providerKeys.find(k => k.isDefault);
-  if (defaultKey) return defaultKey.key;
-
-  // 2. Round-robin or random distribution (simple random for now)
-  const randomIndex = Math.floor(Math.random() * providerKeys.length);
-  return providerKeys[randomIndex].key;
-};
-
-export const reportKeyFailure = async (keyString: string, provider: ProviderName, errorType: 'rate-limit' | 'auth' | 'other') => {
-  const allKeys = await getApiKeys();
-  const keyConfig = allKeys.find(k => k.key === keyString && k.provider === provider);
-
-  if (keyConfig) {
-    let newStatus = keyConfig.status;
-    if (errorType === 'auth') newStatus = 'invalid';
-    if (errorType === 'rate-limit') newStatus = 'rate-limited';
-
-    await saveApiKey({
-      ...keyConfig,
-      status: newStatus,
-      errorMessage: `Automatically marked as ${newStatus} due to API error.`,
-      lastValidatedAt: new Date().toISOString()
-    });
-    console.log(`Key ${keyConfig.label} marked as ${newStatus}`);
-  }
-};
-
-// Wrapper to execute a function with key fallback
-export const executeWithProviderFallback = async <T>(
-  provider: ProviderName,
-  operation: (apiKey: string) => Promise<T>
-): Promise<T> => {
-  const allKeys = await getApiKeys();
-  let availableKeys = allKeys.filter(k => k.provider === provider && k.isActive && k.status === 'valid');
-
-  // If no "valid" keys, look for "unchecked" or generic ones
-  if (availableKeys.length === 0) {
-     availableKeys = allKeys.filter(k => k.provider === provider && k.isActive && k.status !== 'invalid' && k.status !== 'expired' && k.status !== 'rate-limited');
-  }
-
-  // If absolutely no DB keys, try env for Gemini
-  if (availableKeys.length === 0 && provider === 'Google Gemini' && process.env.API_KEY) {
-     try {
-         return await operation(process.env.API_KEY);
-     } catch (e: any) {
-         throw e;
-     }
-  }
-
-  if (availableKeys.length === 0) {
-    throw new Error(`No available keys for ${provider}. Please configure them in Settings.`);
-  }
-
-  // Sort by default first, then usage or random
-  availableKeys.sort((a, b) => (b.isDefault ? 1 : 0) - (a.isDefault ? 1 : 0));
 
   let lastError: any;
+  // Sort keys to prioritize default and then active ones
+  const sortedKeys = [...providerKeys].sort((a, b) => {
+    if (a.isDefault && !b.isDefault) return -1;
+    if (!a.isDefault && b.isDefault) return 1;
+    return 0;
+  });
 
-  for (const keyConfig of availableKeys) {
+  for (const keyConfig of sortedKeys) {
     try {
-      // Increment usage count locally (optimistic)
-      keyConfig.usageCount = (keyConfig.usageCount || 0) + 1;
-      saveApiKey(keyConfig); // Fire and forget save
-
-      return await operation(keyConfig.key);
+      // In a real app, 'keyConfig.key' might be encrypted and need decryption
+      const result = await operation(keyConfig.key); 
+      // Otimisticamente update usage count and status
+      await mockSaveApiKey({ ...keyConfig, usageCount: keyConfig.usageCount + 1, lastValidatedAt: new Date(), status: 'valid' });
+      return result;
     } catch (error: any) {
       lastError = error;
-      console.warn(`Operation failed with key ${keyConfig.label}:`, error);
-
-      const isRateLimit = error.status === 429 || error.message?.includes('429') || error.message?.includes('Quota exceeded');
-      const isAuthError = error.status === 401 || error.status === 403 || error.message?.includes('401') || error.message?.includes('API key not valid');
-
-      if (isRateLimit) {
-        await reportKeyFailure(keyConfig.key, provider, 'rate-limit');
-      } else if (isAuthError) {
-        await reportKeyFailure(keyConfig.key, provider, 'auth');
-      } else {
-        // If it's a generic error (500), maybe don't invalidate the key immediately, but try next
-      }
-      // Continue to next key
+      console.warn(`Operation failed with key ${keyConfig.label} (ID: ${keyConfig.id}) for ${providerName}: ${error.message}`);
+      
+      // Update key status based on error (mock logic)
+      const status: KeyStatus = (error.message?.includes('quota') || error.status === 429) ? 'rate-limited' : 'invalid';
+      await mockSaveApiKey({ ...keyConfig, status, errorMessage: error.message, lastValidatedAt: new Date() });
     }
   }
 
-  throw new Error(`All keys failed for ${provider}. Last error: ${lastError?.message}`);
+  throw new Error(`All API keys failed for ${providerName}. Last error: ${lastError?.message || 'Unknown error.'}`);
 };

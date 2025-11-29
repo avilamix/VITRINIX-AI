@@ -1,7 +1,8 @@
-import { Injectable, UnauthorizedException, Logger } from '@nestjs/common';
+
+import { Injectable, UnauthorizedException, Logger, NotFoundException } from '@nestjs/common';
 import { firebaseAuth } from '../config/firebase.config';
 import { PrismaService } from '../prisma/prisma.service';
-import { User, Organization } from '@prisma/client';
+import { User } from '@prisma/client';
 import { DecodedIdToken } from 'firebase-admin/auth';
 import { OrganizationMembershipDto } from './dto/organization-membership.dto';
 
@@ -22,26 +23,22 @@ export class AuthService {
   }
 
   async findOrCreateUser(firebaseUser: DecodedIdToken): Promise<User> {
-    // FIX: Cast 'this.prisma' to 'any' to resolve TypeScript error on 'user' property
-    let user = await (this.prisma as any).user.findUnique({
+    let user = await this.prisma.user.findUnique({
       where: { firebaseUid: firebaseUser.uid },
     });
 
     if (!user) {
-      // FIX: Cast 'this.prisma' to 'any' to resolve TypeScript error on 'user' property
-      user = await (this.prisma as any).user.create({
+      user = await this.prisma.user.create({
         data: {
           firebaseUid: firebaseUser.uid,
           email: firebaseUser.email,
-          name: firebaseUser.name || firebaseUser.email.split('@')[0], // Default name if not provided
+          name: firebaseUser.name || firebaseUser.email.split('@')[0],
         },
       });
       this.logger.log(`New user created: ${user.email}`);
     } else {
-      // Optionally update user data if it changed in Firebase
       if (user.email !== firebaseUser.email || (firebaseUser.name && user.name !== firebaseUser.name)) {
-        // FIX: Cast 'this.prisma' to 'any' to resolve TypeScript error on 'user' property
-        user = await (this.prisma as any).user.update({
+        user = await this.prisma.user.update({
           where: { id: user.id },
           data: {
             email: firebaseUser.email,
@@ -55,11 +52,10 @@ export class AuthService {
   }
 
   async getUserOrganizations(userId: string): Promise<OrganizationMembershipDto[]> {
-    // FIX: Cast 'this.prisma' to 'any' to resolve TypeScript error on 'organizationMember' property
-    const memberships = await (this.prisma as any).organizationMember.findMany({
+    const memberships = await this.prisma.organizationMember.findMany({
       where: { userId },
       include: {
-        organization: true, // Include the related organization data
+        organization: true,
       },
     });
 
@@ -67,8 +63,17 @@ export class AuthService {
       organization: {
         id: membership.organization.id,
         name: membership.organization.name,
+        fileSearchStoreName: membership.organization.fileSearchStoreName, // Incluir no DTO
       },
       role: membership.role,
     }));
+  }
+
+  async getUserByFirebaseUid(firebaseUid: string): Promise<User> {
+    const user = await this.prisma.user.findUnique({ where: { firebaseUid } });
+    if (!user) {
+      throw new NotFoundException(`User with Firebase UID ${firebaseUid} not found.`);
+    }
+    return user;
   }
 }

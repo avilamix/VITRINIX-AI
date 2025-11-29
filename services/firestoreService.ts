@@ -1,4 +1,5 @@
 
+
 import { UserProfile, Post, Ad, Campaign, Trend, LibraryItem, ScheduleEntry, ApiKeyConfig } from '../types';
 import { MOCK_API_DELAY, DEFAULT_BUSINESS_PROFILE } from '../constants';
 
@@ -21,10 +22,11 @@ const mockDb = {
   trends: {} as { [id: string]: Trend },
   library: {} as { [id: string]: LibraryItem },
   schedule: {} as { [id: string]: ScheduleEntry },
-  apiKeys: [] as ApiKeyConfig[], // New storage for API Keys
+  apiKeys: [] as ApiKeyConfig[], // New storage for API Keys - REMOVIDO DO MOCK, AGORA NO BACKEND
 };
 
-// Initialize with environment key if present (Mock migration)
+// Initialize with environment key if present (Mock migration) - REMOVIDO
+/*
 if (process.env.API_KEY && mockDb.apiKeys.length === 0) {
   mockDb.apiKeys.push({
     id: 'env-key-default',
@@ -38,6 +40,7 @@ if (process.env.API_KEY && mockDb.apiKeys.length === 0) {
     usageCount: 0
   });
 }
+*/
 
 // Generic mock function to simulate Firestore operations
 async function mockFirestoreOperation<T>(operation: () => T | Promise<T>): Promise<T> {

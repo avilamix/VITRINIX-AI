@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import Button from './Button';
 import Input from './Input';
@@ -51,12 +52,10 @@ const InteractiveActionCenter: React.FC = () => {
       switch (selectedModule) {
         case 'content_generation':
           // Logic mapping to adjust_module_settings -> content_generation
-          const fullPrompt = kbName 
-             ? `${prompt} (Contexto: Base de conhecimento '${kbName}')` 
-             : prompt;
-          
+          // If KB is named, use it for queryFileSearchStore, otherwise use generateText
           if (kbName) {
-             outputText = await queryFileSearchStore(fullPrompt, kbName);
+             const kbResponse = await queryFileSearchStore(prompt);
+             outputText = kbResponse.resposta; // Extract the string response
           } else {
              outputText = await generateText(prompt);
           }
@@ -74,12 +73,8 @@ const InteractiveActionCenter: React.FC = () => {
           // Logic mapping to adjust_module_settings -> audio_generation
           const audioBase64 = await generateSpeech(prompt, voice);
           if (audioBase64) {
-             // Create a playable blob URL
-             const binary = atob(audioBase64);
-             const array = new Uint8Array(binary.length);
-             for(let i = 0; i < binary.length; i++) array[i] = binary.charCodeAt(i);
-             const blob = new Blob([array], { type: 'audio/mp3' }); // Gemini TTS usually raw PCM but wrapper converts or we treat as raw
-             // Note: In real implementation we use the decode helper, here we mock a direct play for simplicity or use text result
+             // Create a playable blob URL (simplified for mock, actual playback in AudioTools module)
+             // For InteractiveActionCenter, just return success text
              outputText = "Áudio gerado. (Reprodução disponível no módulo Audio Tools)";
           } else {
              outputText = "Falha ao gerar áudio.";
@@ -88,7 +83,8 @@ const InteractiveActionCenter: React.FC = () => {
 
         case 'file_search':
            if (!kbName) throw new Error("Nome da Base de Conhecimento é obrigatório para pesquisa.");
-           outputText = await queryFileSearchStore(prompt, kbName);
+           const kbSearchResponse = await queryFileSearchStore(prompt);
+           outputText = kbSearchResponse.resposta; // Extract the string response
            break;
 
         case 'video_generation':
