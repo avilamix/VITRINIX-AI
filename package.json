@@ -12,7 +12,18 @@
     "react": "^19.2.0",
     "@google/genai": "^1.30.0",
     "react-dom": "^19.2.0",
-    "@heroicons/react": "^2.2.0"
+    "@heroicons/react": "^2.2.0",
+    "@nestjs/core": "^11.1.9",
+    "express": "^5.1.0",
+    "@prisma/client": "^7.0.1",
+    "@nestjs/config": "^4.0.2",
+    "fs": "^0.0.1-security",
+    "@nestjs/swagger": "^11.2.3",
+    "path": "^0.12.7",
+    "@nestjs/common": "^11.1.9",
+    "class-validator": "^0.14.3",
+    "src": "^1.1.2",
+    "firebase-admin": "^13.6.0"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",
