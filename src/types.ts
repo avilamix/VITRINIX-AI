@@ -17,6 +17,7 @@ export interface BusinessProfile {
 export interface UserProfile {
   id: string;
   email: string;
+  name?: string; // Added name property
   plan: 'free' | 'premium';
   businessProfile: BusinessProfile;
 }

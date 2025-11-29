@@ -22,25 +22,8 @@ const mockDb = {
   trends: {} as { [id: string]: Trend },
   library: {} as { [id: string]: LibraryItem },
   schedule: {} as { [id: string]: ScheduleEntry },
-  apiKeys: [] as ApiKeyConfig[], // New storage for API Keys - REMOVIDO DO MOCK, AGORA NO BACKEND
+  // apiKeys: [] as ApiKeyConfig[], REMOVIDO: API Keys agora são gerenciadas pelo backend
 };
-
-// Initialize with environment key if present (Mock migration) - REMOVIDO
-/*
-if (process.env.API_KEY && mockDb.apiKeys.length === 0) {
-  mockDb.apiKeys.push({
-    id: 'env-key-default',
-    provider: 'Google Gemini',
-    key: process.env.API_KEY,
-    label: 'Environment Key',
-    isActive: true,
-    isDefault: true,
-    createdAt: new Date().toISOString(),
-    status: 'unchecked',
-    usageCount: 0
-  });
-}
-*/
 
 // Generic mock function to simulate Firestore operations
 async function mockFirestoreOperation<T>(operation: () => T | Promise<T>): Promise<T> {
@@ -177,36 +160,20 @@ export const deleteScheduleEntry = async (entryId: string): Promise<void> => {
 };
 
 // --- API Key Management Operations ---
-
+// REMOVIDO: API Keys agora são gerenciadas pelo backend
 export const getApiKeys = async (): Promise<ApiKeyConfig[]> => {
-  // In prod, keys would be decrypted here
-  return mockFirestoreOperation(() => [...mockDb.apiKeys]);
+  // Em produção, as chaves seriam buscadas do backend e descriptografadas
+  return Promise.resolve([]);
 };
 
 export const saveApiKey = async (apiKey: ApiKeyConfig): Promise<ApiKeyConfig> => {
-  return mockFirestoreOperation(() => {
-    const existingIndex = mockDb.apiKeys.findIndex(k => k.id === apiKey.id);
-    
-    // Handle "Default" toggle logic
-    if (apiKey.isDefault) {
-       mockDb.apiKeys.forEach(k => {
-         if (k.provider === apiKey.provider && k.id !== apiKey.id) {
-           k.isDefault = false;
-         }
-       });
-    }
-
-    if (existingIndex >= 0) {
-      mockDb.apiKeys[existingIndex] = apiKey;
-    } else {
-      mockDb.apiKeys.push(apiKey);
-    }
-    return apiKey;
-  });
+  // Em produção, a chave seria enviada para o backend para persistência segura
+  console.warn("saveApiKey chamado no frontend, mas chaves devem ser gerenciadas pelo backend.");
+  return Promise.resolve(apiKey);
 };
 
 export const deleteApiKey = async (keyId: string): Promise<void> => {
-  return mockFirestoreOperation(() => {
-    mockDb.apiKeys = mockDb.apiKeys.filter(k => k.id !== keyId);
-  });
+  // Em produção, a requisição seria enviada para o backend
+  console.warn("deleteApiKey chamado no frontend, mas chaves devem ser gerenciadas pelo backend.");
+  return Promise.resolve();
 };

@@ -1,4 +1,5 @@
 
+
 import { INestApplication, Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, Role } from '@prisma/client'; // Importe Role
 
@@ -14,12 +15,12 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
   }
 
   async onModuleInit() {
-    // @ts-ignore Property '$connect' does not exist on type 'PrismaService'.
+    // FIX: Remove @ts-ignore. $connect should be available when extending PrismaClient.
     await this.$connect();
   }
 
   async enableShutdownHooks(app: INestApplication) {
-    // @ts-ignore Property '$on' does not exist on type 'PrismaService'.
+    // FIX: Remove @ts-ignore. $on should be available when extending PrismaClient.
     this.$on('beforeExit', async () => {
       await app.close();
     });

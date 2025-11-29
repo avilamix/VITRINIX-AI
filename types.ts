@@ -17,6 +17,7 @@ export interface BusinessProfile {
 export interface UserProfile {
   id: string;
   email: string;
+  name?: string; // Added name property
   plan: 'free' | 'premium';
   businessProfile: BusinessProfile;
 }
@@ -144,5 +145,29 @@ export interface KnowledgeBaseQueryResponse {
   trechos_referenciados: string[];
   confianca: number;
 }
+
+// NOVO: DTOs do Backend para comunicação
+export interface OrganizationResponseDto {
+  id: string;
+  name: string;
+  fileSearchStoreName?: string; // Opcional, nome da loja File Search associada
+}
+
+export type Role = 'ADMIN' | 'EDITOR' | 'VIEWER'; // Assumindo enum Role do Prisma
+
+export interface OrganizationMembership {
+  organization: OrganizationResponseDto;
+  role: Role;
+}
+
+export interface LoginResponseDto {
+  user: {
+    id: string;
+    email: string;
+    name?: string;
+  };
+  organizations: OrganizationMembership[];
+}
+
 
 // REMOVED Global declaration to avoid conflict with src/types.ts

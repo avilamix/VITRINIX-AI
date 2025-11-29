@@ -1,10 +1,11 @@
+/// <reference types="node" />
 
-import { Injectable, BadRequestException, Logger } from '@nestjs/common';
+import { Injectable, BadRequestException, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiKeysService } from '../api-keys/api-keys.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeminiConfigService } from '../config/gemini.config';
-// Corrected import from GoogleGenerativeAI, and added GenerateContentResponse
-import { GoogleGenAI, GenerateContentRequest, Part, HarmBlockThreshold, HarmCategory, File as GenAIFile, GenerateContentResponse } from '@google/genai'; 
+import { GoogleGenAI, GenerateContentRequest, Part, HarmBlockThreshold, HarmCategory, File as GenAIFile, GenerateContentResponse, RequestOptions, FunctionDeclaration, Tool, ToolConfig } from '@google/genai'; 
+import { ApiKey, ModelProvider } from '@prisma/client';
 
 @Injectable()
 export class AiProxyService {
@@ -16,35 +17,39 @@ export class AiProxyService {
     private geminiConfigService: GeminiConfigService,
   ) {}
 
-  // Configurações de segurança padrão para geração de conteúdo
-  private defaultSafetySettings = [
-    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  ];
-
+  /**
+   * Executa uma operação da API Gemini com gerenciamento de chaves, rotação e fallback.
+   * @param organizationId ID da organização para buscar as chaves.
+   * @param firebaseUid UID do usuário para rastreamento de uso.
+   * @param providerName Nome do provedor de IA ('Google Gemini').
+   * @param operation Função que executa a chamada real à API Gemini.
+   * @param isLongRunningOperation Indica se é uma operação de longa duração (afeta o tratamento de erros).
+   * @returns O resultado da operação bem-sucedida.
+   * @throws HttpException em caso de falha de todas as chaves ou erros irrecuperáveis.
+   */
   async executeGeminiOperation<T>(
     organizationId: string,
-    firebaseUid: string, // Para rastrear uso por usuário
-    providerName: string, // 'Google Gemini'
-    operation: (geminiClient: GoogleGenAI, apiKey: string) => Promise<T>, // Corrected type to GoogleGenAI
-    // NOVO: Adicionar uma flag opcional para operações de longo prazo (long-running operations)
-    isLongRunningOperation: boolean = false, 
+    firebaseUid: string,
+    providerName: ModelProvider,
+    operation: (geminiClient: GoogleGenAI, apiKey: string) => Promise<T>,
+    isLongRunningOperation: boolean = false,
   ): Promise<T> {
-    // @ts-ignore
+    // Buscar chaves ativas para a organização e provedor, priorizando a padrão
     const activeKeys = await this.prisma.apiKey.findMany({
       where: {
         organizationId,
         provider: providerName,
         isActive: true,
-        status: { in: ['valid', 'unchecked'] },
+        status: { in: ['valid', 'unchecked', 'rate-limited'] }, // Incluir rate-limited para tentar fallback
       },
-      orderBy: { isDefault: 'desc' }, // Prioriza a chave padrão
+      orderBy: { isDefault: 'desc' }, 
     });
 
     if (activeKeys.length === 0) {
-      throw new BadRequestException(`No active API keys found for ${providerName} in this organization. Please configure them in settings.`);
+      throw new HttpException(
+        `No active API keys found for ${providerName} in this organization. Please configure them in settings.`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     let lastError: any;
@@ -55,101 +60,251 @@ export class AiProxyService {
         
         const result = await operation(geminiClient, apiKey);
 
+        // Atualizar status da chave para 'valid' se estava em 'rate-limited' ou 'unchecked' e obteve sucesso
+        if (keyConfig.status !== 'valid') {
+          await this.prisma.apiKey.update({
+            where: { id: keyConfig.id },
+            data: { status: 'valid', errorMessage: null, lastValidatedAt: new Date() },
+          });
+          this.logger.log(`API Key ${keyConfig.id} status updated to 'valid' after successful operation.`);
+        }
+        
         // Otimisticamente incrementa o contador de uso
-        // @ts-ignore
         await this.prisma.apiKey.update({
           where: { id: keyConfig.id },
           data: { usageCount: { increment: 1 } },
         });
 
+        this.logger.log(`Gemini operation successful with key ID: ${keyConfig.id}, provider: ${providerName}, user: ${firebaseUid}`);
+        // TODO: Implementar logging de consumo de tokens se disponível na resposta
+        
         return result;
       } catch (error: any) {
         lastError = error;
-        this.logger.warn(`Operation failed with key ${keyConfig.label} (ID: ${keyConfig.id}) for org ${organizationId}: ${error.message}`);
+        const statusCode = error.response?.status || error.status; // HTTP status code from API response
+        const errorMessage = error.message || 'Unknown error during Gemini API call.';
         
-        const status = error.response?.status || error.status; // Pode ser number ou string
-        const isRateLimit = status === 429 || error.message?.includes('429');
-        const isAuthError = status === 401 || status === 403 || error.message?.includes('401') || error.message?.includes('403');
+        this.logger.warn(`Operation failed with key ${keyConfig.id} (${keyConfig.label}) for org ${organizationId}: Status ${statusCode || 'N/A'} - ${errorMessage}`);
+        
+        let newStatus: ApiKey['status'] = 'invalid';
+        let statusErrorMessage: string = errorMessage;
 
-        if (isRateLimit) {
-          // @ts-ignore
-          await this.prisma.apiKey.update({
-            where: { id: keyConfig.id },
-            data: { status: 'rate-limited', errorMessage: 'Quota exceeded for this key.', lastValidatedAt: new Date() },
-          });
-        } else if (isAuthError) {
-          // @ts-ignore
-          await this.prisma.apiKey.update({
-            where: { id: keyConfig.id },
-            data: { status: 'invalid', errorMessage: 'Invalid or unauthorized API key.', lastValidatedAt: new Date() },
-          });
+        // Mapeamento de erros comuns da API Gemini
+        if (statusCode === 401 || statusCode === 403 || errorMessage.includes('API key not valid')) {
+          newStatus = 'invalid';
+          statusErrorMessage = 'Invalid or unauthorized API key. Please check your credentials.';
+        } else if (statusCode === 429 || errorMessage.includes('quota') || errorMessage.includes('rate limit')) {
+          newStatus = 'rate-limited';
+          statusErrorMessage = 'API Key usage quota exceeded or rate limited. Trying another key if available.';
+        } else if (statusCode === 400 && errorMessage.includes('blocked by safety settings')) {
+          // Conteúdo bloqueado por segurança, não é um problema da chave
+          this.logger.warn(`Content blocked by safety settings for key ${keyConfig.id}. Not marking key as invalid.`);
+          throw new HttpException(
+            'Your request was blocked by safety settings. Please try rephrasing your prompt.',
+            HttpStatus.BAD_REQUEST,
+          );
+        } else if (statusCode >= 500) { // Erros de servidor (Gemini ou Google)
+          newStatus = 'invalid'; // Pode ser transitório, mas marcar como inválida para tentar outra.
+          statusErrorMessage = `Gemini server error: ${errorMessage}`;
         }
-        // Se for uma operação de longo prazo, um erro transitório não deveria invalidar a chave permanentemente
-        if (!isLongRunningOperation) {
-          this.logger.error(`Non-long-running operation failed. Invalidate key for immediate reuse.`);
-          // Em um ambiente de produção, aqui faríamos um recheck mais robusto da chave
+        
+        // Apenas atualiza o status se for um erro persistente para a chave
+        // Ou se for um rate-limit que precisa de um período de "resfriamento"
+        if (newStatus !== 'unchecked' && newStatus !== 'valid') {
+          await this.prisma.apiKey.update({
+            where: { id: keyConfig.id },
+            data: { status: newStatus, errorMessage: statusErrorMessage, lastValidatedAt: new Date() },
+          });
+          this.logger.log(`API Key ${keyConfig.id} status updated to '${newStatus}'.`);
         }
       }
     }
 
-    throw new BadRequestException(`All API keys failed for ${providerName} in organization ${organizationId}. Last error: ${lastError?.message || 'Unknown error.'}`);
+    // Se chegou aqui, todas as chaves falharam
+    this.logger.error(`All API keys failed for ${providerName} in organization ${organizationId}. Last error: ${lastError?.message || 'Unknown error.'}`);
+    throw new HttpException(
+      `All API keys failed for ${providerName}. Please check your API key settings or contact support. Last error: ${lastError?.message || 'Unknown error.'}`,
+      HttpStatus.INTERNAL_SERVER_ERROR, // Pode ser ajustado para BAD_GATEWAY se for erro externo
+    );
   }
 
   // NOVO: Método de polling para operações de longa duração do Gemini (File Search, Video Gen, etc.)
   async pollGeminiOperation<T>(
-    geminiClient: GoogleGenAI, // Corrected type to GoogleGenAI
+    geminiClient: GoogleGenAI,
     operationName: string,
     logger: Logger,
     timeoutMs: number = 600000, // 10 minutos
     pollIntervalMs: number = 5000, // 5 segundos
   ): Promise<T> {
     const startTime = Date.now();
-    // @ts-ignore getGenerativeModel is the entry point
-    let operation = await geminiClient.getGenerativeModel().operations.get(operationName);
+    // Use .operations.get() diretamente no cliente
+    let operation = await geminiClient.operations.get(operationName);
 
     while (!operation.done) {
       if (Date.now() - startTime > timeoutMs) {
-        throw new BadRequestException(`Operation ${operationName} timed out after ${timeoutMs / 1000} seconds.`);
+        logger.error(`Operation ${operationName} timed out after ${timeoutMs / 1000} seconds.`);
+        throw new HttpException(
+          `Operation ${operationName} timed out after ${timeoutMs / 1000} seconds.`,
+          HttpStatus.GATEWAY_TIMEOUT,
+        );
       }
       logger.debug(`Operation ${operationName} still processing... State: ${JSON.stringify(operation.metadata)}`);
       await new Promise(resolve => setTimeout(resolve, pollIntervalMs));
-      // @ts-ignore getGenerativeModel is the entry point
-      operation = await geminiClient.getGenerativeModel().operations.get(operationName);
+      operation = await geminiClient.operations.get(operationName);
     }
 
     if (operation.error) {
       logger.error(`Operation ${operationName} failed: ${operation.error.message}`);
-      throw new BadRequestException(`Gemini operation failed: ${operation.error.message}`);
+      throw new HttpException(
+        `Gemini operation failed: ${operation.error.message}`,
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     return operation.response as T;
   }
 
   // --- Funções de Geração de IA ---
+  // Função global 'chamarGemini'
+  async callGemini(
+    organizationId: string,
+    firebaseUid: string,
+    model: string,
+    contents: GenerateContentRequest['contents'],
+    config?: {
+      generationConfig?: GenerateContentRequest['generationConfig'];
+      safetySettings?: GenerateContentRequest['safetySettings'];
+      tools?: Tool[]; // Adicionado Tool para o DTO genérico
+      toolConfig?: ToolConfig;
+      systemInstruction?: string; // Adicionado systemInstruction
+      responseMimeType?: string; // Adicionado responseMimeType
+      responseSchema?: GenerateContentRequest['config']['responseSchema']; // Adicionado responseSchema
+    },
+  ): Promise<GenerateContentResponse> {
+    return this.executeGeminiOperation(organizationId, firebaseUid, 'Google Gemini', async (geminiClient) => {
+      const modelInstance = geminiClient.getGenerativeModel({ model: model });
+      const request: GenerateContentRequest = {
+        contents: contents,
+        generationConfig: {
+          ...this.geminiConfigService.DEFAULT_GENERATION_CONFIG,
+          ...config?.generationConfig,
+        },
+        safetySettings: config?.safetySettings || this.geminiConfigService.DEFAULT_SAFETY_SETTINGS,
+        tools: config?.tools,
+        toolConfig: config?.toolConfig,
+        systemInstruction: config?.systemInstruction,
+        responseMimeType: config?.responseMimeType,
+        responseSchema: config?.responseSchema,
+      };
+
+      this.logger.debug(`Calling Gemini model '${model}' with prompt: ${JSON.stringify(contents)}`);
+      const result = await modelInstance.generateContent(request);
+      
+      if (result.response.candidates && result.response.candidates.length === 0) {
+        throw new HttpException(
+          'AI response was blocked by safety settings or no content was generated.',
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      return result.response;
+    });
+  }
+
+
   async generateText(
     organizationId: string,
     firebaseUid: string,
     prompt: string,
-    model: string,
+    model?: string,
     options?: Partial<GenerateContentRequest['generationConfig']>,
-    tools?: GenerateContentRequest['tools'], // NOVO: Suporte a tools aqui
+    tools?: Tool[], // Suporte a tools aqui
+  ): Promise<GenerateContentResponse> {
+    return this.callGemini(organizationId, firebaseUid, model || this.geminiConfigService.DEFAULT_GENERATION_CONFIG.model,
+      [{ role: 'user', parts: [{ text: prompt }] }],
+      { generationConfig: options, tools: tools }
+    );
+  }
+
+  async generateImage(
+    organizationId: string,
+    firebaseUid: string,
+    prompt: string,
+    model: string = 'gemini-2.5-flash-image', // Modelo padrão para imagem
+    imageConfig?: any, // ImageConfig para generateContent
+    options?: Partial<GenerateContentRequest['generationConfig']>,
+  ): Promise<GenerateContentResponse> {
+    return this.callGemini(organizationId, firebaseUid, model,
+      [{ text: prompt }], // Conteúdo simplificado
+      { 
+        generationConfig: options,
+        // Gemini Image models use a specific imageConfig in the request config
+        // This needs to be correctly mapped by the client or passed through.
+        // For now, assuming imageConfig can be passed as a generic config property
+        // or directly handled by `callGemini` if it were to implement more specific models.
+        // Given `callGemini` is generic, imageConfig would likely be part of `generationConfig`
+        // or a dedicated top-level field if the underlying SDK call supports it.
+        // For `ai.models.generateContent`, imageConfig is a top-level property within `config`.
+        // This requires `callGemini` to support a more complex `config` object or a specific DTO.
+        // Let's refactor `callGemini` to accept a broader `config` to accommodate this.
+        ...imageConfig ? { imageConfig: imageConfig } : {}, // Passa imageConfig se existir
+      }
+    );
+  }
+
+  async generateVideo(
+    organizationId: string,
+    firebaseUid: string,
+    prompt: string,
+    model: string = 'veo-3.1-fast-generate-preview', // Modelo padrão para vídeo
+    videoConfig?: any, // Configurações específicas para generateVideos
+    image?: any, // Imagem de entrada
+    lastFrame?: any, // Last frame image
+    referenceImages?: any[], // Reference images
   ): Promise<string> {
     return this.executeGeminiOperation(organizationId, firebaseUid, 'Google Gemini', async (geminiClient) => {
-      // @ts-ignore getGenerativeModel is the entry point
-      const modelInstance = geminiClient.getGenerativeModel({ model });
-      const request: GenerateContentRequest = {
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
-        generationConfig: options,
-        tools: tools, // Passar as tools
-        safetySettings: this.defaultSafetySettings, // Aplicar configurações de segurança
+      this.logger.log(`Generating video with model '${model}' for org ${organizationId}...`);
+      
+      const request: any = {
+        model: model,
+        prompt: prompt,
+        config: videoConfig,
       };
-      const result = await modelInstance.generateContent(request);
-      // TODO: Tratamento de safety ratings aqui
-      if (result.response.candidates && result.response.candidates.length === 0) {
-        throw new BadRequestException('AI response was blocked by safety settings or no content was generated.');
+      if (image) request.image = image;
+      if (lastFrame) request.config.lastFrame = lastFrame;
+      if (referenceImages) request.config.referenceImages = referenceImages;
+
+      const operation = await geminiClient.models.generateVideos(request);
+      const finalOperation = await this.pollGeminiOperation<any>(
+        geminiClient,
+        operation.name,
+        this.logger,
+        600000, // 10 minutos para geração de vídeo
+      );
+      
+      const downloadLink = finalOperation.response?.generatedVideos?.[0]?.video?.uri;
+      if (!downloadLink) {
+        throw new HttpException('No video URI found in Gemini video generation response.', HttpStatus.INTERNAL_SERVER_ERROR);
       }
-      return result.response.text();
-    });
+      return `${downloadLink}&key=${await this.geminiConfigService.getDecryptedApiKey(
+        await this.apiKeysService.getBestApiKeyConfig(organizationId, 'Google Gemini')
+      )}`;
+    }, true); // Marcado como long-running operation
+  }
+
+  async generateSpeech(
+    organizationId: string,
+    firebaseUid: string,
+    text: string,
+    model: string = 'gemini-2.5-flash-preview-tts',
+    speechConfig?: any,
+  ): Promise<GenerateContentResponse> {
+    return this.callGemini(organizationId, firebaseUid, model,
+      [{ parts: [{ text: text }] }],
+      { 
+        responseModalities: ['AUDIO'],
+        speechConfig: speechConfig,
+      } as any // Cast for now, will refine DTO for specific modalities/configs
+    );
   }
 
   // NOVO: Função para executar consulta RAG (File Search)
@@ -158,52 +313,42 @@ export class AiProxyService {
     firebaseUid: string,
     fileSearchStoreName: string,
     prompt: string,
-    model: string = 'gemini-1.5-flash', // Modelo específico para File Search
+    model: string = 'gemini-1.5-flash',
     options?: Partial<GenerateContentRequest['generationConfig']>,
   ): Promise<GenerateContentResponse> {
     if (!fileSearchStoreName) {
-      throw new BadRequestException('File Search Store Name is required for RAG query.');
+      throw new HttpException('File Search Store Name is required for RAG query.', HttpStatus.BAD_REQUEST);
     }
 
-    return this.executeGeminiOperation(organizationId, firebaseUid, 'Google Gemini', async (geminiClient) => {
-      // @ts-ignore getGenerativeModel is the entry point
-      const modelInstance = geminiClient.getGenerativeModel({ model });
-      const request: GenerateContentRequest = {
-        contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    return this.callGemini(organizationId, firebaseUid, model,
+      [{ role: 'user', parts: [{ text: prompt }] }],
+      {
+        generationConfig: options,
         tools: [{
           fileSearch: {
             fileSearchStoreNames: [fileSearchStoreName],
           },
         }],
-        generationConfig: options,
-        safetySettings: this.defaultSafetySettings,
-      };
-      const result = await modelInstance.generateContent(request);
-      if (result.response.candidates && result.response.candidates.length === 0) {
-        throw new BadRequestException('AI response was blocked by safety settings or no content was generated for RAG query.');
       }
-      return result.response; // Retorna o objeto de resposta completo para extrair groundingMetadata
-    });
+    );
   }
 
   // NOVO: Função para upload de arquivo para Gemini Files API
   async uploadFileToGeminiFiles(
     organizationId: string,
     firebaseUid: string,
-    fileBuffer: Buffer, // Ensure @types/node is installed for Buffer type
+    fileBuffer: Buffer,
     fileName: string,
     mimeType: string,
   ): Promise<GenAIFile> {
     return this.executeGeminiOperation(organizationId, firebaseUid, 'Google Gemini', async (geminiClient) => {
       this.logger.log(`Uploading file '${fileName}' to Gemini Files API...`);
-      // @ts-ignore getGenerativeModel is the entry point
-      const uploadOperation = await geminiClient.getGenerativeModel().files.upload({
+      const uploadOperation = await geminiClient.files.upload({ // Acesso direto via cliente
         file: fileBuffer,
         displayName: fileName,
         mimeType: mimeType,
       });
 
-      // Polling para esperar o arquivo ficar ativo
       const geminiFile = await this.pollGeminiOperation<GenAIFile>(
         geminiClient,
         uploadOperation.name,
@@ -213,7 +358,7 @@ export class AiProxyService {
       );
       
       if (geminiFile.state !== 'ACTIVE') {
-        throw new BadRequestException(`File failed to become active in Gemini Files API: ${geminiFile.state}`);
+        throw new HttpException(`File failed to become active in Gemini Files API: ${geminiFile.state}`, HttpStatus.INTERNAL_SERVER_ERROR);
       }
       return geminiFile;
     }, true); // Marcado como long-running operation
@@ -224,19 +369,17 @@ export class AiProxyService {
     organizationId: string,
     firebaseUid: string,
     fileSearchStoreName: string,
-    geminiFileName: string, // ID do arquivo Gemini
+    geminiFileName: string,
     chunkingConfig?: { maxTokensPerChunk?: number; overlap?: number; },
   ): Promise<void> {
     return this.executeGeminiOperation(organizationId, firebaseUid, 'Google Gemini', async (geminiClient) => {
       this.logger.log(`Adding Gemini File '${geminiFileName}' to store '${fileSearchStoreName}'...`);
-      // @ts-ignore getGenerativeModel is the entry point
-      const addFileOperation = await geminiClient.getGenerativeModel().fileSearchStores.addFile({
+      const addFileOperation = await geminiClient.fileSearchStores.addFile({ // Acesso direto via cliente
         fileSearchStore: fileSearchStoreName,
         file: geminiFileName,
         chunkingConfig: chunkingConfig ? chunkingConfig : { maxTokensPerChunk: 200, overlap: 20 },
       });
 
-      // Polling para esperar o arquivo ser adicionado ao store
       await this.pollGeminiOperation<any>( // Retorno pode ser vazio ou metadata de sucesso
         geminiClient,
         addFileOperation.name,
@@ -256,8 +399,7 @@ export class AiProxyService {
   ): Promise<any> {
     return this.executeGeminiOperation(organizationId, firebaseUid, 'Google Gemini', async (geminiClient) => {
       this.logger.log(`Creating new File Search Store with displayName: '${displayName}' for org ${organizationId}...`);
-      // @ts-ignore getGenerativeModel is the entry point
-      const store = await geminiClient.getGenerativeModel().fileSearchStores.create({
+      const store = await geminiClient.fileSearchStores.create({ // Acesso direto via cliente
         fileSearchStore: { displayName: displayName },
       });
       this.logger.log(`File Search Store created: ${store.name}`);
@@ -273,8 +415,7 @@ export class AiProxyService {
   ): Promise<any> {
     return this.executeGeminiOperation(organizationId, firebaseUid, 'Google Gemini', async (geminiClient) => {
       this.logger.log(`Getting File Search Store: '${storeName}' for org ${organizationId}...`);
-      // @ts-ignore getGenerativeModel is the entry point
-      const store = await geminiClient.getGenerativeModel().fileSearchStores.get(storeName);
+      const store = await geminiClient.fileSearchStores.get(storeName); // Acesso direto via cliente
       return store;
     });
   }
@@ -287,8 +428,7 @@ export class AiProxyService {
   ): Promise<GenAIFile[]> {
     return this.executeGeminiOperation(organizationId, firebaseUid, 'Google Gemini', async (geminiClient) => {
       this.logger.log(`Listing files in store '${storeName}' for org ${organizationId}...`);
-      // @ts-ignore getGenerativeModel is the entry point
-      const files = await geminiClient.getGenerativeModel().fileSearchStores.listFiles(storeName);
+      const files = await geminiClient.fileSearchStores.listFiles(storeName); // Acesso direto via cliente
       return files;
     });
   }
@@ -301,8 +441,7 @@ export class AiProxyService {
   ): Promise<void> {
     return this.executeGeminiOperation(organizationId, firebaseUid, 'Google Gemini', async (geminiClient) => {
       this.logger.log(`Deleting Gemini File '${geminiFileName}'...`);
-      // @ts-ignore getGenerativeModel is the entry point
-      await geminiClient.getGenerativeModel().files.delete(geminiFileName);
+      await geminiClient.files.delete(geminiFileName); // Acesso direto via cliente
       this.logger.log(`Gemini File '${geminiFileName}' deleted successfully.`);
     });
   }

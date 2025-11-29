@@ -1,6 +1,7 @@
+
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional } from 'class-validator';
-import { GenerateContentRequest } from '@google/generative-ai';
+import { IsString, IsNotEmpty, IsOptional, IsObject, ValidateNested, IsArray } from 'class-validator';
+import { GenerateContentRequest, Tool } from '@google/genai'; // Import Tool
 
 export class GenerateTextDto {
   @ApiProperty({ example: 'Write a blog post about AI in marketing.' })
@@ -18,8 +19,19 @@ export class GenerateTextDto {
     required: false,
     description: 'Optional generation configuration for the AI model',
   })
+  @IsObject()
   @IsOptional()
   options?: Partial<GenerateContentRequest['generationConfig']>;
+
+  @ApiProperty({
+    type: 'array',
+    items: { type: 'object' },
+    required: false,
+    description: 'Optional tools for the AI model (e.g., Google Search, Function Calling)',
+  })
+  @IsArray()
+  @IsOptional()
+  tools?: Tool[]; // Add tools here
 }
 
 export class GenerateTextResponseDto {

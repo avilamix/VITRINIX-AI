@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Textarea from '../components/Textarea';
 import Input from '../components/Input';
@@ -162,7 +163,7 @@ const CreativeStudio: React.FC = () => {
   }, [file, previewUrl, prompt, mediaType, videoAspectRatio, videoResolution]);
 
   const handleAnalyzeMedia = useCallback(async () => {
-    if (!file || !previewUrl || !prompt.trim()) {
+    if (!file || !prompt.trim()) { // Removed previewUrl check as file is sufficient
       setError('Please upload a file and enter a prompt for analysis.');
       return;
     }
@@ -207,7 +208,7 @@ const CreativeStudio: React.FC = () => {
       setError('Failed to read file for analysis.');
       setLoading(false);
     };
-  }, [file, previewUrl, prompt, mediaType]);
+  }, [file, prompt, mediaType]);
 
 
   const handleExport = useCallback(() => {

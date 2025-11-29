@@ -1,123 +1,86 @@
 
 
 import { ApiKeyConfig, ProviderName, KeyStatus } from '../types';
-import { GoogleGenAI } from '@google/genai'; // Changed GoogleGenerativeAI to GoogleGenAI as per guidelines
+import { GoogleGenAI } from '@google/genai';
+import { getFirebaseIdToken, getActiveOrganization } from './authService';
 
-// MOCK: Estas funções AGORA serão chamadas do BACKEND.
-// Aqui no frontend, elas são stubs ou calls para o novo API Keys Service do backend.
-// Para manter a compilação do frontend, vamos deixá-los como funções vazias ou de erro.
-const mockSaveApiKey = async (apiKey: ApiKeyConfig): Promise<ApiKeyConfig> => {
-  console.warn("MOCK: saveApiKey chamado no frontend. Em produção, isso iria para o backend.");
-  return { ...apiKey, id: apiKey.id || `mock-key-${Date.now()}` };
-};
-const mockGetApiKeys = async (): Promise<ApiKeyConfig[]> => {
-  console.warn("MOCK: getApiKeys chamado no frontend. Em produção, isso viria do backend.");
-  // Retorna uma chave Gemini de ambiente se disponível, senão vazio.
-  const envKey = process.env.API_KEY ? [{
-    id: 'env-key-default',
-    provider: 'Google Gemini',
-    key: process.env.API_KEY,
-    label: 'Environment Key (Frontend Mock)',
-    isActive: true,
-    isDefault: true,
-    createdAt: new Date().toISOString(),
-    status: 'unchecked',
-    usageCount: 0
-  } as ApiKeyConfig] : [];
-  return Promise.resolve(envKey);
-};
+const BACKEND_URL = 'http://localhost:3000'; // Backend URL
 
-
-// Mock validation for other providers
-const mockValidate = async (provider: ProviderName): Promise<boolean> => {
-  await new Promise(resolve => setTimeout(resolve, 800));
-  // Randomly fail 5% of the time for demo purposes
-  return Math.random() > 0.05;
-};
-
-// Real-ish validation for Gemini with detailed error handling
-const validateGeminiKey = async (key: string): Promise<{ status: KeyStatus; error?: string }> => {
-  try {
-    // Corrected to GoogleGenAI
-    const ai = new GoogleGenAI({ apiKey: key });
-    
-    // Use gemini-2.5-flash for a lightweight validation call
-    // Set maxOutputTokens to 1 to minimize cost/latency
-    await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
-        contents: { parts: [{ text: 'ping' }] },
-        config: { maxOutputTokens: 1 },
-    });
-    return { status: 'valid' };
-  } catch (error: any) {
-    console.error('Gemini key validation error:', error);
-    // Attempt to parse specific error messages for status
-    if (error.message?.includes('API key not valid')) {
-      return { status: 'invalid', error: 'API Key is invalid.' };
-    }
-    if (error.message?.includes('quota')) {
-      return { status: 'rate-limited', error: 'API Key usage quota exceeded.' };
-    }
-    // Generic error for others
-    return { status: 'invalid', error: `Connection failed: ${error.message || 'Unknown error.'}` };
+// Helper para obter o ID da organização ativa
+const getActiveOrganizationId = (): string => {
+  const activeOrg = getActiveOrganization();
+  if (!activeOrg) {
+    throw new Error('No active organization found. Please login and select an organization.');
   }
+  return activeOrg.organization.id;
 };
 
-/**
- * MOCK: Validates an API key against its provider.
- * In a real application, this would involve a backend call to validate.
- * @param config The API key configuration.
- * @returns An object containing the validation status and an optional error message.
- */
+// MOCK: Validates an API key against its provider via Backend
 export const validateKey = async (config: ApiKeyConfig): Promise<{ status: KeyStatus; error?: string }> => {
-  if (config.provider === 'Google Gemini') {
-    return validateGeminiKey(config.key);
-  } else {
-    // Simulate validation for other providers
-    const isValid = await mockValidate(config.provider);
-    if (isValid) {
-      return { status: 'valid' };
-    } else {
-      return { status: 'invalid', error: `Mock validation failed for ${config.provider}.` };
+  const organizationId = getActiveOrganizationId();
+  const idToken = await getFirebaseIdToken();
+
+  try {
+    const response = await fetch(`${BACKEND_URL}/api-keys/${organizationId}/validate`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${idToken}`,
+      },
+      body: JSON.stringify(config),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `Backend validation failed: ${response.statusText}`);
     }
+
+    return response.json();
+  } catch (error: any) {
+    console.error('Error validating key via backend:', error);
+    return { status: 'invalid', error: `Validation failed: ${error.message}` };
   }
 };
 
-
-/**
- * MOCK: Retrieves the "best" API key for a given provider, applying fallback logic.
- * In a real application, this would be handled by a backend service that manages
- * key rotation, health checks, and usage limits.
- * @param providerName The name of the AI provider.
- * @returns The API key string.
- * @throws Error if no valid API key is found for the provider.
- */
+// MOCK: Retrieves the "best" API key for a given provider, applying fallback logic.
+// This function will primarily be used by frontend-only components (like Live Conversation)
+// if direct backend proxy is not feasible/implemented for that specific interaction.
+// Otherwise, the backend's AiProxyService handles key selection internally.
 export const getBestApiKey = async (providerName: ProviderName): Promise<string> => {
-  // In a real application, this would typically involve:
-  // 1. Fetching keys from a backend that manages them.
-  // 2. Applying selection logic (e.g., default key, least used, key with highest success rate).
-  // 3. Handling fallback if the primary key fails.
+  const organizationId = getActiveOrganizationId();
+  const idToken = await getFirebaseIdToken();
 
-  // For this frontend mock, we simply return process.env.API_KEY or a placeholder.
-  // For Gemini, we might try to use the selected API key from the aistudio API.
-  if (providerName === 'Google Gemini') {
-    if (process.env.API_KEY) {
+  try {
+    const response = await fetch(`${BACKEND_URL}/api-keys/${organizationId}/best-key?provider=${encodeURIComponent(providerName)}`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${idToken}`,
+      },
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.message || `Failed to get best API key from backend: ${response.statusText}`);
+    }
+
+    const data = await response.json();
+    return data.key; // Backend should return the decrypted key string
+  } catch (error: any) {
+    console.error(`Error fetching best API key for ${providerName} from backend:`, error);
+    // Fallback if backend call fails (e.g., backend down, no keys configured)
+    if (providerName === 'Google Gemini' && process.env.API_KEY) {
+      console.warn(`Falling back to process.env.API_KEY for Google Gemini.`);
       return process.env.API_KEY;
     }
-    // Fallback if process.env.API_KEY is not set, or for other providers
-    console.warn(`No process.env.API_KEY found for Google Gemini. Using fallback.`);
+    throw new Error(`No active API key found for ${providerName}. Please configure them.`);
   }
-
-  // Placeholder for other providers or if Gemini key is missing
-  console.warn(`Using a mock API key for ${providerName}. This should come from a secure backend in production.`);
-  return `mock-api-key-for-${providerName.replace(/\s/g, '-').toLowerCase()}`;
 };
 
 
 /**
  * MOCK: Executes an AI operation with fallback logic across multiple API keys for a given provider.
- * This simulates a client-side API key management and retry mechanism.
- * In a real backend, this logic would live on the server.
+ * This is primarily for frontend components that *must* make direct API calls (e.g., Live API).
+ * Most other AI operations should go through the backend's AI Proxy service.
  * @param providerName The name of the AI provider.
  * @param operation A callback function that performs the AI operation with an API key.
  * @returns The result of the successful operation.
@@ -127,45 +90,35 @@ export const executeWithProviderFallback = async <T>(
   providerName: ProviderName,
   operation: (apiKey: string) => Promise<T>,
 ): Promise<T> => {
-  const apiKeys = await mockGetApiKeys(); // Use mockGetApiKeys for frontend demo
-  const providerKeys = apiKeys.filter(k => k.provider === providerName && k.isActive);
-
-  if (providerKeys.length === 0) {
-    // If no specific keys are configured, try with process.env.API_KEY if available for Gemini
+  // In this refactored architecture, this function is *only* for non-proxied frontend interactions.
+  // The primary method for most AI calls should be via the backend's AI Proxy.
+  // For Gemini, we will attempt to get a key from the backend, then fall back to process.env.API_KEY.
+  
+  let keyToUse: string | undefined;
+  try {
+    keyToUse = await getBestApiKey(providerName);
+  } catch (e) {
+    console.warn(`Could not get best API key from backend for ${providerName}: ${e.message}`);
     if (providerName === 'Google Gemini' && process.env.API_KEY) {
-      try {
-        return await operation(process.env.API_KEY);
-      } catch (e) {
-        throw new Error(`Operation failed with environment API key: ${e.message}`);
-      }
-    }
-    throw new Error(`No active API keys found for ${providerName}. Please configure them.`);
-  }
-
-  let lastError: any;
-  // Sort keys to prioritize default and then active ones
-  const sortedKeys = [...providerKeys].sort((a, b) => {
-    if (a.isDefault && !b.isDefault) return -1;
-    if (!a.isDefault && b.isDefault) return 1;
-    return 0;
-  });
-
-  for (const keyConfig of sortedKeys) {
-    try {
-      // In a real app, 'keyConfig.key' might be encrypted and need decryption
-      const result = await operation(keyConfig.key); 
-      // Otimisticamente update usage count and status
-      await mockSaveApiKey({ ...keyConfig, usageCount: keyConfig.usageCount + 1, lastValidatedAt: new Date(), status: 'valid' });
-      return result;
-    } catch (error: any) {
-      lastError = error;
-      console.warn(`Operation failed with key ${keyConfig.label} (ID: ${keyConfig.id}) for ${providerName}: ${error.message}`);
-      
-      // Update key status based on error (mock logic)
-      const status: KeyStatus = (error.message?.includes('quota') || error.status === 429) ? 'rate-limited' : 'invalid';
-      await mockSaveApiKey({ ...keyConfig, status, errorMessage: error.message, lastValidatedAt: new Date() });
+      keyToUse = process.env.API_KEY;
+    } else {
+      throw new Error(`No API key available for ${providerName}. Please ensure it's configured and valid.`);
     }
   }
 
-  throw new Error(`All API keys failed for ${providerName}. Last error: ${lastError?.message || 'Unknown error.'}`);
+  if (!keyToUse) {
+    throw new Error(`No API key available for ${providerName}.`);
+  }
+
+  // Execute the operation with the obtained key
+  try {
+    const result = await operation(keyToUse);
+    console.log(`Operation successful with key for ${providerName}.`);
+    return result;
+  } catch (error: any) {
+    console.error(`Direct frontend operation failed for ${providerName} with key: ${error.message}`);
+    // In a real scenario, this would trigger more complex fallback logic or re-validation.
+    // For now, we simply re-throw as the backend should handle multi-key fallback.
+    throw new Error(`Frontend AI operation failed for ${providerName}: ${error.message}`);
+  }
 };

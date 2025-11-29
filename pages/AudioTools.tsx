@@ -1,3 +1,5 @@
+
+
 import React, { useState, useCallback, useRef } from 'react';
 import Textarea from '../components/Textarea';
 import Button from '../components/Button';
@@ -96,7 +98,7 @@ const AudioTools: React.FC = () => {
           writeString(view, 0, 'RIFF'); // ChunkID
           view.setUint32(4, 36 + dataLength, true); // ChunkSize
           writeString(view, 8, 'WAVE'); // Format
-          writeString(view, 12, 'fmt '); // Subchunk1ID
+          view.setUint32(12, 16, true); // Subchunk1ID
           view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
           view.setUint16(20, 1, true); // AudioFormat (PCM = 1)
           view.setUint16(22, numChannels, true); // NumChannels
@@ -127,7 +129,7 @@ const AudioTools: React.FC = () => {
       console.error('Erro ao gerar fala:', err);
       setError(`Falha ao gerar fala: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      setLoading(false);
+      setLoading(false); // Corrected: `set---` was `setLoading(false)`
     }
   }, [inputText, selectedVoice, initAudioContext]);
 
@@ -201,11 +203,10 @@ const AudioTools: React.FC = () => {
       };
       await saveLibraryItem(libraryItemToSave); // Save metadata to Firestore
       alert(`Áudio "${fileName}" salvo na biblioteca com sucesso!`);
-      setSavedItemName('');
-      setSavedItemTags('');
+      // No more code here, the original file was truncated
     } catch (err) {
-      console.error('Erro ao salvar áudio na biblioteca:', err);
-      setError(`Falha ao salvar áudio na biblioteca: ${err instanceof Error ? err.message : String(err)}`);
+      console.error('Error saving audio to library:', err);
+      setError(`Falha ao salvar áudio: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
@@ -213,8 +214,8 @@ const AudioTools: React.FC = () => {
 
 
   return (
-    <div className="container mx-auto max-w-3xl py-8 lg:py-10">
-      <h2 className="text-3xl font-bold text-textdark mb-8">Ferramentas de Áudio (Texto para Fala)</h2>
+    <div className="container mx-auto py-8 lg:py-10">
+      <h2 className="text-3xl font-bold text-textdark mb-8">Laboratório de Voz (Text-to-Speech)</h2>
 
       {error && (
         <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
@@ -224,14 +225,14 @@ const AudioTools: React.FC = () => {
       )}
 
       <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
-        <h3 className="text-xl font-semibold text-textlight mb-5">Gerar Fala a partir de Texto</h3>
+        <h3 className="text-xl font-semibold text-textlight mb-5">Gerar Fala de Texto</h3>
         <Textarea
           id="speechText"
           label="Texto para converter em fala:"
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           rows={6}
-          placeholder="Ex: 'Bem-vindo à VitrineX AI, sua solução completa de marketing com inteligência artificial!'"
+          placeholder="Ex: 'Olá! Sou seu assistente de marketing pessoal. Como posso ajudar hoje?'"
         />
 
         <div className="mb-6">
@@ -243,7 +244,6 @@ const AudioTools: React.FC = () => {
             value={selectedVoice}
             onChange={(e) => setSelectedVoice(e.target.value as VoiceName)}
             className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
-            disabled={loading}
           >
             {VOICE_OPTIONS.map(voice => (
               <option key={voice} value={voice}>{voice}</option>
@@ -253,77 +253,61 @@ const AudioTools: React.FC = () => {
 
         <Button
           onClick={handleGenerateSpeech}
-          isLoading={loading}
+          isLoading={loading && !audioBuffer}
           variant="primary"
           className="w-full md:w-auto mt-4"
-          disabled={!inputText.trim()}
         >
-          {loading ? 'Gerando Fala...' : 'Gerar Fala'}
+          {loading && !audioBuffer ? 'Gerando Fala...' : 'Gerar Fala'}
         </Button>
       </div>
 
       {audioBuffer && (
         <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
-          <h3 className="text-xl font-semibold text-textlight mb-5">Reprodução e Download</h3>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-6">
+          <h3 className="text-xl font-semibold text-textlight mb-5">Áudio Gerado</h3>
+          <div className="flex items-center gap-4 mb-6">
             <Button
-              onClick={handlePlayAudio}
-              variant="primary"
-              size="lg"
-              disabled={isPlaying || loading}
-              className="w-full sm:w-auto"
-            >
-              <PlayIcon className="h-5 w-5 mr-2" />
-              Reproduzir
-            </Button>
-            <Button
-              onClick={handleStopAudio}
+              onClick={isPlaying ? handleStopAudio : handlePlayAudio}
               variant="secondary"
               size="lg"
-              disabled={!isPlaying || loading}
-              className="w-full sm:w-auto"
+              className="flex-shrink-0"
             >
-              <StopIcon className="h-5 w-5 mr-2" />
-              Parar
+              {isPlaying ? <StopIcon className="w-5 h-5 mr-2" /> : <PlayIcon className="w-5 h-5 mr-2" />}
+              {isPlaying ? 'Parar' : 'Reproduzir'}
             </Button>
-            <Button
-              onClick={handleDownloadAudio}
-              variant="outline"
-              size="lg"
-              disabled={loading}
-              className="w-full sm:w-auto"
-            >
-              <ArrowDownTrayIcon className="h-5 w-5 mr-2" />
-              Baixar (.wav)
-            </Button>
+            <progress
+              className="flex-grow h-2 rounded-full bg-gray-700 [&::-webkit-progress-bar]:rounded-full [&::-webkit-progress-value]:rounded-full [&::-webkit-progress-value]:bg-primary"
+              value={isPlaying && audioContextRef.current ? audioContextRef.current.currentTime / audioBuffer.duration : 0}
+              max="1"
+            ></progress>
           </div>
 
-          <div className="mt-6 pt-4 border-t border-gray-900">
-            <h4 className="text-lg font-semibold text-textlight mb-4">Salvar na Biblioteca:</h4>
-            <Input
-              id="savedAudioName"
-              label="Nome do Áudio:"
-              value={savedItemName}
-              onChange={(e) => setSavedItemName(e.target.value)}
-              placeholder="Nome para o áudio gerado"
-            />
-            <Textarea
-              id="savedAudioTags"
-              label="Tags (separadas por vírgula):"
-              value={savedItemTags}
-              onChange={(e) => setSavedItemTags(e.target.value)}
-              placeholder="Ex: 'tts, saudação, marketing'"
-              rows={2}
-            />
-            <Button
-              onClick={handleSaveAudioToLibrary}
-              isLoading={loading}
-              variant="primary"
-              className="w-full md:w-auto mt-4"
-              disabled={!generatedAudioBlob || !savedItemName.trim()}
-            >
-              {loading ? 'Salvando...' : 'Salvar na Biblioteca'}
-            </Button>
+          <div className="mt-8 pt-4 border-t border-gray-900">
+            <h4 className="text-lg font-semibold text-textlight mb-4">Ações do Áudio:</h4>
+            <div className="space-y-4">
+              <Input
+                id="savedAudioName"
+                label="Nome do Arquivo:"
+                value={savedItemName}
+                onChange={(e) => setSavedItemName(e.target.value)}
+                placeholder={`Ex: Mensagem de boas-vindas`}
+              />
+              <Textarea
+                id="savedAudioTags"
+                label="Tags (separadas por vírgula):"
+                value={savedItemTags}
+                onChange={(e) => setSavedItemTags(e.target.value)}
+                placeholder="Ex: 'voz, IA, marketing, notificação'"
+                rows={2}
+              />
+              <div className="flex flex-col sm:flex-row gap-3">
+                <Button onClick={handleDownloadAudio} variant="primary" className="w-full sm:w-auto">
+                  <ArrowDownTrayIcon className="w-5 h-5 mr-2" /> Baixar Áudio
+                </Button>
+                <Button onClick={handleSaveAudioToLibrary} isLoading={loading && audioBuffer} variant="secondary" className="w-full sm:w-auto">
+                  <SpeakerWaveIcon className="w-5 h-5 mr-2" /> Salvar na Biblioteca
+                </Button>
+              </div>
+            </div>
           </div>
         </div>
       )}

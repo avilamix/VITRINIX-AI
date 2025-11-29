@@ -1,5 +1,5 @@
 
-import { GoogleGenAI } from '@google/genai'; // Corrected import from GoogleGenerativeAI
+import { GoogleGenAI, HarmBlockThreshold, HarmCategory } from '@google/genai';
 import { Injectable, Logger } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { ApiKey } from '@prisma/client';
@@ -10,8 +10,24 @@ export class GeminiConfigService {
 
   constructor(private configService: ConfigService) {}
 
+  // Configurações padrão para geração de conteúdo
+  readonly DEFAULT_GENERATION_CONFIG = {
+    model: 'gemini-1.5-flash', // Modelo padrão para tarefas gerais
+    temperature: 0.7,
+    topP: 0.95,
+    maxOutputTokens: 1024,
+  };
+
+  // Configurações de segurança padrão para geração de conteúdo
+  readonly DEFAULT_SAFETY_SETTINGS = [
+    { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+    { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+    { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+    { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+  ];
+
   // Cria uma instância do cliente Gemini com uma chave específica
-  createGeminiClient(apiKey: string): GoogleGenAI { // Corrected type to GoogleGenAI
+  createGeminiClient(apiKey: string): GoogleGenAI {
     if (!apiKey) {
       this.logger.error('Attempted to create Gemini client with empty API key.');
       throw new Error('Gemini API Key is missing.');
