@@ -10,47 +10,17 @@ import { saveAd } from '../services/firestoreService';
 import { Ad } from '../types';
 import { GEMINI_PRO_MODEL, GEMINI_IMAGE_PRO_MODEL, PLACEHOLDER_IMAGE_BASE64 } from '../constants';
 import { Type } from '@google/genai';
-import { getActiveOrganization } from '../services/authService';
 
 type Platform = 'Instagram' | 'Facebook' | 'TikTok' | 'Google' | 'Pinterest';
 
 const platforms: Platform[] = ['Instagram', 'Facebook', 'TikTok', 'Google', 'Pinterest'];
 
-// Helper para fazer requisições ao backend Files (para LibraryItems)
-const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
-async function uploadFileToBackend(
-  file: File,
-  name: string,
-  type: string, // e.g., 'image', 'video', 'audio', 'text'
-  tags: string[],
-): Promise<any> {
-  const activeOrg = getActiveOrganization();
-  if (!activeOrg) throw new Error('No active organization found.');
-  const organizationId = activeOrg.organization.id;
-  const idToken = 'mock-firebase-id-token'; // FIXME: Obter do authService real
-
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('name', name);
-  formData.append('type', type);
-  formData.append('tags', tags.join(','));
-
-  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/files/upload`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${idToken}`,
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || `File upload failed: ${response.statusText}`);
-  }
-  return response.json();
+interface AdStudioProps {
+  organizationId: string | undefined;
+  userId: string | undefined;
 }
 
-const AdStudio: React.FC = () => {
+const AdStudio: React.FC<AdStudioProps> = ({ organizationId, userId }) => {
   const [productDescription, setProductDescription] = useState<string>('');
   const [targetAudience, setTargetAudience] = useState<string>('');
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>('Instagram');
@@ -59,9 +29,6 @@ const AdStudio: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
-  const activeOrganization = getActiveOrganization();
-  const organizationId = activeOrganization?.organization.id;
-  const userId = 'mock-user-123'; // FIXME: Obter do contexto de autenticação real
 
   const handleGenerateAd = useCallback(async () => {
     if (!productDescription.trim() || !targetAudience.trim()) {
@@ -70,6 +37,10 @@ const AdStudio: React.FC = () => {
     }
     if (!organizationId) {
       setError('No active organization found. Please login.');
+      return;
+    }
+    if (!userId) {
+      setError('User not identified. Please login.');
       return;
     }
 
@@ -154,7 +125,7 @@ const AdStudio: React.FC = () => {
   }, [generatedImageUrl, selectedPlatform]);
 
   const handleSaveAd = useCallback(async () => {
-    if (!generatedAd || !organizationId) {
+    if (!generatedAd || !organizationId || !userId) {
       setError('Nenhum anúncio para salvar. Gere um anúncio primeiro.');
       return;
     }
@@ -169,7 +140,7 @@ const AdStudio: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [generatedAd, organizationId]);
+  }, [generatedAd, organizationId, userId]);
 
 
   return (

@@ -7,42 +7,15 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import { TrashIcon, ArrowDownTrayIcon, ShareIcon, DocumentTextIcon, MusicalNoteIcon, CircleStackIcon, CloudArrowUpIcon, LinkIcon, DocumentIcon, ChatBubbleLeftRightIcon, CheckCircleIcon, ArchiveBoxIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from '../hooks/useNavigate';
-import { getActiveOrganization } from '../services/authService';
 import { LIBRARY_ITEM_TYPES } from '../constants'; // Import from frontend constants
+import { uploadFileAndCreateLibraryItemViaBackend } from '../services/firestoreService'; // Import from firestoreService
 
-// Helper for backend file upload (re-declared here for context)
-const BACKEND_URL = 'http://localhost:3000';
-async function uploadFileToBackend(
-  file: File,
-  name: string,
-  type: string,
-  tags: string[],
-  organizationId: string, // Pass organizationId explicitly
-): Promise<any> {
-  const idToken = 'mock-firebase-id-token'; // FIXME: Obter do authService real
-
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('name', name);
-  formData.append('type', type);
-  formData.append('tags', tags.join(','));
-
-  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/files/upload`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${idToken}`,
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || `File upload failed: ${response.statusText}`);
-  }
-  return response.json();
+interface ContentLibraryProps {
+  organizationId: string | undefined;
+  userId: string | undefined;
 }
 
-const ContentLibrary: React.FC = () => {
+const ContentLibrary: React.FC<ContentLibraryProps> = ({ organizationId, userId }) => {
   const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -60,8 +33,7 @@ const ContentLibrary: React.FC = () => {
   const [addingFileToKb, setAddingFileToKb] = useState<boolean>(false);
 
   const { navigateTo } = useNavigate();
-  const organizationId = getActiveOrganization()?.organization.id;
-  const userId = 'mock-user-123'; // FIXME: Get from real auth context
+
 
   const fetchLibraryItems = useCallback(async () => {
     if (!organizationId) {
@@ -90,9 +62,8 @@ const ContentLibrary: React.FC = () => {
   const fetchKbStoreName = useCallback(async () => {
     if (!organizationId) return;
     try {
-      // Assuming getFileSearchStore will fetch the store name from the backend
-      // `createFileSearchStore` now handles both finding and creating.
-      const store = await createFileSearchStore(); 
+      // Assuming createFileSearchStore will either find existing or create new store via backend
+      const store = await createFileSearchStore(organizationId); 
       setKbStoreName(store.storeName);
       localStorage.setItem('vitrinex_kb_name', store.storeName); // Persist for chatbot
     } catch (err) {
@@ -105,7 +76,7 @@ const ContentLibrary: React.FC = () => {
     fetchLibraryItems();
     fetchKbStoreName();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fetchLibraryItems, fetchKbStoreName]);
+  }, [fetchLibraryItems, fetchKbStoreName, organizationId]); // Add organizationId as dep
 
   const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -133,14 +104,25 @@ const ContentLibrary: React.FC = () => {
       setError('No active organization found. Please login.');
       return;
     }
+    if (!userId) {
+      setError('User not identified. Please login.');
+      return;
+    }
 
     setUploading(true);
     setError(null);
 
     try {
       const tagsArray = uploadTags.split(',').map(tag => tag.trim()).filter(Boolean);
-      // FIX: Passing organizationId to uploadFileToBackend
-      const uploadedItem = await uploadFileToBackend(selectedFile, uploadName, uploadType, tagsArray, organizationId);
+      // Use the centralized upload function from firestoreService
+      const uploadedItem = await uploadFileAndCreateLibraryItemViaBackend(
+        organizationId,
+        userId, // Pass userId
+        selectedFile,
+        uploadName,
+        uploadType,
+        tagsArray
+      );
       
       // The backend now returns a LibraryItemResponseDto which should be mapped to frontend LibraryItem
       const newLibraryItem: LibraryItem = {
@@ -161,9 +143,7 @@ const ContentLibrary: React.FC = () => {
       if (kbStoreName) {
          setAddingFileToKb(true);
          try {
-            // Note: uploadFileToSearchStore uses `file` and `metadata`. 
-            // `documentType` could be `uploadedItem.type`. `campaign` is `uploadName`. `sector` can be `tagsArray`.
-            await uploadFileToSearchStore(selectedFile, { documentType: uploadedItem.type, campaign: uploadName, sector: tagsArray.join(', ') });
+            await uploadFileToSearchStore(organizationId, userId, selectedFile, { documentType: uploadedItem.type, campaign: uploadName, sector: tagsArray.join(', ') });
             alert('File uploaded to library and added to Knowledge Base!');
          } catch (kbErr: any) { // Type 'any' for kbErr to handle different error types
             console.warn('Failed to add file to Knowledge Base:', kbErr);
@@ -185,7 +165,7 @@ const ContentLibrary: React.FC = () => {
     } finally {
       setUploading(false);
     }
-  }, [selectedFile, uploadName, uploadType, uploadTags, organizationId, kbStoreName]);
+  }, [selectedFile, uploadName, uploadType, uploadTags, organizationId, userId, kbStoreName]);
 
   const handleDeleteItem = useCallback(async (itemId: string) => {
     if (!window.confirm('Are you sure you want to delete this item?')) return;
@@ -212,10 +192,14 @@ const ContentLibrary: React.FC = () => {
       setError('No active organization found. Please login.');
       return;
     }
+    if (!userId) {
+      setError('User not identified. Please login.');
+      return;
+    }
     setCreatingKb(true);
     setError(null);
     try {
-      const store = await createFileSearchStore();
+      const store = await createFileSearchStore(organizationId);
       setKbStoreName(store.storeName);
       localStorage.setItem('vitrinex_kb_name', store.storeName);
       alert('Knowledge Base created successfully!');
@@ -225,7 +209,7 @@ const ContentLibrary: React.FC = () => {
     } finally {
       setCreatingKb(false);
     }
-  }, [organizationId]);
+  }, [organizationId, userId]);
 
 
   return (

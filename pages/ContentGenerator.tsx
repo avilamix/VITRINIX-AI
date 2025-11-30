@@ -8,53 +8,19 @@ import { generateText, generateImage } from '../services/geminiService';
 import { savePost } from '../services/firestoreService';
 import { Post } from '../types';
 import { GEMINI_FLASH_MODEL, GEMINI_IMAGE_FLASH_MODEL, PLACEHOLDER_IMAGE_BASE64 } from '../constants';
-import { getActiveOrganization } from '../services/authService';
 
-// Helper para fazer requisições ao backend Files (para LibraryItems)
-const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
-async function uploadFileToBackend(
-  file: File,
-  name: string,
-  type: string, // e.g., 'image', 'video', 'audio', 'text'
-  tags: string[],
-): Promise<any> {
-  const activeOrg = getActiveOrganization();
-  if (!activeOrg) throw new Error('No active organization found.');
-  const organizationId = activeOrg.organization.id;
-  const idToken = 'mock-firebase-id-token'; // FIXME: Obter do authService real
-
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('name', name);
-  formData.append('type', type);
-  formData.append('tags', tags.join(','));
-
-  const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/files/upload`, {
-    method: 'POST',
-    headers: {
-      'Authorization': `Bearer ${idToken}`,
-    },
-    body: formData,
-  });
-
-  if (!response.ok) {
-    const errorData = await response.json();
-    throw new Error(errorData.message || `File upload failed: ${response.statusText}`);
-  }
-  return response.json();
+interface ContentGeneratorProps {
+  organizationId: string | undefined;
+  userId: string | undefined;
 }
 
-const ContentGenerator: React.FC = () => {
+const ContentGenerator: React.FC<ContentGeneratorProps> = ({ organizationId, userId }) => {
   const [prompt, setPrompt] = useState<string>('');
   const [generatedPost, setGeneratedPost] = useState<Post | null>(null);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string>(PLACEHOLDER_IMAGE_BASE64);
   const [loadingText, setLoadingText] = useState<boolean>(false);
   const [loadingImage, setLoadingImage] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
-
-  const activeOrganization = getActiveOrganization();
-  const organizationId = activeOrganization?.organization.id;
-  const userId = 'mock-user-123'; // FIXME: Obter do contexto de autenticação real
 
   const generateContent = useCallback(async (isWeekly: boolean = false) => {
     if (!prompt.trim()) {
@@ -63,6 +29,10 @@ const ContentGenerator: React.FC = () => {
     }
     if (!organizationId) {
       setError('No active organization found. Please login.');
+      return;
+    }
+    if (!userId) {
+      setError('User not identified. Please login.');
       return;
     }
 
@@ -136,7 +106,7 @@ const ContentGenerator: React.FC = () => {
   const handleGenerateWeek = useCallback(() => generateContent(true), [generateContent]);
 
   const handleRegenerateImage = useCallback(async () => {
-    if (!generatedPost || !organizationId) {
+    if (!generatedPost || !organizationId || !userId) {
       setError('Please generate a post first to regenerate its image.');
       return;
     }
@@ -161,10 +131,10 @@ const ContentGenerator: React.FC = () => {
     } finally {
       setLoadingImage(false);
     }
-  }, [generatedPost, organizationId]);
+  }, [generatedPost, organizationId, userId]);
 
   const handleSavePost = useCallback(async () => {
-    if (!generatedPost || !organizationId) {
+    if (!generatedPost || !organizationId || !userId) {
       setError('Nenhum post para salvar. Gere um post primeiro.');
       return;
     }
@@ -179,7 +149,7 @@ const ContentGenerator: React.FC = () => {
     } finally {
       setLoadingText(false);
     }
-  }, [generatedPost, organizationId]);
+  }, [generatedPost, organizationId, userId]);
 
   // TODO: Implement "Editar no Studio"
   // const handleEditInStudio = useCallback(() => {

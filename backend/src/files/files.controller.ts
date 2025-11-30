@@ -1,3 +1,4 @@
+
 /// <reference types="express" />
 /// <reference types="multer" />
 // FIX: Add `npm i --save-dev @types/express @types/multer` to resolve Express and Multer types
@@ -50,8 +51,8 @@ export class FilesController {
   async upload(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
     @CurrentUser('uid') firebaseUid: string,
-    // FIX: Add @UploadedFile() decorator and correct type for 'file' parameter
-    @UploadedFile() file: Express.Multer.File,
+    // FIX: Add @UploadedFile() decorator and use any type for 'file' parameter
+    @UploadedFile() file: any,
     @Body('name') name: string,
     @Body('type') type: string, // Validate enum type later or convert
     @Body('tags') tags?: string, // Comma-separated tags

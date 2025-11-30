@@ -1,4 +1,5 @@
 
+
 import React, { useState } from 'react';
 import Button from './Button';
 import { BookmarkSquareIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
@@ -12,6 +13,7 @@ interface SaveToLibraryButtonProps {
   content: string | Blob | File | null;
   type: LibraryItem['type'];
   userId: string;
+  organizationId?: string; // NEW: Added optional organizationId
   initialName?: string;
   tags?: string[];
   onSave?: (item: LibraryItem) => void;
@@ -25,6 +27,7 @@ const SaveToLibraryButton: React.FC<SaveToLibraryButtonProps> = ({
   content,
   type,
   userId,
+  organizationId: propOrganizationId,
   initialName = 'Untitled',
   tags = [],
   onSave,
@@ -37,7 +40,7 @@ const SaveToLibraryButton: React.FC<SaveToLibraryButtonProps> = ({
   const [saved, setSaved] = useState(false);
 
   const activeOrganization = getActiveOrganization();
-  const organizationId = activeOrganization?.organization.id;
+  const organizationId = propOrganizationId || activeOrganization?.organization.id;
 
   const handleSave = async () => {
     if (!content) return;

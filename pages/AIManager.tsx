@@ -11,9 +11,13 @@ import { getUserProfile, updateUserProfile } from '../services/firestoreService'
 import { UserProfile } from '../types';
 import { DEFAULT_BUSINESS_PROFILE } from '../constants';
 import { CommandLineIcon, ChartBarIcon } from '@heroicons/react/24/outline';
-import { getActiveOrganization } from '../services/authService';
 
-const AIManager: React.FC = () => {
+interface AIManagerProps {
+  organizationId: string | undefined;
+  userProfile: UserProfile | null; // Pass userProfile directly
+}
+
+const AIManager: React.FC<AIManagerProps> = ({ organizationId, userProfile }) => {
   const [activeTab, setActiveTab] = useState<'strategy' | 'command'>('command');
   
   // Strategy State
@@ -24,38 +28,28 @@ const AIManager: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   
   // Profile State
-  const [userProfile, setUserProfile] = useState<UserProfile['businessProfile']>(DEFAULT_BUSINESS_PROFILE);
-  const [isProfileLoading, setIsProfileLoading] = useState<boolean>(true);
+  const [businessProfileForm, setBusinessProfileForm] = useState<UserProfile['businessProfile']>(DEFAULT_BUSINESS_PROFILE);
+  const [isProfileLoading, setIsProfileLoading] = useState<boolean>(true); // Changed to false initially if userProfile is passed
 
-  // For now, using a mock user ID. In a real app, this would come from auth context.
-  const userId = 'mock-user-123'; // FIXME: Obter do contexto de autenticação real
-  const organizationId = getActiveOrganization()?.organization.id;
-
-
-  const fetchUserProfile = useCallback(async () => {
-    setIsProfileLoading(true);
-    try {
-      // Não passa userId para o serviço, o serviço usa o contexto de autenticação ou mock
-      const profile = await getUserProfile(userId); 
-      if (profile) {
-        setUserProfile(profile.businessProfile);
-      }
-    } catch (err) {
-      console.error('Failed to fetch user profile:', err);
-      setError('Failed to load business profile. Please update it in Settings.');
-    } finally {
-      setIsProfileLoading(false);
-    }
-  }, [userId]);
-
+  // Effect to set business profile form when userProfile prop changes
   useEffect(() => {
-    fetchUserProfile();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (userProfile && userProfile.businessProfile) {
+      setBusinessProfileForm(userProfile.businessProfile);
+      setIsProfileLoading(false); // User profile is available via props
+    } else {
+      setBusinessProfileForm(DEFAULT_BUSINESS_PROFILE);
+      setIsProfileLoading(false); // No user profile, use default
+    }
+  }, [userProfile]);
+
 
   const handleGenerateStrategy = useCallback(async () => {
     if (!prompt.trim()) {
       setError('Please enter a prompt to generate a strategy.');
+      return;
+    }
+    if (!organizationId) {
+      setError('No active organization found. Please login and select an organization.');
       return;
     }
 
@@ -65,7 +59,8 @@ const AIManager: React.FC = () => {
     setSuggestions([]);
 
     try {
-      const result = await aiManagerStrategy(prompt, userProfile);
+      // aiManagerStrategy now takes the current businessProfileForm (from local state)
+      const result = await aiManagerStrategy(prompt, businessProfileForm);
       setStrategyText(result.strategyText);
       setSuggestions(result.suggestions);
     } catch (err) {
@@ -74,23 +69,24 @@ const AIManager: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [prompt, userProfile]);
+  }, [prompt, businessProfileForm, organizationId]); // Add organizationId to deps
 
   const handleUpdateProfile = useCallback(async (field: keyof UserProfile['businessProfile'], value: string) => {
-    if (!organizationId) {
-      setError("No active organization found to update profile.");
+    if (!organizationId || !userProfile?.id) {
+      setError("No active organization or user found to update profile.");
       return;
     }
-    const updatedProfile = { ...userProfile, [field]: value };
-    setUserProfile(updatedProfile);
+    const updatedProfile = { ...businessProfileForm, [field]: value };
+    setBusinessProfileForm(updatedProfile);
     try {
-      // Não passa userId, o serviço infere
-      await updateUserProfile(userId, { businessProfile: updatedProfile });
+      // updateUserProfile now receives organizationId and userId
+      // FIX: updateUserProfile now accepts a single object for businessProfile
+      await updateUserProfile(userProfile.id, updatedProfile); 
     } catch (err) {
       console.error('Failed to update business profile for AI Manager:', err);
       setError('Failed to save profile changes for AI Manager. This might affect future generations.');
     }
-  }, [userProfile, userId, organizationId]);
+  }, [businessProfileForm, organizationId, userProfile?.id]);
 
 
   if (isProfileLoading) {
@@ -134,7 +130,8 @@ const AIManager: React.FC = () => {
 
       {activeTab === 'command' && (
          <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
-             <InteractiveActionCenter />
+             {/* FIX: Pass organizationId and userId to InteractiveActionCenter */}
+             <InteractiveActionCenter organizationId={organizationId} userId={userProfile?.id || ''} />
              <p className="text-center text-textmuted text-sm mt-6">
                 Use a Central de Comando para executar ações rápidas em qualquer módulo do sistema sem sair desta tela.
              </p>
@@ -147,27 +144,27 @@ const AIManager: React.FC = () => {
                 <h3 className="text-xl font-semibold text-textlight mb-5">Informações do Negócio (Contexto)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <Input
-                    id="businessName"
+                    id="name"
                     label="Nome da Empresa"
-                    value={userProfile.name}
+                    value={businessProfileForm.name}
                     onChange={(e) => handleUpdateProfile('name', e.target.value)}
                     />
                     <Input
                     id="industry"
                     label="Indústria"
-                    value={userProfile.industry}
+                    value={businessProfileForm.industry}
                     onChange={(e) => handleUpdateProfile('industry', e.target.value)}
                     />
                     <Input
                     id="targetAudience"
                     label="Público-alvo"
-                    value={userProfile.targetAudience}
+                    value={businessProfileForm.targetAudience}
                     onChange={(e) => handleUpdateProfile('targetAudience', e.target.value)}
                     />
                     <Input
                     id="visualStyle"
                     label="Estilo Visual"
-                    value={userProfile.visualStyle}
+                    value={businessProfileForm.visualStyle}
                     onChange={(e) => handleUpdateProfile('visualStyle', e.target.value)}
                     />
                 </div>

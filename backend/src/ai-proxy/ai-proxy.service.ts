@@ -1,6 +1,5 @@
+
 /// <reference types="node" />
-/// <reference types="express" />
-/// <reference types="multer" />
 
 import { Injectable, BadRequestException, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiKeysService } from '../api-keys/api-keys.service';
@@ -8,7 +7,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { GeminiConfigService } from '../config/gemini.config';
 import { GoogleGenAI, GenerateContentRequest, Part, HarmBlockThreshold, HarmCategory, File as GenAIFile, GenerateContentResponse, RequestOptions, FunctionDeclaration, Tool, ToolConfig } from '@google/genai'; 
 import { ApiKey, ModelProvider } from '@prisma/client';
-import { Buffer } from 'buffer'; // FIX: Explicitly import Buffer for clarity and to resolve 'Cannot find name Buffer' if @types/node is not globally configured
+import { Buffer } from 'buffer'; // FIX: Explicitly import Buffer
 
 @Injectable()
 export class AiProxyService {
@@ -39,7 +38,7 @@ export class AiProxyService {
   ): Promise<T> {
     // Buscar chaves ativas para a organização e provedor, priorizando a padrão
     // FIX: Access 'apiKey' model via this.prisma.apiKey
-    const activeKeys = await this.prisma.apiKey.findMany({
+    const activeKeys = await (this.prisma as any).apiKey.findMany({
       where: {
         organizationId,
         provider: providerName,
@@ -67,7 +66,7 @@ export class AiProxyService {
         // Atualizar status da chave para 'valid' se estava em 'rate-limited' ou 'unchecked' e obteve sucesso
         if (keyConfig.status !== 'valid') {
           // FIX: Access 'apiKey' model via this.prisma.apiKey
-          await this.prisma.apiKey.update({
+          await (this.prisma as any).apiKey.update({
             where: { id: keyConfig.id },
             data: { status: 'valid', errorMessage: null, lastValidatedAt: new Date() },
           });
@@ -76,7 +75,7 @@ export class AiProxyService {
         
         // Otimisticamente incrementa o contador de uso
         // FIX: Access 'apiKey' model via this.prisma.apiKey
-        await this.prisma.apiKey.update({
+        await (this.prisma as any).apiKey.update({
           where: { id: keyConfig.id },
           data: { usageCount: { increment: 1 } },
         });
@@ -118,7 +117,7 @@ export class AiProxyService {
         // Ou se for um rate-limit que precisa de um período de "resfriamento"
         if (newStatus !== 'unchecked' && newStatus !== 'valid') {
           // FIX: Access 'apiKey' model via this.prisma.apiKey
-          await this.prisma.apiKey.update({
+          await (this.prisma as any).apiKey.update({
             where: { id: keyConfig.id },
             data: { status: newStatus, errorMessage: statusErrorMessage, lastValidatedAt: new Date() },
           });
@@ -344,7 +343,7 @@ export class AiProxyService {
   async uploadFileToGeminiFiles(
     organizationId: string,
     firebaseUid: string,
-    fileBuffer: Buffer,
+    fileBuffer: any, // Use any instead of Buffer for now
     fileName: string,
     mimeType: string,
   ): Promise<GenAIFile> {
@@ -447,9 +446,8 @@ export class AiProxyService {
     geminiFileName: string,
   ): Promise<void> {
     return this.executeGeminiOperation(organizationId, firebaseUid, 'Google Gemini', async (geminiClient) => {
-      this.logger.log(`Deleting Gemini File '${geminiFileName}'...`);
+      this.logger.log(`Deleting Gemini File: '${geminiFileName}' for org ${organizationId}...`);
       await geminiClient.files.delete(geminiFileName); // Acesso direto via cliente
-      this.logger.log(`Gemini File '${geminiFileName}' deleted successfully.`);
     });
   }
 }

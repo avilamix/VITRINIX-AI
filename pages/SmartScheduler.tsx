@@ -5,10 +5,14 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { getLibraryItems, getScheduleEntries, saveScheduleEntry, deleteScheduleEntry } from '../services/firestoreService';
 import { ScheduleEntry, LibraryItem } from '../types';
 import { PlusIcon, TrashIcon, CalendarDaysIcon, CheckCircleIcon, XCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
-import { getActiveOrganization } from '../services/authService';
 import { LIBRARY_ITEM_TYPES } from '../constants';
 
-const SmartScheduler: React.FC = () => {
+interface SmartSchedulerProps {
+  organizationId: string | undefined;
+  userId: string | undefined;
+}
+
+const SmartScheduler: React.FC<SmartSchedulerProps> = ({ organizationId, userId }) => {
   const [scheduledItems, setScheduledItems] = useState<ScheduleEntry[]>([]);
   const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -22,9 +26,6 @@ const SmartScheduler: React.FC = () => {
   const [newScheduleContentType, setNewScheduleContentType] = useState<ScheduleEntry['contentType']>('post'); // Use generic content type
   const [scheduling, setScheduling] = useState<boolean>(false);
 
-  const activeOrganization = getActiveOrganization();
-  const organizationId = activeOrganization?.organization.id;
-  const userId = 'mock-user-123'; // Mock user ID, will be inferred by backend for persistence operations
 
   const fetchSchedulerData = useCallback(async () => {
     if (!organizationId) {
@@ -35,9 +36,9 @@ const SmartScheduler: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      // FIX: getScheduleEntries no longer takes userId as an argument
+      // getScheduleEntries no longer takes userId as an argument
       const fetchedSchedule = await getScheduleEntries();
-      // FIX: getLibraryItems no longer takes userId as an argument, but filters
+      // getLibraryItems no longer takes userId as an argument, but filters
       const fetchedLibrary = await getLibraryItems();
       setScheduledItems(fetchedSchedule.sort((a, b) => a.datetime.getTime() - b.datetime.getTime()));
       setLibraryItems(fetchedLibrary);
@@ -53,7 +54,7 @@ const SmartScheduler: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [organizationId, newScheduleContentId]);
+  }, [organizationId, newScheduleContentId]); // Depend on organizationId to refetch if active org changes
 
   useEffect(() => {
     fetchSchedulerData();
@@ -69,6 +70,10 @@ const SmartScheduler: React.FC = () => {
       setError('No active organization found. Please login.');
       return;
     }
+    if (!userId) {
+      setError('User not identified. Please login.');
+      return;
+    }
 
     setScheduling(true);
     setError(null);
@@ -78,8 +83,8 @@ const SmartScheduler: React.FC = () => {
       const newEntry: ScheduleEntry = {
         id: `schedule-${Date.now()}`, // Backend will assign ID
         organizationId: organizationId, // Explicitly pass organizationId
-        userId: userId, // Mock userId, backend will infer
-        // FIX: datetime should be a Date object, not an ISO string, when assigned to newEntry
+        userId: userId, // Pass userId
+        // datetime should be a Date object, not an ISO string, when assigned to newEntry
         datetime: new Date(combinedDateTime), 
         platform: newSchedulePlatform,
         contentId: newScheduleContentId,
@@ -180,7 +185,7 @@ const SmartScheduler: React.FC = () => {
             </select>
             {newScheduleContentId && getItemDetails(newScheduleContentId)?.thumbnailUrl && (
               <img
-                // FIX: Changed thumbnail_url to thumbnailUrl
+                // Changed thumbnail_url to thumbnailUrl
                 src={getItemDetails(newScheduleContentId)?.thumbnailUrl || 'https://picsum.photos/100/100'}
                 alt="Selected content thumbnail"
                 className="w-24 h-24 object-cover rounded-md mt-2 border border-gray-700"

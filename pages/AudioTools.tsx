@@ -3,17 +3,20 @@ import Textarea from '../components/Textarea';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Input from '../components/Input'; // Import Input for name/tags
-import { generateSpeech, decode, decodeAudioData } from '../services/geminiService';
-// FIX: Removed import { uploadFile } from '../services/cloudStorageService';
-import { saveLibraryItem, uploadFileAndCreateLibraryItemViaBackend } from '../services/firestoreService'; // For saving metadata and actual file upload
+import { generateSpeech, decode, decodeAudioData } from '../services/geminiService'; // FIX: Import Live API functions
+import { uploadFileAndCreateLibraryItemViaBackend } from '../services/firestoreService'; // For saving metadata and actual file upload
 import { LibraryItem } from '../types'; // Import LibraryItem
 import { SpeakerWaveIcon, PlayIcon, StopIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
-import { getActiveOrganization } from '../services/authService';
 
 type VoiceName = 'Zephyr' | 'Puck' | 'Charon' | 'Kore' | 'Fenrir';
 const VOICE_OPTIONS: VoiceName[] = ['Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir'];
 
-const AudioTools: React.FC = () => {
+interface AudioToolsProps {
+  organizationId: string | undefined;
+  userId: string | undefined;
+}
+
+const AudioTools: React.FC<AudioToolsProps> = ({ organizationId, userId }) => {
   const [inputText, setInputText] = useState<string>('');
   const [selectedVoice, setSelectedVoice] = useState<VoiceName>('Kore');
   const [loading, setLoading] = useState<boolean>(false);
@@ -29,9 +32,6 @@ const AudioTools: React.FC = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
 
-  const activeOrganization = getActiveOrganization();
-  const organizationId = activeOrganization?.organization.id;
-  const userId = 'mock-user-123'; // Mock user ID, backend infers from auth
 
   const initAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
@@ -192,6 +192,10 @@ const AudioTools: React.FC = () => {
       setError('No active organization found. Please login.');
       return;
     }
+    if (!userId) {
+      setError('User not identified. Please login.');
+      return;
+    }
 
 
     setLoading(true); // Use loading state for saving process
@@ -201,7 +205,7 @@ const AudioTools: React.FC = () => {
       const fileName = `${savedItemName.trim()}.wav`;
       const audioFile = new File([generatedAudioBlob], fileName, { type: 'audio/wav' });
 
-      // FIX: Replace deprecated uploadFile with new backend-driven upload function
+      // Replace deprecated uploadFile with new backend-driven upload function
       const tagsArray = savedItemTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
       const uploadedItem = await uploadFileAndCreateLibraryItemViaBackend(
         organizationId,
@@ -212,8 +216,7 @@ const AudioTools: React.FC = () => {
         tagsArray
       );
 
-      // FIX: No need to call saveLibraryItem separately, it's done within uploadFileAndCreateLibraryItemViaBackend
-      alert(`Áudio "${fileName}" salvo na biblioteca com sucesso!`);
+      alert(`Áudio "${uploadedItem.name}" salvo na biblioteca com sucesso!`);
       
     } catch (err) {
       console.error('Error saving audio to library:', err);

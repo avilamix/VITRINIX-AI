@@ -1,3 +1,4 @@
+
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateCampaignDto } from './dto/create-campaign.dto';
 import { UpdateCampaignDto } from './dto/update-campaign.dto';
@@ -19,7 +20,7 @@ export class CampaignsService {
     }
 
     // FIX: Access 'campaign' model via this.prisma.campaign
-    const campaign = await this.prisma.campaign.create({
+    const campaign = await (this.prisma as any).campaign.create({
       data: {
         organizationId,
         userId: user.id,
@@ -36,7 +37,7 @@ export class CampaignsService {
 
   async findAll(organizationId: string): Promise<CampaignResponseDto[]> {
     // FIX: Access 'campaign' model via this.prisma.campaign
-    const campaigns = await this.prisma.campaign.findMany({
+    const campaigns = await (this.prisma as any).campaign.findMany({
       where: { organizationId },
       orderBy: { createdAt: 'desc' },
     });
@@ -45,7 +46,7 @@ export class CampaignsService {
 
   async findOne(organizationId: string, id: string): Promise<CampaignResponseDto> {
     // FIX: Access 'campaign' model via this.prisma.campaign
-    const campaign = await this.prisma.campaign.findUnique({
+    const campaign = await (this.prisma as any).campaign.findUnique({
       where: { id, organizationId },
     });
     if (!campaign) {
@@ -58,7 +59,7 @@ export class CampaignsService {
     await this.findOne(organizationId, id); // Check if campaign exists
 
     // FIX: Access 'campaign' model via this.prisma.campaign
-    const campaign = await this.prisma.campaign.update({
+    const campaign = await (this.prisma as any).campaign.update({
       where: { id, organizationId },
       data: {
         name: updateCampaignDto.name,
@@ -76,7 +77,7 @@ export class CampaignsService {
     await this.findOne(organizationId, id); // Check if campaign exists
 
     // FIX: Access 'campaign' model via this.prisma.campaign
-    await this.prisma.campaign.delete({
+    await (this.prisma as any).campaign.delete({
       where: { id, organizationId },
     });
   }

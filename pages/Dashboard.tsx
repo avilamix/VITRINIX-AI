@@ -37,7 +37,11 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ title, value, description, ic
   </div>
 );
 
-const Dashboard: React.FC = () => {
+interface DashboardProps {
+  organizationId: string | undefined; // Make organizationId optional
+}
+
+const Dashboard: React.FC<DashboardProps> = ({ organizationId }) => {
   const [posts, setPosts] = useState<Post[]>([]);
   const [ads, setAds] = useState<Ad[]>([]);
   const [schedule, setSchedule] = useState<ScheduleEntry[]>([]);
@@ -48,10 +52,15 @@ const Dashboard: React.FC = () => {
   const { t, language } = useLanguage();
 
   const fetchDashboardData = useCallback(async () => {
+    if (!organizationId) {
+        setError('No active organization found. Please login and select an organization.');
+        setLoading(false);
+        return;
+    }
+
     setLoading(true);
     setError(null);
     try {
-      // const userId = 'mock-user-123'; // Não é mais necessário passar userId diretamente para get/save
       const fetchedPosts = await getPosts();
       const fetchedAds = await getAds();
       const fetchedSchedule = await getScheduleEntries();
@@ -67,7 +76,7 @@ const Dashboard: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [organizationId]); // Dependência adicionada para `organizationId`
 
   useEffect(() => {
     fetchDashboardData();

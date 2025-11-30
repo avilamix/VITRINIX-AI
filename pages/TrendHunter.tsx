@@ -5,14 +5,17 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { searchTrends, generateText } from '../services/geminiService';
-import { saveTrend } from '../services/firestoreService';
 import { Trend } from '../types';
 import { useNavigate } from '../hooks/useNavigate';
 import { GEMINI_FLASH_MODEL } from '../constants';
 import { LightBulbIcon } from '@heroicons/react/24/outline';
-import { getActiveOrganization } from '../services/authService';
 
-const TrendHunter: React.FC = () => {
+interface TrendHunterProps {
+  organizationId: string | undefined;
+  userId: string | undefined;
+}
+
+const TrendHunter: React.FC<TrendHunterProps> = ({ organizationId, userId }) => {
   const [query, setQuery] = useState<string>('');
   const [city, setCity] = useState<string>('');
   const [trends, setTrends] = useState<Trend[]>([]);
@@ -26,9 +29,6 @@ const TrendHunter: React.FC = () => {
 
   const { navigateTo } = useNavigate();
 
-  // For now, using a mock user ID. In a real app, this would come from auth context.
-  const userId = 'mock-user-123'; // FIXME: Obter do contexto de autenticação real
-  const organizationId = getActiveOrganization()?.organization.id;
 
   // Attempt to get user's geolocation on mount
   useEffect(() => {
@@ -58,6 +58,10 @@ const TrendHunter: React.FC = () => {
       setError('No active organization found. Please login.');
       return;
     }
+    if (!userId) {
+      setError('User not identified. Please login.');
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -67,7 +71,8 @@ const TrendHunter: React.FC = () => {
     try {
       // Pass userLocation if city is provided, or undefined otherwise to rely on general search
       const location = city.trim() && userLocation ? userLocation : undefined;
-      const fetchedTrends = await searchTrends(query, location); // searchTrends agora salva no backend
+      // searchTrends now expects organizationId and userId
+      const fetchedTrends = await searchTrends(query, organizationId, userId, location); 
 
       setTrends(fetchedTrends);
 
@@ -79,7 +84,7 @@ const TrendHunter: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [query, city, userLocation, organizationId]);
+  }, [query, city, userLocation, organizationId, userId]);
 
   const handleGenerateContentIdea = useCallback(async (trend: Trend) => {
     setGeneratingIdeaFor(trend.id);

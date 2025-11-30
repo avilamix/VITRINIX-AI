@@ -1,3 +1,4 @@
+
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateAdDto } from './dto/create-ad.dto';
 import { UpdateAdDto } from './dto/update-ad.dto';
@@ -19,7 +20,7 @@ export class AdsService {
     }
 
     // FIX: Access 'ad' model via this.prisma.ad
-    const ad = await this.prisma.ad.create({
+    const ad = await (this.prisma as any).ad.create({
       data: {
         organizationId,
         userId: user.id,
@@ -34,7 +35,7 @@ export class AdsService {
 
   async findAll(organizationId: string): Promise<AdResponseDto[]> {
     // FIX: Access 'ad' model via this.prisma.ad
-    const ads = await this.prisma.ad.findMany({
+    const ads = await (this.prisma as any).ad.findMany({
       where: { organizationId },
       orderBy: { createdAt: 'desc' },
     });
@@ -43,7 +44,7 @@ export class AdsService {
 
   async findOne(organizationId: string, id: string): Promise<AdResponseDto> {
     // FIX: Access 'ad' model via this.prisma.ad
-    const ad = await this.prisma.ad.findUnique({
+    const ad = await (this.prisma as any).ad.findUnique({
       where: { id, organizationId },
     });
     if (!ad) {
@@ -56,7 +57,7 @@ export class AdsService {
     await this.findOne(organizationId, id); // Check if ad exists
 
     // FIX: Access 'ad' model via this.prisma.ad
-    const ad = await this.prisma.ad.update({
+    const ad = await (this.prisma as any).ad.update({
       where: { id, organizationId },
       data: {
         platform: updateAdDto.platform,
@@ -72,7 +73,7 @@ export class AdsService {
     await this.findOne(organizationId, id); // Check if ad exists
 
     // FIX: Access 'ad' model via this.prisma.ad
-    await this.prisma.ad.delete({
+    await (this.prisma as any).ad.delete({
       where: { id, organizationId },
     });
   }

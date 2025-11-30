@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Textarea from '../components/Textarea';
 import Input from '../components/Input';
@@ -19,11 +20,15 @@ import {
   DEFAULT_VIDEO_RESOLUTION,
   LIBRARY_ITEM_TYPES, // Import from frontend constants
 } from '../constants';
-import { getActiveOrganization } from '../services/authService';
+
+interface CreativeStudioProps {
+  organizationId: string | undefined;
+  userId: string | undefined;
+}
 
 type MediaType = 'image' | 'video' | 'audio' | 'text' | 'post' | 'ad'; // Estendido para incluir mais tipos
 
-const CreativeStudio: React.FC = () => {
+const CreativeStudio: React.FC<CreativeStudioProps> = ({ organizationId, userId }) => {
   const [prompt, setPrompt] = useState<string>('');
   const [mediaType, setMediaType] = useState<MediaType>('image');
   const [file, setFile] = useState<File | null>(null);
@@ -44,9 +49,6 @@ const CreativeStudio: React.FC = () => {
   const [savedItemTags, setSavedItemTags] = useState<string>('');
 
 
-  const userId = 'mock-user-123'; // FIXME: Obter do contexto de autenticação real
-  const organizationId = getActiveOrganization()?.organization.id;
-
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
     if (selectedFile) {
@@ -55,6 +57,7 @@ const CreativeStudio: React.FC = () => {
       setGeneratedMediaUrl(null); // Clear generated media when new file is uploaded
       setGeneratedAnalysis(null); // Clear analysis
       setError(null);
+      // FIX: Ensure file.name is accessed safely
       setSavedItemName(selectedFile.name.split('.').slice(0, -1).join('.')); // Pre-fill name
 
       // Determine media type based on file type
@@ -73,7 +76,7 @@ const CreativeStudio: React.FC = () => {
         setSavedItemName('');
       }
     }
-  }, []);
+  }, []); // Remove file from dependency array, use selectedFile directly
 
   const handleGenerateMedia = useCallback(async () => {
     if (!prompt.trim()) {
@@ -462,7 +465,8 @@ const CreativeStudio: React.FC = () => {
                   <SaveToLibraryButton
                     content={generatedMediaUrl || generatedAnalysis || null}
                     type={generatedAnalysis ? 'text' : mediaType}
-                    userId={userId}
+                    organizationId={organizationId} // Pass organizationId
+                    userId={userId} // Pass userId
                     initialName={savedItemName}
                     tags={savedItemTags.split(',').map(t => t.trim()).filter(Boolean)}
                     variant="primary"

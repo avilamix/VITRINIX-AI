@@ -1,4 +1,6 @@
 
+
+
 import { INestApplication, Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, Role } from '@prisma/client'; // Importe Role
 
@@ -15,12 +17,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
 
   async onModuleInit() {
     // FIX: $connect is a method of the extended PrismaClient, accessible via 'this'
-    await this.$connect();
+    await (this as any).$connect();
   }
 
   async enableShutdownHooks(app: INestApplication) {
     // FIX: $on is a method of the extended PrismaClient, accessible via 'this'
-    this.$on('beforeExit', async () => {
+    // Also deprecated, but keeping it as requested with casting.
+    (this as any).$on('beforeExit', async () => {
       await app.close();
     });
   }

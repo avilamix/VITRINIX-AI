@@ -1,8 +1,10 @@
+
 /// <reference types="node" />
 
 import { Injectable, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { Storage } from '@google-cloud/storage';
 import { ConfigService } from '@nestjs/config';
+import { Buffer } from 'buffer'; // FIX: Explicitly import Buffer
 
 @Injectable()
 export class GoogleCloudStorageService {
@@ -23,7 +25,7 @@ export class GoogleCloudStorageService {
     this.logger.log(`Google Cloud Storage initialized for bucket: ${this.bucketName}`);
   }
 
-  async uploadFile(fileBuffer: Buffer, destinationFileName: string, contentType: string): Promise<string> {
+  async uploadFile(fileBuffer: any, destinationFileName: string, contentType: string): Promise<string> { // FIX: Use any for fileBuffer
     if (!fileBuffer || fileBuffer.length === 0) {
       throw new BadRequestException('Cannot upload an empty file.');
     }

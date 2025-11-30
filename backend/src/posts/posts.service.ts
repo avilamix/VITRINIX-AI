@@ -1,3 +1,4 @@
+
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreatePostDto } from './dto/create-post.dto';
 import { UpdatePostDto } from './dto/update-post.dto';
@@ -19,7 +20,7 @@ export class PostsService {
     }
 
     // FIX: Access 'post' model via this.prisma.post
-    const post = await this.prisma.post.create({
+    const post = await (this.prisma as any).post.create({
       data: {
         organizationId,
         userId: user.id,
@@ -33,7 +34,7 @@ export class PostsService {
 
   async findAll(organizationId: string): Promise<PostResponseDto[]> {
     // FIX: Access 'post' model via this.prisma.post
-    const posts = await this.prisma.post.findMany({
+    const posts = await (this.prisma as any).post.findMany({
       where: { organizationId },
       orderBy: { createdAt: 'desc' },
     });
@@ -42,7 +43,7 @@ export class PostsService {
 
   async findOne(organizationId: string, id: string): Promise<PostResponseDto> {
     // FIX: Access 'post' model via this.prisma.post
-    const post = await this.prisma.post.findUnique({
+    const post = await (this.prisma as any).post.findUnique({
       where: { id, organizationId },
     });
     if (!post) {
@@ -55,7 +56,7 @@ export class PostsService {
     await this.findOne(organizationId, id); // Check if post exists
 
     // FIX: Access 'post' model via this.prisma.post
-    const post = await this.prisma.post.update({
+    const post = await (this.prisma as any).post.update({
       where: { id, organizationId },
       data: {
         contentText: updatePostDto.contentText,
@@ -70,7 +71,7 @@ export class PostsService {
     await this.findOne(organizationId, id); // Check if post exists
 
     // FIX: Access 'post' model via this.prisma.post
-    await this.prisma.post.delete({
+    await (this.prisma as any).post.delete({
       where: { id, organizationId },
     });
   }

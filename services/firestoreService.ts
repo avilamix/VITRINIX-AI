@@ -7,8 +7,8 @@ import { getFirebaseIdToken, getActiveOrganization } from './authService';
 // TODO: Em um sistema real, a URL do backend viria de uma variável de ambiente ou configuração global
 const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
 
-// Helper para obter o ID da organização ativa
-const getActiveOrganizationId = (): string => {
+// Helper para obter o ID da organização ativa (Centralizado aqui)
+export const getActiveOrganizationId = (): string => { // FIX: Exported for shared use
   const activeOrg: OrganizationMembership | undefined = getActiveOrganization();
   if (!activeOrg) {
     throw new Error('No active organization found. Please login and select an organization.');
@@ -58,7 +58,7 @@ export const getUserProfile = async (userId: string): Promise<UserProfile | null
   };
 };
 
-export const updateUserProfile = async (userId: string, profile: Partial<UserProfile>): Promise<void> => {
+export const updateUserProfile = async (userId: string, profile: Partial<UserProfile['businessProfile']>): Promise<void> => { // FIX: Corrected profile type
   // Simula atualização do perfil do usuário, deve ser substituído por um endpoint de perfil do backend
   console.log(`Simulating updating user profile for: ${userId}`, profile);
   await new Promise(resolve => setTimeout(resolve, MOCK_API_DELAY));

@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { translations, Language } from '../i18n/translations'; // The path here is correct for `src/contexts/` importing from `src/i18n/`
+import { translations, Language } from '../i18n/translations'; // The path here is correct for `contexts/` importing from `i18n/`
 
 interface LanguageContextType {
   language: Language;

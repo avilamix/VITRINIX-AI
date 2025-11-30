@@ -1,3 +1,4 @@
+
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateTrendDto } from './dto/create-trend.dto';
 import { UpdateTrendDto } from './dto/update-trend.dto';
@@ -19,7 +20,7 @@ export class TrendsService {
     }
 
     // FIX: Access 'trend' model via this.prisma.trend
-    const trend = await this.prisma.trend.create({
+    const trend = await (this.prisma as any).trend.create({
       data: {
         organizationId,
         userId: user.id,
@@ -34,7 +35,7 @@ export class TrendsService {
 
   async findAll(organizationId: string): Promise<TrendResponseDto[]> {
     // FIX: Access 'trend' model via this.prisma.trend
-    const trends = await this.prisma.trend.findMany({
+    const trends = await (this.prisma as any).trend.findMany({
       where: { organizationId },
       orderBy: { createdAt: 'desc' },
     });
@@ -43,7 +44,7 @@ export class TrendsService {
 
   async findOne(organizationId: string, id: string): Promise<TrendResponseDto> {
     // FIX: Access 'trend' model via this.prisma.trend
-    const trend = await this.prisma.trend.findUnique({
+    const trend = await (this.prisma as any).trend.findUnique({
       where: { id, organizationId },
     });
     if (!trend) {
@@ -56,7 +57,7 @@ export class TrendsService {
     await this.findOne(organizationId, id); // Check if trend exists
 
     // FIX: Access 'trend' model via this.prisma.trend
-    const trend = await this.prisma.trend.update({
+    const trend = await (this.prisma as any).trend.update({
       where: { id, organizationId },
       data: {
         query: updateTrendDto.query,
@@ -72,7 +73,7 @@ export class TrendsService {
     await this.findOne(organizationId, id); // Check if trend exists
 
     // FIX: Access 'trend' model via this.prisma.trend
-    await this.prisma.trend.delete({
+    await (this.prisma as any).trend.delete({
       where: { id, organizationId },
     });
   }

@@ -5,21 +5,21 @@ import Textarea from '../components/Textarea';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { campaignBuilder } from '../services/geminiService';
-import { saveCampaign } from '../services/firestoreService';
 import { Campaign } from '../types';
 import { useNavigate } from '../hooks/useNavigate'; // Custom hook for navigation
-import { getActiveOrganization } from '../services/authService';
 
-const CampaignBuilder: React.FC = () => {
+interface CampaignBuilderProps {
+  organizationId: string | undefined;
+  userId: string | undefined;
+}
+
+const CampaignBuilder: React.FC<CampaignBuilderProps> = ({ organizationId, userId }) => {
   const [campaignPrompt, setCampaignPrompt] = useState<string>('');
   const [generatedCampaign, setGeneratedCampaign] = useState<Campaign | null>(null);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const { navigateTo } = useNavigate();
-
-  const activeOrganization = getActiveOrganization();
-  const organizationId = activeOrganization?.organization.id;
 
 
   const handleCreateCampaign = useCallback(async () => {
@@ -31,6 +31,10 @@ const CampaignBuilder: React.FC = () => {
       setError('No active organization found. Please login.');
       return;
     }
+    if (!userId) {
+      setError('User not identified. Please login.');
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -38,7 +42,8 @@ const CampaignBuilder: React.FC = () => {
     setGeneratedVideoUrl(null);
 
     try {
-      const { campaign, videoUrl } = await campaignBuilder(campaignPrompt);
+      // Pass organizationId and userId to campaignBuilder
+      const { campaign, videoUrl } = await campaignBuilder(campaignPrompt, organizationId, userId);
       setGeneratedCampaign(campaign);
       setGeneratedVideoUrl(videoUrl);
       // saveCampaign is now called inside geminiService.campaignBuilder
@@ -49,7 +54,7 @@ const CampaignBuilder: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [campaignPrompt, organizationId]);
+  }, [campaignPrompt, organizationId, userId]);
 
   const handleDownloadMaterials = useCallback(() => {
     if (!generatedCampaign) {

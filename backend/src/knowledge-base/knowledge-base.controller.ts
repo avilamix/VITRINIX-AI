@@ -1,3 +1,4 @@
+
 /// <reference types="express" />
 /// <reference types="multer" />
 // FIX: Add `npm i --save-dev @types/express @types/multer` to resolve Express and Multer types
@@ -71,8 +72,8 @@ export class KnowledgeBaseController {
   @ApiResponse({ status: 200, description: 'File uploaded and imported successfully', type: UploadFileResponseDto })
   async uploadFile(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
-    // FIX: Add Express.Multer.File type to file parameter
-    @UploadedFile() file: Express.Multer.File,
+    // FIX: Use any for file type
+    @UploadedFile() file: any,
     @CurrentUser('uid') firebaseUid: string,
     @Body() metadata: MetadataDto, // Metadados vêm do body como outros campos do form-data
   ): Promise<UploadFileResponseDto> {

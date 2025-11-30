@@ -1,3 +1,4 @@
+
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { CreateScheduleEntryDto } from './dto/create-schedule-entry.dto';
 import { UpdateScheduleEntryDto } from './dto/update-schedule-entry.dto';
@@ -32,7 +33,7 @@ export class SchedulesService {
 
 
     // FIX: Access 'scheduleEntry' model via this.prisma.scheduleEntry
-    const scheduleEntry = await this.prisma.scheduleEntry.create({
+    const scheduleEntry = await (this.prisma as any).scheduleEntry.create({
       data: {
         organizationId,
         userId: user.id,
@@ -48,7 +49,7 @@ export class SchedulesService {
 
   async findAll(organizationId: string): Promise<ScheduleEntryResponseDto[]> {
     // FIX: Access 'scheduleEntry' model via this.prisma.scheduleEntry
-    const scheduleEntries = await this.prisma.scheduleEntry.findMany({
+    const scheduleEntries = await (this.prisma as any).scheduleEntry.findMany({
       where: { organizationId },
       orderBy: { datetime: 'asc' }, // Ordenar por data/hora agendada
       include: { libraryItem: true }, // Incluir dados do LibraryItem para exibição
@@ -58,7 +59,7 @@ export class SchedulesService {
 
   async findOne(organizationId: string, id: string): Promise<ScheduleEntryResponseDto> {
     // FIX: Access 'scheduleEntry' model via this.prisma.scheduleEntry
-    const scheduleEntry = await this.prisma.scheduleEntry.findUnique({
+    const scheduleEntry = await (this.prisma as any).scheduleEntry.findUnique({
       where: { id, organizationId },
       include: { libraryItem: true },
     });
@@ -87,7 +88,7 @@ export class SchedulesService {
 
 
     // FIX: Access 'scheduleEntry' model via this.prisma.scheduleEntry
-    const scheduleEntry = await this.prisma.scheduleEntry.update({
+    const scheduleEntry = await (this.prisma as any).scheduleEntry.update({
       where: { id, organizationId },
       data: {
         datetime: updateScheduleEntryDto.datetime,
@@ -105,7 +106,7 @@ export class SchedulesService {
     await this.findOne(organizationId, id); // Check if entry exists
 
     // FIX: Access 'scheduleEntry' model via this.prisma.scheduleEntry
-    await this.prisma.scheduleEntry.delete({
+    await (this.prisma as any).scheduleEntry.delete({
       where: { id, organizationId },
     });
   }

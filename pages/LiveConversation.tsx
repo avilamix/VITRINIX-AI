@@ -1,15 +1,20 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
-import { connectLiveSession, createBlob, decodeAudioData, decode } from '../services/geminiService';
-import { LiveSessionCallbacks } from '../services/geminiService';
+import { connectLiveSession, createBlob, decodeAudioData, decode } from '../services/geminiService'; // FIX: Import Live API functions
+import { LiveSessionCallbacks } from '../services/geminiService'; // FIX: Import LiveSessionCallbacks
 import { ChatBubbleLeftRightIcon, MicrophoneIcon, SpeakerWaveIcon, StopCircleIcon } from '@heroicons/react/24/outline';
 import { TranscriptionSegment } from '../types'; // Import TranscriptionSegment
 
 type VoiceName = 'Zephyr' | 'Puck' | 'Charon' | 'Kore' | 'Fenrir';
 const VOICE_OPTIONS: VoiceName[] = ['Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir'];
 
-const LiveConversation: React.FC = () => {
+interface LiveConversationProps {
+  organizationId: string | undefined;
+  userId: string | undefined;
+}
+
+const LiveConversation: React.FC<LiveConversationProps> = ({ organizationId, userId }) => {
   const [isLive, setIsLive] = useState<boolean>(false);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -61,6 +66,10 @@ const LiveConversation: React.FC = () => {
   }, []);
 
   const startConversation = useCallback(async () => {
+    if (!organizationId) {
+      setError('No active organization found. Please login to start live conversation.');
+      return;
+    }
     setLoading(true);
     setError(null);
     setCurrentInputTranscription('');
@@ -142,7 +151,7 @@ const LiveConversation: React.FC = () => {
         }
       };
 
-      const session = await connectLiveSession(liveCallbacks, systemInstruction, [
+      const session = await connectLiveSession(organizationId, liveCallbacks, systemInstruction, [
         // Example function declaration for Live API if needed
         // {
         //   functionDeclarations: [{
@@ -168,7 +177,7 @@ const LiveConversation: React.FC = () => {
       setLoading(false);
       cleanupAudio();
     }
-  }, [cleanupAudio, systemInstruction]);
+  }, [cleanupAudio, systemInstruction, organizationId]);
 
   const stopConversation = useCallback(async () => {
     setLoading(true);

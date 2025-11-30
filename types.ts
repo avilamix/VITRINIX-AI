@@ -152,6 +152,14 @@ export interface ApiKeySystemConfig {
 export interface AIStudio {
   hasSelectedApiKey: () => Promise<boolean>;
   openSelectKey: () => Promise<void>;
+  getAuthToken: () => Promise<string>; // NEW: Added getAuthToken
+}
+
+// FIX: Declare window.aistudio globally here, where AIStudio is defined
+declare global {
+  interface Window {
+    aistudio?: AIStudio;
+  }
 }
 
 // NEW: Interface for RAG query response from backend
@@ -184,9 +192,3 @@ export interface LoginResponseDto {
   };
   organizations: OrganizationMembership[];
 }
-// REMOVED Global declaration to avoid conflict with duplicate declaration in other files.
-// declare global {
-//   interface Window {
-//     aistudio?: AIStudio;
-//   }
-// }
