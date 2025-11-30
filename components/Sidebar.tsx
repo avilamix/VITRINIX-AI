@@ -40,6 +40,7 @@ const NavItem: React.FC<NavItemProps> = ({ name, label, icon: Icon, activeModule
       <button
         onClick={() => setActiveModule(name)}
         className={`flex items-center px-4 py-2.5 w-full text-left transition-all duration-200 group ${isActive ? activeClasses : inactiveClasses}`}
+        title={label}
       >
         <Icon className={`h-5 w-5 mr-3 transition-colors ${isActive ? 'text-primary' : 'text-muted group-hover:text-title'}`} />
         <span className="text-sm tracking-tight">{label}</span>

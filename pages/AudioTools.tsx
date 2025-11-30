@@ -1,15 +1,14 @@
-
-
 import React, { useState, useCallback, useRef } from 'react';
 import Textarea from '../components/Textarea';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
-import Input from '../components/Input'; // Import Input for name/tags
+import Input from '../components/Input';
 import { generateSpeech, decode, decodeAudioData } from '../services/geminiService';
-import { uploadFile } from '../services/cloudStorageService'; // For uploading audio file
-import { saveLibraryItem } from '../services/firestoreService'; // For saving metadata
-import { LibraryItem } from '../types'; // Import LibraryItem
+import { uploadFile } from '../services/cloudStorageService';
+import { saveLibraryItem } from '../services/firestoreService';
+import { LibraryItem } from '../types';
 import { SpeakerWaveIcon, PlayIcon, StopIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
+import { useToast } from '../contexts/ToastContext';
 
 type VoiceName = 'Zephyr' | 'Puck' | 'Charon' | 'Kore' | 'Fenrir';
 const VOICE_OPTIONS: VoiceName[] = ['Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir'];
@@ -21,7 +20,7 @@ const AudioTools: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [audioBuffer, setAudioBuffer] = useState<AudioBuffer | null>(null);
   const [isPlaying, setIsPlaying] = useState<boolean>(false);
-  const [generatedAudioBlob, setGeneratedAudioBlob] = useState<Blob | null>(null); // Store the generated WAV blob
+  const [generatedAudioBlob, setGeneratedAudioBlob] = useState<Blob | null>(null);
 
   // State for saving to library
   const [savedItemName, setSavedItemName] = useState<string>('');
@@ -30,7 +29,8 @@ const AudioTools: React.FC = () => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
 
-  const userId = 'mock-user-123'; // Mock user ID
+  const { addToast } = useToast();
+  const userId = 'mock-user-123';
 
   const initAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
@@ -40,7 +40,7 @@ const AudioTools: React.FC = () => {
 
   const handleGenerateSpeech = useCallback(async () => {
     if (!inputText.trim()) {
-      setError('Por favor, insira o texto para gerar a fala.');
+      addToast({ type: 'warning', message: 'Por favor, insira o texto para gerar a fala.' });
       return;
     }
 
@@ -48,9 +48,9 @@ const AudioTools: React.FC = () => {
     setError(null);
     setAudioBuffer(null);
     setIsPlaying(false);
-    setGeneratedAudioBlob(null); // Clear previous blob
-    setSavedItemName(''); // Clear previous save name
-    setSavedItemTags(''); // Clear previous save tags
+    setGeneratedAudioBlob(null);
+    setSavedItemName('');
+    setSavedItemTags('');
 
     if (sourceNodeRef.current) {
       sourceNodeRef.current.stop();
@@ -90,25 +90,25 @@ const AudioTools: React.FC = () => {
             }
           }
 
-          const dataLength = audioData.length * numChannels * 2; // 2 bytes per sample
+          const dataLength = audioData.length * numChannels * 2;
           const bufferBytes = new ArrayBuffer(44 + dataLength);
           const view = new DataView(bufferBytes);
 
           // WAV header
-          writeString(view, 0, 'RIFF'); // ChunkID
-          view.setUint32(4, 36 + dataLength, true); // ChunkSize
-          writeString(view, 8, 'WAVE'); // Format
-          view.setUint32(12, 16, true); // Subchunk1ID
-          view.setUint32(16, 16, true); // Subchunk1Size (16 for PCM)
-          view.setUint16(20, 1, true); // AudioFormat (PCM = 1)
-          view.setUint16(22, numChannels, true); // NumChannels
-          view.setUint32(24, sampleRate, true); // SampleRate
-          view.setUint32(28, sampleRate * numChannels * 2, true); // ByteRate
-          view.setUint16(32, numChannels * 2, true); // BlockAlign
-          view.setUint16(34, 16, true); // BitsPerSample
+          writeString(view, 0, 'RIFF');
+          view.setUint32(4, 36 + dataLength, true);
+          writeString(view, 8, 'WAVE');
+          view.setUint32(12, 16, true);
+          view.setUint32(16, 16, true);
+          view.setUint16(20, 1, true);
+          view.setUint16(22, numChannels, true);
+          view.setUint32(24, sampleRate, true);
+          view.setUint32(28, sampleRate * numChannels * 2, true);
+          view.setUint16(32, numChannels * 2, true);
+          view.setUint16(34, 16, true);
 
-          writeString(view, 36, 'data'); // Subchunk2ID
-          view.setUint32(40, dataLength, true); // Subchunk2Size
+          writeString(view, 36, 'data');
+          view.setUint32(40, dataLength, true);
 
           const pcmData = floatTo16BitPCM(audioData);
           let offset = 44;
@@ -118,20 +118,22 @@ const AudioTools: React.FC = () => {
           }
           const wavBlob = new Blob([view], { type: 'audio/wav' });
           setGeneratedAudioBlob(wavBlob);
-          setSavedItemName(`Generated speech - ${inputText.substring(0, 30)}...`); // Pre-fill name
+          setSavedItemName(`Generated speech - ${inputText.substring(0, 30)}...`);
+          addToast({ type: 'success', title: 'Sucesso', message: 'Áudio gerado com sucesso.' });
         } else {
           throw new Error("AudioContext not initialized.");
         }
       } else {
-        setError('Nenhuma fala gerada.');
+        addToast({ type: 'error', message: 'Nenhuma fala gerada.' });
       }
     } catch (err) {
       console.error('Erro ao gerar fala:', err);
       setError(`Falha ao gerar fala: ${err instanceof Error ? err.message : String(err)}`);
+      addToast({ type: 'error', title: 'Erro', message: 'Falha na geração de áudio.' });
     } finally {
-      setLoading(false); // Corrected: `set---` was `setLoading(false)`
+      setLoading(false);
     }
-  }, [inputText, selectedVoice, initAudioContext]);
+  }, [inputText, selectedVoice, initAudioContext, addToast]);
 
   const handlePlayAudio = useCallback(() => {
     if (!audioBuffer || !audioContextRef.current) return;
@@ -160,7 +162,7 @@ const AudioTools: React.FC = () => {
 
   const handleDownloadAudio = useCallback(() => {
     if (!generatedAudioBlob) {
-      setError('Nenhum áudio gerado para baixar.');
+      addToast({ type: 'warning', message: 'Nenhum áudio gerado para baixar.' });
       return;
     }
     const url = URL.createObjectURL(generatedAudioBlob);
@@ -171,19 +173,20 @@ const AudioTools: React.FC = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [generatedAudioBlob]);
+    addToast({ type: 'info', message: 'Download iniciado.' });
+  }, [generatedAudioBlob, addToast]);
 
   const handleSaveAudioToLibrary = useCallback(async () => {
     if (!generatedAudioBlob) {
-      setError('Nenhum áudio gerado para salvar na biblioteca.');
+      addToast({ type: 'warning', message: 'Nenhum áudio gerado para salvar na biblioteca.' });
       return;
     }
     if (!savedItemName.trim()) {
-      setError('Por favor, forneça um nome para o item.');
+      addToast({ type: 'warning', message: 'Por favor, forneça um nome para o item.' });
       return;
     }
 
-    setLoading(true); // Use loading state for saving process
+    setLoading(true);
     setError(null);
 
     try {
@@ -191,26 +194,26 @@ const AudioTools: React.FC = () => {
       const audioFile = new File([generatedAudioBlob], fileName, { type: 'audio/wav' });
 
       // Upload the actual audio file to Cloud Storage (mock)
-      const uploadedItem = await uploadFile(audioFile, userId, 'audio' as LibraryItem['type']); // Cast 'audio' to LibraryItem['type']
+      const uploadedItem = await uploadFile(audioFile, userId, 'audio' as LibraryItem['type']);
 
       const tagsArray = savedItemTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
 
       const libraryItemToSave: LibraryItem = {
-        ...uploadedItem, // Use id, userId, createdAt, file_url, thumbnail_url from the uploadedItem
-        type: 'audio' as LibraryItem['type'], // Explicitly set type to audio
-        name: fileName, // Use the user-provided name
+        ...uploadedItem,
+        type: 'audio' as LibraryItem['type'],
+        name: fileName,
         tags: tagsArray,
       };
-      await saveLibraryItem(libraryItemToSave); // Save metadata to Firestore
-      alert(`Áudio "${fileName}" salvo na biblioteca com sucesso!`);
-      // No more code here, the original file was truncated
+      await saveLibraryItem(libraryItemToSave);
+      addToast({ type: 'success', title: 'Salvo', message: `Áudio "${fileName}" salvo na biblioteca com sucesso!` });
     } catch (err) {
       console.error('Error saving audio to library:', err);
       setError(`Falha ao salvar áudio: ${err instanceof Error ? err.message : String(err)}`);
+      addToast({ type: 'error', title: 'Erro ao Salvar', message: 'Não foi possível salvar o áudio.' });
     } finally {
       setLoading(false);
     }
-  }, [generatedAudioBlob, savedItemName, savedItemTags, userId]);
+  }, [generatedAudioBlob, savedItemName, savedItemTags, userId, addToast]);
 
 
   return (
