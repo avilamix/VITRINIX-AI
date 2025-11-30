@@ -147,18 +147,18 @@ export interface ApiKeySystemConfig {
   defaultProvider: ProviderName;
 }
 
-// FIX: Define AIStudio interface explicitly to avoid type conflicts
+// FIX: Define AIStudioClient interface explicitly to avoid type conflicts
 // This interface is exported for use within the module context.
-export interface AIStudio {
+export interface AIStudioClient {
   hasSelectedApiKey: () => Promise<boolean>;
   openSelectKey: () => Promise<void>;
   getAuthToken: () => Promise<string>; // NEW: Added getAuthToken
 }
 
-// FIX: Declare window.aistudio globally here, where AIStudio is defined
+// FIX: Declare window.aistudio globally here, where AIStudioClient is defined
 declare global {
   interface Window {
-    aistudio?: AIStudio;
+    aistudio?: AIStudioClient;
   }
 }
 

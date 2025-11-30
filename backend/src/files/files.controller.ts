@@ -1,7 +1,4 @@
 
-/// <reference types="express" />
-/// <reference types="multer" />
-// FIX: Add `npm i --save-dev @types/express @types/multer` to resolve Express and Multer types
 
 import { Controller, Get, Post, Body, Patch, Param, Delete, UseGuards, HttpCode, HttpStatus, UploadedFile, UseInterceptors, Query } from '@nestjs/common';
 import { FilesService } from './files.service';

@@ -1,7 +1,4 @@
 
-/// <reference types="express" />
-/// <reference types="multer" />
-// FIX: Add `npm i --save-dev @types/express @types/multer` to resolve Express and Multer types
 
 import { Injectable, NotFoundException, BadRequestException, Logger } from '@nestjs/common';
 import { CreateLibraryItemDto } from './dto/create-library-item.dto';

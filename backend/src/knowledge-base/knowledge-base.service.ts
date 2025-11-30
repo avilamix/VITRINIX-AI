@@ -1,7 +1,4 @@
 
-/// <reference types="express" />
-/// <reference types="multer" />
-// FIX: Add `npm i --save-dev @types/express @types/multer` to resolve Express and Multer types
 
 import { Injectable, BadRequestException, NotFoundException, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';

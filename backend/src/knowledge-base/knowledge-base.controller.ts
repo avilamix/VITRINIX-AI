@@ -1,7 +1,4 @@
 
-/// <reference types="express" />
-/// <reference types="multer" />
-// FIX: Add `npm i --save-dev @types/express @types/multer` to resolve Express and Multer types
 
 import { Controller, Post, Get, Param, Body, UseGuards, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Query, ParseUUIDPipe, Delete } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';

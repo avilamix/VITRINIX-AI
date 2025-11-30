@@ -1,5 +1,4 @@
 
-/// <reference types="node" />
 
 import { Injectable, Logger, BadRequestException, InternalServerErrorException } from '@nestjs/common';
 import { Storage } from '@google-cloud/storage';
