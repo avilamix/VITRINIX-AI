@@ -2,10 +2,12 @@
 
 
 
+
+
 // In a real application, this would integrate with Firebase Authentication or a similar service.
 // For this frontend-only app, these are mock functions.
 
-import { UserProfile, LoginResponseDto, OrganizationMembership, AIStudioClient } from '../types'; // FIX: Import AIStudioClient from types
+import { UserProfile, LoginResponseDto, OrganizationMembership, AIStudio } from '../types'; // FIX: Import AIStudio from types
 import { MOCK_API_DELAY, DEFAULT_BUSINESS_PROFILE } from '../constants';
 
 // TODO: Em um sistema real, a URL do backend viria de uma variável de ambiente ou configuração global
@@ -17,9 +19,9 @@ let currentUserOrganizations: OrganizationMembership[] = [];
 
 // NEW: Helper to extract Firebase ID Token for backend communication
 const getFirebaseIdToken = async (): Promise<string> => {
-  if (window.aistudio && typeof (window.aistudio as unknown as AIStudioClient).getAuthToken === 'function') { // FIX: Cast to unknown first then AIStudioClient
+  if (window.aistudio && typeof (window.aistudio as unknown as AIStudio).getAuthToken === 'function') { // FIX: Cast to unknown first then AIStudio
     try {
-      const token = await (window.aistudio as unknown as AIStudioClient).getAuthToken(); // FIX: Cast to unknown first then AIStudioClient
+      const token = await (window.aistudio as unknown as AIStudio).getAuthToken(); // FIX: Cast to unknown first then AIStudio
       if (token) return token;
     } catch (e) {
       console.warn("window.aistudio.getAuthToken failed, falling back to mock token.", e);

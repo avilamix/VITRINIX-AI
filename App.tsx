@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -17,12 +18,14 @@ import LiveConversation from './pages/LiveConversation';
 import AudioTools from './pages/AudioTools';
 import Logo from './components/Logo'; 
 import BackButton from './components/BackButton';
+import Login from './pages/Login'; // Import from pages
+import SignUp from './pages/SignUp'; // Import from pages
 import { NavigationContext } from './hooks/useNavigate';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { getActiveOrganization, getCurrentUser, loginWithGoogle } from './services/authService';
 import { UserProfile, OrganizationMembership } from './types';
-import Button from './components/Button'; // Import Button for the login screen
+import Button from './components/Button';
 
 // Make AIStudio globally available, as specified in `types.ts`
 // FIX: Remove redundant global declaration here. It should be only in types.ts
@@ -57,6 +60,7 @@ function AppContent() {
   const [activeOrganization, setActiveOrganizationState] = useState<OrganizationMembership | undefined>(undefined);
   const [loadingUserAndOrgs, setLoadingUserAndOrgs] = useState<boolean>(true);
   const [loginError, setLoginError] = useState<string | null>(null); // For login screen errors
+  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login'); // NEW: Auth mode state
 
   // Helper to update active organization state in App.tsx
   const updateActiveOrganizationState = useCallback(() => {
@@ -221,18 +225,22 @@ function AppContent() {
     );
   }
 
-  // Render Login screen if API Key is present but no user/organization
+  // Render Login/SignUp screen if API Key is present but no user/organization
   if (!userProfile || !activeOrganization) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen bg-background text-body p-4 text-center">
-        <Logo className="h-16 w-16 mb-6" showText={false} />
-        <h1 className="text-3xl font-bold text-title mb-3">Login no VitrineX AI</h1>
-        <p className="text-lg text-muted max-w-md">Faça login para acessar sua plataforma de automação de marketing.</p>
-        {loginError && <p className="text-error mt-4">{loginError}</p>}
-        <Button onClick={handleLogin} variant="primary" size="lg" className="mt-6">
-          Login com Google
-        </Button>
-      </div>
+      <ThemeProvider>
+        {authMode === 'login' ? (
+          <Login 
+            onLogin={handleLogin} 
+            onSwitchToSignUp={() => setAuthMode('signup')}
+            error={loginError}
+          />
+        ) : (
+          <SignUp 
+            onSwitchToLogin={() => setAuthMode('login')} 
+          />
+        )}
+      </ThemeProvider>
     );
   }
 
