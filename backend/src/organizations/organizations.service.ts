@@ -1,6 +1,5 @@
 
 
-
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateOrganizationDto } from './dto/create-organization.dto';
@@ -22,15 +21,13 @@ export class OrganizationsService {
       throw new NotFoundException(`User with Firebase UID ${firebaseUid} not found.`);
     }
 
-    // FIX: Access 'organization' model via this.prisma.organization
-    const organization = await (this.prisma as any).organization.create({
+    const organization = await this.prisma.organization.create({
       data: {
         name: dto.name,
         members: {
           create: {
             userId: user.id,
-            // FIX: Access 'Role' enum via this.prisma.Role
-            role: (this.prisma as any).Role?.ADMIN || 'ADMIN', // Creator is always an ADMIN
+            role: this.prisma.Role.ADMIN, // Creator is always an ADMIN
           },
         },
       },
@@ -56,8 +53,7 @@ export class OrganizationsService {
       throw new NotFoundException(`User with Firebase UID ${firebaseUid} not found.`);
     }
 
-    // FIX: Access 'organizationMember' model via this.prisma.organizationMember
-    const memberships = await (this.prisma as any).organizationMember.findMany({
+    const memberships = await this.prisma.organizationMember.findMany({
       where: { userId: user.id },
       include: {
         organization: true,
@@ -76,8 +72,7 @@ export class OrganizationsService {
 
   // NOVO: Método para atualizar o File Search Store Name da organização
   async updateOrganizationFileSearchStoreName(organizationId: string, storeName: string): Promise<void> {
-    // FIX: Access 'organization' model via this.prisma.organization
-    await (this.prisma as any).organization.update({
+    await this.prisma.organization.update({
       where: { id: organizationId },
       data: { fileSearchStoreName: storeName },
     });
@@ -85,8 +80,7 @@ export class OrganizationsService {
 
   // NOVO: Método para buscar organização por ID
   async getOrganizationById(organizationId: string): Promise<any> {
-    // FIX: Access 'organization' model via this.prisma.organization
-    const organization = await (this.prisma as any).organization.findUnique({
+    const organization = await this.prisma.organization.findUnique({
       where: { id: organizationId },
       select: {
         id: true,

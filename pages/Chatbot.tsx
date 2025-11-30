@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChatMessage as ChatMessageType, ProviderName } from '../types';
-import { startChatAsync, sendMessageToChat } from '../services/geminiService'; // FIX: Add sendMessageToChat
+import { startChatAsync, sendMessageToChat } from '../services/geminiService';
 import { Chat } from '@google/genai';
 import { GEMINI_FLASH_MODEL } from '../constants';
 import { 
@@ -42,12 +42,7 @@ When asked for content, format it clearly with headings and bullet points.`;
 
 const STORAGE_KEY = 'nexus_chat_history';
 
-interface ChatbotProps {
-  organizationId: string | undefined;
-  userId: string | undefined;
-}
-
-const Chatbot: React.FC<ChatbotProps> = ({ organizationId, userId }) => {
+const Chatbot: React.FC = () => {
   const [messages, setMessages] = useState<ChatMessageType[]>([]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,8 +51,8 @@ const Chatbot: React.FC<ChatbotProps> = ({ organizationId, userId }) => {
   const [inputText, setInputText] = useState<string>('');
   
   const [useKnowledgeBase, setUseKnowledgeBase] = useState<boolean>(false);
-  const kbName = localStorage.getItem('vitrinex_kb_name'); // Still using localStorage as a mock until backend provides this in Organization
-
+  const kbName = localStorage.getItem('vitrinex_kb_name'); // Kept key for compatibility
+  
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -69,12 +64,6 @@ const Chatbot: React.FC<ChatbotProps> = ({ organizationId, userId }) => {
   }, [messages]);
 
   const initChat = useCallback(async () => {
-    if (!organizationId || !userId) {
-      setError('No active organization or user found. Please login to start chat.');
-      setLoading(false);
-      return;
-    }
-
     try {
       setLoading(true);
       let initialHistory: ChatMessageType[] = [];
@@ -95,8 +84,6 @@ const Chatbot: React.FC<ChatbotProps> = ({ organizationId, userId }) => {
       setMessages(initialHistory);
 
       const newChat = await startChatAsync(
-        organizationId, // Pass organizationId
-        userId, // Pass userId
         GEMINI_FLASH_MODEL, 
         selectedProvider, 
         SYSTEM_INSTRUCTION,
@@ -112,7 +99,7 @@ const Chatbot: React.FC<ChatbotProps> = ({ organizationId, userId }) => {
       setError(`Connection failed with ${selectedProvider}. Please verify settings.`);
       setLoading(false);
     }
-  }, [selectedProvider, useKnowledgeBase, kbName, organizationId, userId]);
+  }, [selectedProvider, useKnowledgeBase, kbName]);
 
   useEffect(() => {
     initChat();

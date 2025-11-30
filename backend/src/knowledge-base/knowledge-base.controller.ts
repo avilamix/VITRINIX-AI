@@ -69,7 +69,6 @@ export class KnowledgeBaseController {
   @ApiResponse({ status: 200, description: 'File uploaded and imported successfully', type: UploadFileResponseDto })
   async uploadFile(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
-    // FIX: Use any for file type
     @UploadedFile() file: any,
     @CurrentUser('uid') firebaseUid: string,
     @Body() metadata: MetadataDto, // Metadados vêm do body como outros campos do form-data

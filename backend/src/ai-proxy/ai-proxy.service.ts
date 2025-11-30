@@ -1,12 +1,11 @@
 
-
 import { Injectable, BadRequestException, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { ApiKeysService } from '../api-keys/api-keys.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeminiConfigService } from '../config/gemini.config';
 import { GoogleGenAI, GenerateContentRequest, Part, HarmBlockThreshold, HarmCategory, File as GenAIFile, GenerateContentResponse, RequestOptions, FunctionDeclaration, Tool, ToolConfig } from '@google/genai'; 
 import { ApiKey, ModelProvider } from '@prisma/client';
-import { Buffer } from 'buffer'; // FIX: Explicitly import Buffer
+import { Buffer } from 'buffer';
 
 @Injectable()
 export class AiProxyService {
@@ -36,8 +35,7 @@ export class AiProxyService {
     isLongRunningOperation: boolean = false,
   ): Promise<T> {
     // Buscar chaves ativas para a organização e provedor, priorizando a padrão
-    // FIX: Access 'apiKey' model via this.prisma.apiKey
-    const activeKeys = await (this.prisma as any).apiKey.findMany({
+    const activeKeys = await this.prisma.apiKey.findMany({
       where: {
         organizationId,
         provider: providerName,
@@ -64,8 +62,7 @@ export class AiProxyService {
 
         // Atualizar status da chave para 'valid' se estava em 'rate-limited' ou 'unchecked' e obteve sucesso
         if (keyConfig.status !== 'valid') {
-          // FIX: Access 'apiKey' model via this.prisma.apiKey
-          await (this.prisma as any).apiKey.update({
+          await this.prisma.apiKey.update({
             where: { id: keyConfig.id },
             data: { status: 'valid', errorMessage: null, lastValidatedAt: new Date() },
           });
@@ -73,8 +70,7 @@ export class AiProxyService {
         }
         
         // Otimisticamente incrementa o contador de uso
-        // FIX: Access 'apiKey' model via this.prisma.apiKey
-        await (this.prisma as any).apiKey.update({
+        await this.prisma.apiKey.update({
           where: { id: keyConfig.id },
           data: { usageCount: { increment: 1 } },
         });
@@ -115,8 +111,7 @@ export class AiProxyService {
         // Apenas atualiza o status se for um erro persistente para a chave
         // Ou se for um rate-limit que precisa de um período de "resfriamento"
         if (newStatus !== 'unchecked' && newStatus !== 'valid') {
-          // FIX: Access 'apiKey' model via this.prisma.apiKey
-          await (this.prisma as any).apiKey.update({
+          await this.prisma.apiKey.update({
             where: { id: keyConfig.id },
             data: { status: newStatus, errorMessage: statusErrorMessage, lastValidatedAt: new Date() },
           });
@@ -184,9 +179,6 @@ export class AiProxyService {
       systemInstruction?: string; // Adicionado systemInstruction
       responseMimeType?: string; // Adicionado responseMimeType
       responseSchema?: GenerateContentRequest['config']['responseSchema']; // Adicionado responseSchema
-      imageConfig?: any; // FIX: Added imageConfig to generic config
-      speechConfig?: any; // FIX: Added speechConfig to generic config
-      responseModalities?: any[]; // FIX: Added responseModalities to generic config
     },
   ): Promise<GenerateContentResponse> {
     return this.executeGeminiOperation(organizationId, firebaseUid, 'Google Gemini', async (geminiClient) => {
@@ -203,10 +195,6 @@ export class AiProxyService {
         systemInstruction: config?.systemInstruction,
         responseMimeType: config?.responseMimeType,
         responseSchema: config?.responseSchema,
-        // FIX: Pass imageConfig, speechConfig, responseModalities
-        imageConfig: config?.imageConfig,
-        speechConfig: config?.speechConfig,
-        responseModalities: config?.responseModalities,
       };
 
       this.logger.debug(`Calling Gemini model '${model}' with prompt: ${JSON.stringify(contents)}`);
@@ -249,7 +237,16 @@ export class AiProxyService {
       [{ text: prompt }], // Conteúdo simplificado
       { 
         generationConfig: options,
-        imageConfig: imageConfig, // FIX: Pass imageConfig here
+        // Gemini Image models use a specific imageConfig in the request config
+        // This needs to be correctly mapped by the client or passed through.
+        // For now, assuming imageConfig can be passed as a generic config property
+        // or directly handled by `callGemini` if it were to implement more specific models.
+        // Given `callGemini` is generic, imageConfig would likely be part of `generationConfig`
+        // or a dedicated top-level field if the underlying SDK call supports it.
+        // For `ai.models.generateContent`, imageConfig is a top-level property within `config`.
+        // This requires `callGemini` to support a more complex `config` object or a specific DTO.
+        // Let's refactor `callGemini` to accept a broader `config` to accommodate this.
+        ...imageConfig ? { imageConfig: imageConfig } : {}, // Passa imageConfig se existir
       }
     );
   }
@@ -282,8 +279,6 @@ export class AiProxyService {
         operation.name,
         this.logger,
         600000, // 10 minutos para geração de vídeo
-        // FIX: Ensure polling interval is passed
-        5000,
       );
       
       const downloadLink = finalOperation.response?.generatedVideos?.[0]?.video?.uri;
@@ -342,7 +337,7 @@ export class AiProxyService {
   async uploadFileToGeminiFiles(
     organizationId: string,
     firebaseUid: string,
-    fileBuffer: any, // Use any instead of Buffer for now
+    fileBuffer: Buffer,
     fileName: string,
     mimeType: string,
   ): Promise<GenAIFile> {
@@ -445,8 +440,9 @@ export class AiProxyService {
     geminiFileName: string,
   ): Promise<void> {
     return this.executeGeminiOperation(organizationId, firebaseUid, 'Google Gemini', async (geminiClient) => {
-      this.logger.log(`Deleting Gemini File: '${geminiFileName}' for org ${organizationId}...`);
+      this.logger.log(`Deleting Gemini File '${geminiFileName}'...`);
       await geminiClient.files.delete(geminiFileName); // Acesso direto via cliente
+      this.logger.log(`Gemini File '${geminiFileName}' deleted successfully.`);
     });
   }
 }

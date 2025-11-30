@@ -1,7 +1,6 @@
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
-import { translations } from '../i18n/translations';
-import type { Language } from '../i18n/translations';
+import { translations, Language } from '../i18n/translations';
 
 interface LanguageContextType {
   language: Language;
@@ -26,12 +25,12 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   };
 
   const t = (key: string): string => {
-    const currentTranslations = translations[language];
+    const keys = key.split('.');
+    let current: any = translations[language];
     
-    // Check if the key exists in the current language
-    if (currentTranslations[key as keyof typeof currentTranslations]) {
-      return currentTranslations[key as keyof typeof currentTranslations];
-    }
+    // Simple lookup for nested keys if we expand structure later, currently flat
+    // but good practice for i18n
+    if (current[key]) return current[key];
 
     // Fallback to EN if missing
     if (translations['en-US'][key as keyof typeof translations['en-US']]) {

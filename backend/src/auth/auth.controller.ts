@@ -1,4 +1,4 @@
-import { Controller, Post, UseGuards, Req, Body, Get } from '@nestjs/common';
+import { Controller, Post, UseGuards, Req, Body } from '@nestjs/common';
 import { AuthService } from './auth.service';
 import { FirebaseAuthGuard } from './guards/firebase-auth.guard';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
@@ -20,19 +20,6 @@ export class AuthController {
     // User data (from Firebase) is available in req.user
     const firebaseUser = req.user;
     const user = await this.authService.findOrCreateUser(firebaseUser);
-    const organizations = await this.authService.getUserOrganizations(user.id);
-    return { user, organizations };
-  }
-
-  @Get('me')
-  @UseGuards(FirebaseAuthGuard)
-  @ApiBearerAuth('firebase-auth')
-  @ApiOperation({ summary: 'Get current authenticated user profile and organizations' })
-  @ApiResponse({ status: 200, description: 'Current user profile and organizations', type: LoginResponseDto })
-  @ApiResponse({ status: 401, description: 'Unauthorized' })
-  async getMe(@Req() req): Promise<LoginResponseDto> {
-    const firebaseUser = req.user;
-    const user = await this.authService.getUserByFirebaseUid(firebaseUser.uid);
     const organizations = await this.authService.getUserOrganizations(user.id);
     return { user, organizations };
   }

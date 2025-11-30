@@ -1,5 +1,3 @@
-
-
 import React, { useState, useCallback } from 'react';
 import Textarea from '../components/Textarea';
 import Input from '../components/Input';
@@ -10,42 +8,31 @@ import { saveAd } from '../services/firestoreService';
 import { Ad } from '../types';
 import { GEMINI_PRO_MODEL, GEMINI_IMAGE_PRO_MODEL, PLACEHOLDER_IMAGE_BASE64 } from '../constants';
 import { Type } from '@google/genai';
+import { useToast } from '../contexts/ToastContext';
 
 type Platform = 'Instagram' | 'Facebook' | 'TikTok' | 'Google' | 'Pinterest';
 
 const platforms: Platform[] = ['Instagram', 'Facebook', 'TikTok', 'Google', 'Pinterest'];
 
-interface AdStudioProps {
-  organizationId: string | undefined;
-  userId: string | undefined;
-}
-
-const AdStudio: React.FC<AdStudioProps> = ({ organizationId, userId }) => {
+const AdStudio: React.FC = () => {
   const [productDescription, setProductDescription] = useState<string>('');
   const [targetAudience, setTargetAudience] = useState<string>('');
   const [selectedPlatform, setSelectedPlatform] = useState<Platform>('Instagram');
   const [generatedAd, setGeneratedAd] = useState<Ad | null>(null);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string>(PLACEHOLDER_IMAGE_BASE64);
   const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  
+  const { addToast } = useToast();
 
+  const userId = 'mock-user-123';
 
   const handleGenerateAd = useCallback(async () => {
     if (!productDescription.trim() || !targetAudience.trim()) {
-      setError('Please provide product description and target audience.');
-      return;
-    }
-    if (!organizationId) {
-      setError('No active organization found. Please login.');
-      return;
-    }
-    if (!userId) {
-      setError('User not identified. Please login.');
+      addToast({ type: 'warning', title: 'Campos Vazios', message: 'Por favor, preencha a descrição e o público-alvo.' });
       return;
     }
 
     setLoading(true);
-    setError(null);
     setGeneratedAd(null);
     setGeneratedImageUrl(PLACEHOLDER_IMAGE_BASE64);
 
@@ -72,14 +59,12 @@ const AdStudio: React.FC<AdStudioProps> = ({ organizationId, userId }) => {
 
       const adData = JSON.parse(textResponse);
       const newAd: Ad = {
-        id: '', // Backend will assign
-        organizationId: organizationId,
+        id: `ad-${Date.now()}`,
         userId: userId,
         platform: selectedPlatform,
         headline: adData.headline,
         copy: adData.copy,
-        createdAt: new Date(), // Backend will set
-        updatedAt: new Date(), // Backend will set
+        createdAt: new Date().toISOString(),
       };
 
       setGeneratedAd(newAd);
@@ -90,69 +75,57 @@ const AdStudio: React.FC<AdStudioProps> = ({ organizationId, userId }) => {
         imageSize: '1K',
       });
       setGeneratedImageUrl(imageResponse.imageUrl || PLACEHOLDER_IMAGE_BASE64);
-      newAd.mediaUrl = imageResponse.imageUrl || undefined; // Add image URL to ad object
+      newAd.media_url = imageResponse.imageUrl || undefined; // Add image URL to ad object
 
-      // No immediate save here, user explicitly clicks 'Salvar Anúncio'
+      addToast({ type: 'success', title: 'Anúncio Criado', message: 'Anúncio gerado com sucesso.' });
+
     } catch (err) {
       console.error('Error generating ad:', err);
-      setError(`Failed to generate ad: ${err instanceof Error ? err.message : String(err)}`);
+      addToast({ type: 'error', title: 'Erro', message: `Falha ao gerar anúncio: ${err instanceof Error ? err.message : String(err)}` });
     } finally {
       setLoading(false);
     }
-  }, [productDescription, targetAudience, selectedPlatform, organizationId, userId]);
+  }, [productDescription, targetAudience, selectedPlatform, userId, addToast]);
 
-  const handleDownload = useCallback(async () => {
+  const handleDownload = useCallback(() => {
     if (!generatedImageUrl) {
-      setError('No image to download.');
+      addToast({ type: 'warning', message: 'Nenhuma imagem para baixar.' });
       return;
     }
-
-    // Fetch the image data to create a Blob, then a File
-    const response = await fetch(generatedImageUrl);
-    const blob = await response.blob();
-    const fileName = `vitrinex-ad-${selectedPlatform}-${Date.now()}.png`;
-    const imageFile = new File([blob], fileName, { type: blob.type });
-
-    // Directly use the browser's download mechanism for the File
     const link = document.createElement('a');
-    link.href = URL.createObjectURL(imageFile);
-    link.download = fileName;
+    link.href = generatedImageUrl;
+    link.download = `vitrinex-ad-${selectedPlatform}-${Date.now()}.png`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-    URL.revokeObjectURL(link.href);
-
-  }, [generatedImageUrl, selectedPlatform]);
+    addToast({ type: 'info', message: 'Download iniciado.' });
+  }, [generatedImageUrl, selectedPlatform, addToast]);
 
   const handleSaveAd = useCallback(async () => {
-    if (!generatedAd || !organizationId || !userId) {
-      setError('Nenhum anúncio para salvar. Gere um anúncio primeiro.');
+    if (!generatedAd) {
+      addToast({ type: 'warning', message: 'Nenhum anúncio para salvar.' });
       return;
     }
     setLoading(true); // Re-use loading state for saving
-    setError(null);
     try {
-      const savedAd = await saveAd(generatedAd); // Save to backend
-      alert(`Anúncio para "${savedAd.platform}" salvo com sucesso!`);
+      const savedAd = await saveAd(generatedAd); // Save to mock Firestore
+      addToast({ 
+        type: 'success', 
+        title: 'Salvo', 
+        message: `Anúncio para "${savedAd.platform}" salvo com sucesso!` 
+      });
     } catch (err) {
       console.error('Error saving ad:', err);
-      setError(`Falha ao salvar anúncio: ${err instanceof Error ? err.message : String(err)}`);
+      addToast({ type: 'error', title: 'Erro ao Salvar', message: 'Falha ao salvar o anúncio.' });
     } finally {
       setLoading(false);
     }
-  }, [generatedAd, organizationId, userId]);
+  }, [generatedAd, addToast]);
 
 
   return (
     <div className="container mx-auto py-8 lg:py-10">
       <h2 className="text-3xl font-bold text-textdark mb-8">Ad Studio</h2>
-
-      {error && (
-        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
-          <strong className="font-bold">Error!</strong>
-          <span className="block sm:inline"> {error}</span>
-        </div>
-      )}
 
       <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
         <h3 className="text-xl font-semibold text-textlight mb-5">Detalhes do Anúncio</h3>
@@ -201,7 +174,7 @@ const AdStudio: React.FC<AdStudioProps> = ({ organizationId, userId }) => {
       </div>
 
       {generatedAd && (
-        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <h3 className="text-xl font-semibold text-textlight mb-5">Anúncio Gerado para {generatedAd.platform}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
@@ -213,8 +186,8 @@ const AdStudio: React.FC<AdStudioProps> = ({ organizationId, userId }) => {
                 {generatedAd.copy}
               </p>
               <div className="mt-6 flex flex-wrap gap-3">
-                <Button variant="secondary" onClick={() => alert('Gerar Variações not implemented.')}>Gerar Variações</Button>
-                <Button variant="outline" onClick={() => alert('Editar not implemented.')}>Editar</Button>
+                <Button variant="secondary" onClick={() => addToast({ type: 'info', message: 'Funcionalidade em desenvolvimento.' })}>Gerar Variações</Button>
+                <Button variant="outline" onClick={() => addToast({ type: 'info', message: 'Funcionalidade em desenvolvimento.' })}>Editar</Button>
               </div>
             </div>
             <div>

@@ -1,4 +1,5 @@
 
+
 import {
   GoogleGenAI,
   GenerateContentResponse,
@@ -10,8 +11,7 @@ import {
   Blob,
   Content,
   File as GenAIFile,
-  Modality,
-  Tool
+  Modality
 } from '@google/genai';
 import {
   GEMINI_FLASH_MODEL, // Mantidos como sugestões de modelo, mas o backend decide o padrão
@@ -33,22 +33,28 @@ import {
   ChatMessage,
   KnowledgeBaseQueryResponse,
   OrganizationMembership,
-  LibraryItem
 } from '../types';
-import { getFirebaseIdToken } from './authService';
-import { getActiveOrganizationId, saveTrend, saveCampaign } from './firestoreService'; // FIX: Import functions explicitly
-
+import { getFirebaseIdToken, getActiveOrganization } from './authService';
 
 // TODO: Em um sistema real, a URL do backend viria de uma variável de ambiente ou configuração global
 const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
 
+// Helper para obter o ID da organização ativa
+const getActiveOrganizationId = (): string => {
+  const activeOrg: OrganizationMembership | undefined = getActiveOrganization();
+  if (!activeOrg) {
+    throw new Error('No active organization found. Please login and select an organization.');
+  }
+  return activeOrg.organization.id;
+};
+
 // Helper para fazer requisições ao backend AI Proxy
 async function fetchAiProxy<T>(
-  organizationId: string, // NOVO: organizationId como parâmetro
   endpoint: string,
   method: string = 'POST',
   body?: any,
 ): Promise<T> {
+  const organizationId = getActiveOrganizationId();
   const idToken = await getFirebaseIdToken();
 
   const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/ai-proxy/${endpoint}`, {
@@ -69,11 +75,11 @@ async function fetchAiProxy<T>(
 
 // Helper para fazer requisições à Knowledge Base do backend
 async function fetchKnowledgeBase<T>(
-  organizationId: string, // NOVO: organizationId como parâmetro
   endpoint: string,
   method: string = 'POST',
   body?: any,
 ): Promise<T> {
+  const organizationId = getActiveOrganizationId();
   const idToken = await getFirebaseIdToken();
 
   const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/knowledge-base/${endpoint}`, {
@@ -91,38 +97,6 @@ async function fetchKnowledgeBase<T>(
   }
   return response.json();
 }
-
-// Helper para fazer requisições ao backend Files (para LibraryItems) - NOT USED BY GEMINISERVICE DIRECTLY, MOVED TO FIRESTORESERVICE
-// async function fetchFilesBackend<T>(
-//   endpoint: string,
-//   method: string = 'GET',
-//   body?: any,
-//   isFormData: boolean = false
-// ): Promise<T> {
-//   const organizationId = getActiveOrganizationId();
-//   const idToken = await getFirebaseIdToken();
-
-//   const headers: HeadersInit = {
-//     'Authorization': `Bearer ${idToken}`,
-//   };
-
-//   if (!isFormData) {
-//     headers['Content-Type'] = 'application/json';
-//   }
-
-//   const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/files/${endpoint}`, {
-//     method,
-//     headers: headers,
-//     body: isFormData ? body : (body ? JSON.stringify(body) : undefined),
-//   });
-
-//   if (!response.ok) {
-//     const errorData = await response.json();
-//     throw new Error(errorData.message || `Files API call failed: ${response.statusText}`);
-//   }
-//   return response.json();
-// }
-
 
 export interface GenerateTextOptions {
   model?: string;
@@ -148,10 +122,6 @@ export const generateText = async (
     provider = 'Google Gemini',
   } = options || {};
 
-  // FIX: Get organizationId from the centralized helper
-  const organizationId = getActiveOrganizationId();
-
-
   if (provider !== 'Google Gemini') {
     // Fallback para provedores não Gemini (simulado)
     console.log(`Simulating ${provider} generation...`);
@@ -168,14 +138,12 @@ export const generateText = async (
       topP: 0.95,       // Padrão
       maxOutputTokens: 1024, // Padrão
       ...(thinkingBudget !== undefined && { thinkingConfig: { thinkingBudget } }),
-      systemInstruction,
-      responseMimeType,
-      responseSchema,
+      // Outras opções devem ser passadas via 'config' do call-gemini ou DTO específico
     },
     tools,
   };
 
-  const response = await fetchAiProxy<{ text: string }>(organizationId, 'generate-text', 'POST', body);
+  const response = await fetchAiProxy<{ text: string }>('generate-text', 'POST', body);
   return response.text;
 };
 
@@ -199,9 +167,6 @@ export const generateImage = async (
     provider = 'Google Gemini'
   } = options || {};
 
-  // FIX: Get organizationId from the centralized helper
-  const organizationId = getActiveOrganizationId(); 
-
   if (provider !== 'Google Gemini') {
     return { text: `Image generation for ${provider} is not fully implemented in this demo.` };
   }
@@ -217,7 +182,7 @@ export const generateImage = async (
   };
 
   try {
-    const response = await fetchAiProxy<{ base64Image: string; mimeType: string }>(organizationId, 'generate-image', 'POST', body);
+    const response = await fetchAiProxy<{ base64Image: string; mimeType: string }>('generate-image', 'POST', body);
     return { imageUrl: `data:${response.mimeType};base64,${response.base64Image}` };
   } catch (error: any) {
     if (error.message?.includes('No image part found')) {
@@ -233,11 +198,15 @@ export const editImage = async (
   mimeType: string,
   model: string = GEMINI_IMAGE_FLASH_MODEL,
 ): Promise<{ imageUrl?: string; text?: string }> => {
-  // FIX: Get organizationId from the centralized helper
-  const organizationId = getActiveOrganizationId(); 
-  
-  // A API `call-gemini` do backend espera um array de Contents no body.
-  // Adaptar o DTO para refletir a nova estrutura de `callGemini` do backend.
+  // Para edição, podemos reutilizar a geração de imagem passando a imagem base64 como parte do prompt
+  // ou criar um endpoint específico no backend para 'edit-image'.
+  // Por simplicidade, faremos uma nova geração que considera a imagem existente.
+  // Isso requer que o backend tenha um endpoint multimodal flexível.
+  // Por enquanto, faremos uma chamada a `call-gemini` com a imagem inline.
+
+  const organizationId = getActiveOrganizationId();
+  const idToken = await getFirebaseIdToken();
+
   const body = {
     model: model,
     contents: [
@@ -246,14 +215,11 @@ export const editImage = async (
     ],
     config: {
       // Adicionar config de imagem se o modelo suportar
-      // Para edição de imagem via generateContent no Gemini, a imageConfig iria aqui.
-      // O endpoint `call-gemini` deve ser capaz de lidar com isso.
-      // Se não, um endpoint `edit-image` mais específico seria necessário no backend.
     },
   };
 
   try {
-    const apiResponse = await fetchAiProxy<any>(organizationId, 'call-gemini', 'POST', body);
+    const apiResponse = await fetchAiProxy<any>('call-gemini', 'POST', body);
     const imagePart = apiResponse.response.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
     if (imagePart) {
       return { imageUrl: `data:${imagePart.inlineData.mimeType};base64,${imagePart.inlineData.data}` };
@@ -285,9 +251,6 @@ export const generateVideo = async (
     config, // This is videoConfig
   } = options || {};
 
-  // FIX: Get organizationId from the centralized helper
-  const organizationId = getActiveOrganizationId(); 
-
   const body = {
     prompt,
     model,
@@ -297,7 +260,7 @@ export const generateVideo = async (
     videoConfig: config,
   };
 
-  const response = await fetchAiProxy<{ videoUri: string }>(organizationId, 'generate-video', 'POST', body);
+  const response = await fetchAiProxy<{ videoUri: string }>('generate-video', 'POST', body);
   return response.videoUri;
 };
 
@@ -308,9 +271,6 @@ export const analyzeImage = async (
   prompt: string,
   model: string = GEMINI_PRO_MODEL,
 ): Promise<string> => {
-  // FIX: Get organizationId from the centralized helper
-  const organizationId = getActiveOrganizationId(); 
-
   const body = {
     model: model,
     contents: [
@@ -322,7 +282,7 @@ export const analyzeImage = async (
     },
   };
 
-  const apiResponse = await fetchAiProxy<any>(organizationId, 'call-gemini', 'POST', body);
+  const apiResponse = await fetchAiProxy<any>('call-gemini', 'POST', body);
   return apiResponse.response.text || 'No analysis generated.';
 };
 
@@ -331,9 +291,6 @@ export const analyzeVideo = async (
   prompt: string,
   model: string = GEMINI_PRO_MODEL,
 ): Promise<string> => {
-  // FIX: Get organizationId from the centralized helper
-  const organizationId = getActiveOrganizationId(); 
-
   // Para análise de vídeo, Gemini geralmente espera um URI, não inlineData para arquivos grandes.
   // O backend deve lidar com o upload para Gemini Files API se necessário.
   // Por ora, passaremos o URI e o backend decidirá como tratar.
@@ -348,7 +305,7 @@ export const analyzeVideo = async (
     },
   };
 
-  const apiResponse = await fetchAiProxy<any>(organizationId, 'call-gemini', 'POST', body);
+  const apiResponse = await fetchAiProxy<any>('call-gemini', 'POST', body);
   return apiResponse.response.text || 'No analysis generated.';
 };
 
@@ -357,9 +314,6 @@ export const aiManagerStrategy = async (
   prompt: string,
   userProfile: UserProfile['businessProfile'],
 ): Promise<{ strategyText: string; suggestions: string[] }> => {
-  // FIX: Get organizationId from the centralized helper
-  const organizationId = getActiveOrganizationId(); 
-
   const systemInstruction = `You are a marketing expert for a business in the ${userProfile.industry} industry, targeting ${userProfile.targetAudience}. Your goal is to provide a comprehensive marketing diagnosis, identify failures, and suggest campaign ideas and sales funnels. Adopt a ${userProfile.visualStyle} tone.`;
 
   const body = {
@@ -382,7 +336,7 @@ export const aiManagerStrategy = async (
     },
   };
 
-  const apiResponse = await fetchAiProxy<any>(organizationId, 'call-gemini', 'POST', body);
+  const apiResponse = await fetchAiProxy<any>('call-gemini', 'POST', body);
   const jsonStr = apiResponse.response.text?.trim();
   if (jsonStr) {
     try {
@@ -405,8 +359,6 @@ export const aiManagerStrategy = async (
 // --- Search Trends (Grounding) ---
 export const searchTrends = async (
   query: string,
-  organizationId: string, // NOVO: organizationId como parâmetro
-  userId: string, // NOVO: userId como parâmetro
   location?: { latitude: number; longitude: number },
 ): Promise<Trend[]> => {
   const contents = [{ parts: [{ text: `Find current marketing trends for "${query}". Provide a summary and real sources.` }] }];
@@ -427,41 +379,33 @@ export const searchTrends = async (
     },
   };
 
-  const apiResponse = await fetchAiProxy<any>(organizationId, 'call-gemini', 'POST', body);
+  const apiResponse = await fetchAiProxy<any>('call-gemini', 'POST', body);
   const text = apiResponse.response.text;
   const groundingChunks = apiResponse.response.groundingMetadata?.groundingChunks || [];
 
-  // Criar o objeto Trend para persistir via firestoreService
-  const newTrend: Trend = {
-    id: `trend-${Date.now()}`, // Backend irá gerar o ID real, este é um placeholder
-    organizationId: organizationId,
-    userId: userId,
-    query: query,
-    score: Math.floor(Math.random() * 100) + 1, // Mock score, backend pode recalcular/ignorar
-    data: text || 'No trend data found.',
-    sources: groundingChunks
-      .filter((chunk: any) => chunk.web?.uri || chunk.maps?.uri)
-      .map((chunk: any) => ({
-        uri: chunk.web?.uri || chunk.maps?.uri!,
-        title: chunk.web?.title || chunk.maps?.title || 'External Source',
-      })),
-    createdAt: new Date(), // Backend definirá a data real
-    updatedAt: new Date(), // Backend definirá a data real
-  };
-
-  // Salvar a tendência via firestoreService (que agora chama o backend)
-  const savedTrend = await saveTrend(newTrend); // FIX: Use imported saveTrend
-  return [savedTrend]; // Retorna a tendência salva
-
+  const trends: Trend[] = [
+    {
+      id: `trend-${Date.now()}`,
+      query: query,
+      score: Math.floor(Math.random() * 100) + 1,
+      data: text || 'No trend data found.',
+      sources: groundingChunks
+        .filter((chunk: any) => chunk.web?.uri || chunk.maps?.uri)
+        .map((chunk: any) => ({
+          uri: chunk.web?.uri || chunk.maps?.uri!,
+          title: chunk.web?.title || chunk.maps?.title || 'External Source',
+        })),
+      createdAt: new Date().toISOString(),
+      userId: 'mock-user-123',
+    },
+  ];
+  return trends;
 };
 
 // --- Campaign Builder ---
 export const campaignBuilder = async (
   campaignPrompt: string,
-  organizationId: string, // NOVO: organizationId como parâmetro
-  userId: string, // NOVO: userId como parâmetro
 ): Promise<{ campaign: Campaign; videoUrl?: string }> => {
-
   // Step 1: Generate campaign plan (via backend)
   const textPlanBody = {
     model: GEMINI_PRO_MODEL,
@@ -479,10 +423,10 @@ export const campaignBuilder = async (
             items: {
               type: Type.OBJECT,
               properties: {
-                contentText: { type: Type.STRING }, // Renomeado
+                content_text: { type: Type.STRING },
                 keywords: { type: Type.ARRAY, items: { type: Type.STRING } },
               },
-              required: ['contentText', 'keywords'],
+              required: ['content_text', 'keywords'],
             },
           },
           ads: {
@@ -505,7 +449,7 @@ export const campaignBuilder = async (
     },
   };
 
-  const textPlanResponse = await fetchAiProxy<any>(organizationId, 'call-gemini', 'POST', textPlanBody);
+  const textPlanResponse = await fetchAiProxy<any>('call-gemini', 'POST', textPlanBody);
   const plan = JSON.parse(textPlanResponse.response.text);
 
   // Step 2: Generate Video (via backend)
@@ -519,36 +463,50 @@ export const campaignBuilder = async (
       aspectRatio: '16:9',
     },
   };
-  const videoResponse = await fetchAiProxy<{ videoUri: string }>(organizationId, 'generate-video', 'POST', videoBody);
+  const videoResponse = await fetchAiProxy<{ videoUri: string }>('generate-video', 'POST', videoBody);
   const videoUrl = videoResponse.videoUri;
 
-  // Step 3: Create Campaign object and save to backend
-  const newCampaign: Campaign = {
-    id: `campaign-${Date.now()}`, // Placeholder ID, backend will assign
-    organizationId: organizationId,
-    userId: userId,
+  // Step 3: Integrate
+  const campaignId = `campaign-${Date.now()}`;
+  const generatedPosts: Post[] = plan.posts.map((p: any, index: number) => ({
+    id: `${campaignId}-post-${index}`,
+    userId: 'mock-user-123',
+    content_text: p.content_text,
+    createdAt: new Date().toISOString(),
+    tags: p.keywords,
+  }));
+
+  const generatedAds: Ad[] = plan.ads.map((a: any, index: number) => ({
+    id: `${campaignId}-ad-${index}`,
+    userId: 'mock-user-123',
+    platform: a.platform,
+    headline: a.headline,
+    copy: a.copy,
+    createdAt: new Date().toISOString(),
+  }));
+
+  const campaign: Campaign = {
+    id: campaignId,
+    userId: 'mock-user-123',
     name: plan.campaignName,
     type: 'general',
-    videoUrl: videoUrl,
+    posts: generatedPosts,
+    ads: generatedAds,
+    video_url: videoUrl,
     timeline: plan.timeline,
-    generatedPosts: plan.posts, // Stores generated posts as JSON
-    generatedAds: plan.ads,     // Stores generated ads as JSON
-    createdAt: new Date(), // Backend will set
-    updatedAt: new Date(), // Backend will set
+    createdAt: new Date().toISOString(),
   };
 
-  const savedCampaign = await saveCampaign(newCampaign); // Persiste via firestoreService
-
-  return { campaign: savedCampaign, videoUrl: videoUrl };
+  return { campaign, videoUrl };
 };
 
 // --- File Search Functions (REFATORADAS PARA CHAMAR O BACKEND) ---
-export const createFileSearchStore = async (organizationId: string, displayName?: string): Promise<any> => {
-  return fetchKnowledgeBase(organizationId, 'store', 'POST', { displayName });
+export const createFileSearchStore = async (displayName?: string): Promise<any> => {
+  return fetchKnowledgeBase('store', 'POST', { displayName });
 };
 
-export const getFileSearchStore = async (organizationId: string): Promise<any> => {
-  return fetchKnowledgeBase(organizationId, 'store', 'GET');
+export const getFileSearchStore = async (): Promise<any> => {
+  return fetchKnowledgeBase('store', 'GET');
 };
 
 interface UploadFileMetadata {
@@ -558,17 +516,12 @@ interface UploadFileMetadata {
   client?: string;
 }
 
-export const uploadFileToSearchStore = async (
-  organizationId: string,
-  userId: string, // userId is needed for the backend service but not directly in this frontend call to the KB endpoint
-  file: File, 
-  metadata: UploadFileMetadata): Promise<any> => {
-
+export const uploadFileToSearchStore = async (file: File, metadata: UploadFileMetadata): Promise<any> => {
+  const organizationId = getActiveOrganizationId();
   const idToken = await getFirebaseIdToken();
 
   const formData = new FormData();
   formData.append('file', file);
-  // Add metadata to formData
   if (metadata.documentType) formData.append('documentType', metadata.documentType);
   if (metadata.campaign) formData.append('campaign', metadata.campaign);
   if (metadata.sector) formData.append('sector', metadata.sector);
@@ -589,18 +542,15 @@ export const uploadFileToSearchStore = async (
 };
 
 export const queryFileSearchStore = async (
-  organizationId: string, // NOVO: organizationId como parâmetro
   prompt: string,
   model: string = GEMINI_FLASH_MODEL
 ): Promise<KnowledgeBaseQueryResponse> => {
-  return fetchKnowledgeBase(organizationId, 'query', 'POST', { prompt, model });
+  return fetchKnowledgeBase('query', 'POST', { prompt, model });
 };
 
 // --- Chatbot Functions ---
 // `startChat` foi refatorado para ser assíncrono e chamar o backend
 export const startChatAsync = async (
-  organizationId: string, // NOVO: organizationId como parâmetro
-  userId: string, // NOVO: userId como parâmetro
   model: string = GEMINI_FLASH_MODEL,
   provider: ProviderName = 'Google Gemini',
   systemInstruction?: string,
@@ -612,12 +562,6 @@ export const startChatAsync = async (
   // Se o backend for responsável por *todos* os chats, esta lógica mudaria.
   // Por simplicidade na refatoração, apenas o chat com KB é roteado para o backend.
   if (provider !== 'Google Gemini' || !useKnowledgeBase || !kbStoreName) {
-    // FIX: Use ai.chats.create() for mock chat sessions
-    const ai = new GoogleGenAI({ apiKey: 'mock-api-key' }); // Mock API key for client
-    const mockChat = ai.chats.create({
-      model: model,
-      config: { systemInstruction: systemInstruction },
-    });
     return {
       sendMessageStream: async ({ message }: { message: string }) => {
         return (async function* () {
@@ -626,9 +570,7 @@ export const startChatAsync = async (
           await new Promise(r => setTimeout(r, 500));
           yield { text: `My integration is being mocked or running without Knowledge Base.` } as GenerateContentResponse;
         })();
-      },
-      sendMessage: mockChat.sendMessage, // Provide a mock for sendMessage too
-      // Add other Chat methods if necessary, or just the ones being used
+      }
     } as unknown as Chat;
   }
 
@@ -636,6 +578,7 @@ export const startChatAsync = async (
   return {
     sendMessageStream: async ({ message }: { message: string }) => {
       return (async function* () {
+        const organizationId = getActiveOrganizationId();
         const idToken = await getFirebaseIdToken();
 
         const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/knowledge-base/query`, {
@@ -655,123 +598,188 @@ export const startChatAsync = async (
           let fullResponseText = data.resposta;
 
           if (data.trechos_referenciados && data.trechos_referenciados.length > 0) {
-            fullResponseText += `\n\n**Trechos Referenci`; // This line was cut off, added to prevent syntax error
-            // FIX: Ensure complete code block
-            for (const chunk of data.trechos_referenciados) {
-              fullResponseText += `\n- ${chunk}`;
-            }
+            fullResponseText += `\n\n**Trechos Referenciados**:\n${data.trechos_referenciados.map(s => `"${s}"`).join('\n')}`;
           }
           if (data.arquivos_usados && data.arquivos_usados.length > 0) {
-            fullResponseText += `\n\n**Arquivos Usados:** ${data.arquivos_usados.join(', ')}`;
+            fullResponseText += `\n\n**Fontes**: ${data.arquivos_usados.join(', ')}`;
           }
+          fullResponseText += `\n\n*(Confiança: ${data.confianca.toFixed(2)})*`;
 
           yield { text: fullResponseText } as GenerateContentResponse;
         }
       })();
     },
-    sendMessage: async ({ message }: { message: string }) => {
-      // Non-streaming send for completeness, uses the same KB query endpoint
-      const idToken = await getFirebaseIdToken();
-      const response = await fetch(`${BACKEND_URL}/organizations/${organizationId}/knowledge-base/query`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${idToken}`,
-        },
-        body: JSON.stringify({ prompt: message, model }),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(`Error: ${errorData.message || response.statusText}`);
-      } else {
-        const data: KnowledgeBaseQueryResponse = await response.json();
-        let fullResponseText = data.resposta;
-
-        if (data.trechos_referenciados && data.trechos_referenciados.length > 0) {
-          fullResponseText += `\n\n**Trechos Referenciados:**`;
-          for (const chunk of data.trechos_referenciados) {
-            fullResponseText += `\n- ${chunk}`;
-          }
-        }
-        if (data.arquivos_usados && data.arquivos_usados.length > 0) {
-          fullResponseText += `\n\n**Arquivos Usados:** ${data.arquivos_usados.join(', ')}`;
-        }
-
-        return { text: fullResponseText } as GenerateContentResponse;
-      }
-    }
   } as unknown as Chat;
 };
 
-// FIX: New function for `sendMessageToChat` for better encapsulation and streaming handling
 export const sendMessageToChat = async (
-  chatSession: Chat,
+  chat: Chat,
   message: string,
-  onPartialUpdate: (text: string) => void,
-  signal: AbortSignal,
-): Promise<void> => {
-  let fullResponseText = '';
+  onChunk?: (text: string) => void,
+  signal?: AbortSignal
+): Promise<string> => {
+  if (signal?.aborted) return "";
+
   try {
-    const stream = await chatSession.sendMessageStream({ message });
-    for await (const chunk of stream) {
-      if (signal.aborted) {
-        console.log('Stream aborted by user.');
-        break;
-      }
-      const text = chunk.text;
-      if (text) {
-        fullResponseText += text;
-        onPartialUpdate(fullResponseText);
-      }
+    const responseIterable = chat.sendMessageStream({ message: message });
+    let fullText = '';
+
+    for await (const chunk of responseIterable) {
+      if (signal?.aborted) break;
+      const chunkText = chunk.text;
+      fullText += chunkText;
+      if (onChunk) onChunk(fullText);
     }
+
+    return fullText;
   } catch (error) {
-    if (signal.aborted) {
-      console.log('Stream ended due to abort.');
-    } else {
-      console.error('Error during chat stream:', error);
-      throw error;
-    }
+    if (signal?.aborted) return "";
+    console.error('Error sending message to chat:', error);
+    throw new Error(`Failed to send message: ${error instanceof Error ? error.message : String(error)}`);
   }
 };
 
-// FIX: New function for `generateSpeech` to move it from the main service file
+// --- TTS Functions ---
 export const generateSpeech = async (
   text: string,
-  voiceName: string,
-): Promise<string | null> => {
-  const organizationId = getActiveOrganizationId(); // Get organizationId
+  voiceName: string = 'Kore',
+  model: string = GEMINI_TTS_MODEL,
+): Promise<string | undefined> => {
   const body = {
-    text: text,
-    model: GEMINI_TTS_MODEL,
+    text,
+    model,
     speechConfig: {
-      voiceConfig: { prebuiltVoiceConfig: { voiceName: voiceName } },
+      voiceConfig: {
+        prebuiltVoiceConfig: { voiceName: voiceName },
+      },
     },
   };
-  const response = await fetchAiProxy<{ base64Audio: string; mimeType: string }>(
-    organizationId,
-    'generate-speech',
-    'POST',
-    body,
-  );
-  return response.base64Audio;
+
+  try {
+    const response = await fetchAiProxy<{ base64Audio: string; mimeType: string }>('generate-speech', 'POST', body);
+    return response.base64Audio;
+  } catch (error) {
+    console.error('Error generating speech via backend:', error);
+    throw error;
+  }
 };
 
-// --- Live API functions (Moved from geminiService to here temporarily to fix immediate errors) ---
-// In a real application, these should be in a separate `liveService.ts` to avoid bloating `geminiService.ts`
-// and `liveService.ts` would handle its own API Key management via `keyManagerService.ts`
+// --- Live API Functions ---
+// A API Live é uma integração de WebSockets em tempo real que é complexa de proxyar de forma transparente
+// sem adicionar latência ou complexidade significativa de backend para WebSockets.
+// Para esta demo e seguindo as diretrizes de "não quebrar integrações" e "ambiente de execução",
+// manteremos a inicialização direta no frontend, mas garantindo que a API Key seja obtida conforme as regras.
+// O `process.env.API_KEY` é esperado ser preenchido pelo ambiente de execução.
+// Se `window.aistudio` estiver disponível, ele pode fornecer uma chave selecionada pelo usuário.
 
-// This interface is a placeholder, adapt based on actual Live API message structure
 export interface LiveSessionCallbacks {
   onopen: () => void;
-  onmessage: (message: LiveServerMessage) => void;
-  onerror: (e: ErrorEvent) => void;
-  onclose: (e: CloseEvent) => void;
+  onmessage: (message: LiveServerMessage) => Promise<void> | void;
+  onerror: (error: ErrorEvent) => void;
+  onclose: (event: CloseEvent) => void;
   onTranscriptionUpdate: (input: string, output: string) => void;
   onTurnComplete: (input: string, output: string) => void;
 }
 
-// FIX: Export decode and decodeAudioData
+// Helper para obter a chave API para o Live API (pode vir de process.env ou window.aistudio)
+async function getLiveApiKey(): Promise<string> {
+  if (window.aistudio && typeof window.aistudio.hasSelectedApiKey === 'function') {
+    try {
+      const selected = await window.aistudio.hasSelectedApiKey();
+      if (selected) {
+        // Assume process.env.API_KEY é atualizado pelo window.aistudio.openSelectKey()
+        return process.env.API_KEY || ''; 
+      }
+    } catch (error) {
+      console.warn("Error checking window.aistudio API key, falling back to process.env.API_KEY", error);
+    }
+  }
+  
+  if (process.env.API_KEY) {
+    return process.env.API_KEY;
+  }
+  
+  throw new Error('No API key available for Live Conversation. Please connect your API key.');
+}
+
+export const connectLiveSession = async (
+  callbacks: LiveSessionCallbacks,
+  systemInstruction?: string,
+  tools?: { functionDeclarations?: FunctionDeclaration[] }[]
+) => {
+  const apiKey = await getLiveApiKey(); // Usa a função auxiliar para obter a chave
+  if (!apiKey) {
+    throw new Error("API Key is missing for Live Conversation.");
+  }
+  const ai = new GoogleGenAI({ apiKey });
+
+  let currentInputTranscription = '';
+  let currentOutputTranscription = '';
+
+  const sessionPromise = ai.live.connect({
+    model: GEMINI_LIVE_AUDIO_MODEL,
+    callbacks: {
+      onopen: () => {
+        console.debug('Live session opened.');
+        callbacks.onopen();
+      },
+      onmessage: async (message: LiveServerMessage) => {
+        if (message.serverContent?.outputTranscription) {
+          currentOutputTranscription += message.serverContent.outputTranscription.text;
+          callbacks.onTranscriptionUpdate(currentInputTranscription, currentOutputTranscription);
+        } else if (message.serverContent?.inputTranscription) {
+          currentInputTranscription += message.serverContent.inputTranscription.text;
+          callbacks.onTranscriptionUpdate(currentInputTranscription, currentOutputTranscription);
+        }
+
+        if (message.serverContent?.turnComplete) {
+          callbacks.onTurnComplete(currentInputTranscription, currentOutputTranscription);
+          currentInputTranscription = '';
+          currentOutputTranscription = '';
+        }
+
+        if (message.toolCall) {
+          for (const fc of message.toolCall.functionCalls) {
+            const result = "ok";
+            sessionPromise.then((session) => {
+              session.sendToolResponse({
+                functionResponses: {
+                  id: fc.id,
+                  name: fc.name,
+                  response: { result: result },
+                }
+              });
+            });
+          }
+        }
+        await callbacks.onmessage(message);
+      },
+      onerror: (e: ErrorEvent) => {
+        console.error('Live conversation error:', e);
+        callbacks.onerror(e);
+      },
+      onclose: (e: CloseEvent) => {
+        console.debug('Live conversation closed:', e);
+        callbacks.onclose(e);
+      },
+    },
+    config: {
+      responseModalities: [Modality.AUDIO],
+      speechConfig: {
+        voiceConfig: { prebuiltVoiceConfig: { voiceName: 'Zephyr' } },
+      },
+      systemInstruction: systemInstruction,
+      outputAudioTranscription: {},
+      inputAudioTranscription: {},
+      tools: tools,
+    },
+  });
+
+  return sessionPromise;
+};
+
+// Internal helpers (re-exported)
+
 export function decode(base64: string) {
   const binaryString = atob(base64);
   const len = binaryString.length;
@@ -821,58 +829,3 @@ function encode(bytes: Uint8Array) {
   }
   return btoa(binary);
 }
-
-// FIX: Moved `connectLiveSession` here temporarily from `geminiService` to resolve dependency cycle.
-// This function still relies on `GoogleGenAI` and `keyManagerService.executeWithProviderFallback`.
-export const connectLiveSession = async (
-  organizationId: string, // Pass organizationId
-  callbacks: LiveSessionCallbacks,
-  systemInstruction: string,
-  tools?: (Tool | FunctionDeclaration)[],
-): Promise<any> => { // Return type is `LiveSession` from @google/genai, but using `any` for now to avoid direct SDK import issues
-  // FIX: Import executeWithProviderFallback from keyManagerService
-  const { executeWithProviderFallback } = await import('./keyManagerService'); 
-
-  // Call the backend endpoint directly for Live API connection
-  const idToken = await getFirebaseIdToken();
-  const wsUrl = `${BACKEND_URL.replace('http', 'ws')}/organizations/${organizationId}/live-chat`; // Assuming WS endpoint
-  
-  // This is a placeholder. A real live connection would likely use a WebSocket endpoint
-  // that proxies to Gemini Live, handling API keys on the backend.
-  // For frontend direct connection using `executeWithProviderFallback`,
-  // we would fetch the best key and then create `GoogleGenAI` instance.
-
-  const ai = await executeWithProviderFallback('Google Gemini', (apiKey) => {
-    return new GoogleGenAI({ apiKey: apiKey });
-  });
-
-  // Mocking the behavior of `ai.live.connect` for now
-  // In a full implementation, this would connect to a WebSocket server
-  // that relays to the Gemini Live API.
-  console.log("Mocking ai.live.connect. In real app, this would establish WebSocket.");
-
-  const session = {
-    // Mock methods
-    sendRealtimeInput: (input: { media: Blob; text?: string; }) => {
-      console.log('Mocked sendRealtimeInput:', input);
-      // Simulate an immediate text response for demonstration
-      if (input.text) {
-        callbacks.onTranscriptionUpdate(input.text, "");
-      }
-    },
-    sendToolResponse: (response: any) => {
-      console.log('Mocked sendToolResponse:', response);
-    },
-    close: () => {
-      console.log('Mocked session.close()');
-      callbacks.onclose({ code: 1000, reason: "Mocked close", wasClean: true } as CloseEvent);
-    },
-    // Add other required methods or properties of a LiveSession
-  };
-
-  // Simulate onopen callback
-  setTimeout(() => callbacks.onopen(), 100);
-
-  // Return the mocked session.
-  return session;
-};

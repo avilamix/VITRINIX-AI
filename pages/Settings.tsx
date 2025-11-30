@@ -27,7 +27,7 @@ import {
   MagnifyingGlassIcon
 } from '@heroicons/react/24/outline';
 import { StarIcon as StarIconSolid } from '@heroicons/react/24/solid';
-import { getFirebaseIdToken } from '../services/authService';
+import { getFirebaseIdToken, getActiveOrganization } from '../services/authService';
 
 const PROVIDERS: ProviderName[] = [
   'Google Gemini', 'OpenAI', 'Anthropic', 'Mistral', 'Groq',
@@ -37,14 +37,12 @@ const PROVIDERS: ProviderName[] = [
 interface SettingsProps {
   onApiKeySelected: () => void;
   onOpenApiKeySelection: () => void;
-  organizationId: string | undefined; // NEW: Pass organizationId as prop
-  userId: string | undefined; // NEW: Pass userId as prop
 }
 
 // TODO: Em um sistema real, a URL do backend viria de uma variável de ambiente ou configuração global
 const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
 
-const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelection, organizationId, userId }) => {
+const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelection }) => {
   const [activeTab, setActiveTab] = useState<'profile' | 'keys'>('keys');
 
   // Profile State
@@ -71,13 +69,12 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
 
   const [validatingId, setValidatingId] = useState<string | null>(null);
 
+  const userId = 'mock-user-123'; // Mock user ID
+  const activeOrganization: OrganizationMembership | undefined = getActiveOrganization();
+  const organizationId = activeOrganization?.organization.id;
 
   // --- Profile Logic ---
   const fetchUserProfile = useCallback(async () => {
-    if (!userId) { // Ensure userId is available before fetching
-      setProfileLoading(false);
-      return;
-    }
     setProfileLoading(true);
     try {
       const profile = await getUserProfile(userId);
@@ -90,7 +87,7 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
     } finally {
       setProfileLoading(false);
     }
-  }, [userId]); // Depend on userId
+  }, [userId]);
 
   const handleBusinessProfileChange = useCallback((e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
     const { id, value } = e.target;
@@ -98,13 +95,11 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
   }, []);
 
   const handleSaveSettings = useCallback(async () => {
-    if (!userProfile || !userId) return; // Ensure userProfile and userId are available
+    if (!userProfile) return;
     setSavingProfile(true);
     try {
       const updatedProfile: UserProfile = { ...userProfile, businessProfile: businessProfileForm };
-      // updateUserProfile now receives organizationId and userId
-      // FIX: Pass the business profile directly to updateUserProfile as it expects `Partial<UserProfile['businessProfile']>`
-      await updateUserProfile(userId, businessProfileForm); 
+      await updateUserProfile(userId, updatedProfile);
       setUserProfile(updatedProfile);
       alert('Configurações salvas com sucesso!');
     } catch (err) {
@@ -116,7 +111,7 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
 
   // --- Key Manager Logic (INTERAÇÃO COM O BACKEND) ---
   const fetchKeys = useCallback(async () => {
-    if (!organizationId) { // Ensure organizationId is available
+    if (!organizationId) {
       setKeysLoading(false);
       return;
     }
@@ -140,12 +135,12 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
     } finally {
       setKeysLoading(false);
     }
-  }, [organizationId]); // Depend on organizationId
+  }, [organizationId]);
 
   useEffect(() => {
     fetchUserProfile();
     fetchKeys();
-  }, [fetchUserProfile, fetchKeys]); // Run once on mount or when deps change
+  }, [fetchUserProfile, fetchKeys]); // Run once on mount
 
   // Smart Pre-fill Logic
   useEffect(() => {
@@ -168,11 +163,6 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
       setTestResult({ success: false, message: 'Insira uma chave para testar.', status: 'unchecked' });
       return;
     }
-    if (!organizationId) { // Ensure organizationId is available for the call
-      setTestResult({ success: false, message: 'ID da organização não disponível.', status: 'invalid' });
-      return;
-    }
-
     setTestingKey(true);
     setTestResult(null);
 
@@ -182,8 +172,7 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
         isActive: true, isDefault: false, createdAt: new Date().toISOString(), status: 'unchecked', usageCount: 0
       };
 
-      // FIX: Pass organizationId as the first argument to validateKey
-      const validation = await validateKey(organizationId, tempConfig); 
+      const validation = await validateKey(tempConfig);
 
       if (validation.status === 'valid') {
         setTestResult({ success: true, message: 'Conexão bem-sucedida! Chave válida.', status: 'valid' });
@@ -222,8 +211,7 @@ const Settings: React.FC<SettingsProps> = ({ onApiKeySelected, onOpenApiKeySelec
               id: keyId, provider: newKeyProvider, key: newKeyValue.trim(), label: newKeyLabel.trim(),
               isActive: true, isDefault: false, createdAt: new Date().toISOString(), status: 'unchecked', usageCount: 0
           };
-          // FIX: Pass organizationId as the first argument to validateKey
-          const validation = await validateKey(organizationId, tempConfig); 
+          const validation = await validateKey(tempConfig);
           initialStatus = validation.status;
           errorMessage = validation.error;
       }

@@ -16,8 +16,8 @@ const getActiveOrganizationId = (): string => {
 };
 
 // MOCK: Validates an API key against its provider via Backend
-export const validateKey = async (organizationId: string, config: ApiKeyConfig): Promise<{ status: KeyStatus; error?: string }> => { // FIX: Add organizationId parameter
-  // const organizationId = getActiveOrganizationId(); // Already passed as argument
+export const validateKey = async (config: ApiKeyConfig): Promise<{ status: KeyStatus; error?: string }> => {
+  const organizationId = getActiveOrganizationId();
   const idToken = await getFirebaseIdToken();
 
   try {

@@ -8,7 +8,7 @@ import LoadingSpinner from './LoadingSpinner';
 import { 
   generateText, 
   generateImage, 
-  generateSpeech, // FIX: Import generateSpeech from geminiService
+  generateSpeech, 
   generateVideo, 
   queryFileSearchStore 
 } from '../services/geminiService';
@@ -24,12 +24,7 @@ import { IMAGE_SIZES, VIDEO_RESOLUTIONS } from '../constants';
 
 type ModuleType = 'content_generation' | 'image_generation' | 'audio_generation' | 'file_search' | 'video_generation';
 
-interface InteractiveActionCenterProps { // FIX: Add props interface
-  organizationId: string | undefined;
-  userId: string | undefined;
-}
-
-const InteractiveActionCenter: React.FC<InteractiveActionCenterProps> = ({ organizationId, userId }) => { // FIX: Destructure props
+const InteractiveActionCenter: React.FC = () => {
   const [selectedModule, setSelectedModule] = useState<ModuleType>('content_generation');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<string | null>(null);
@@ -50,12 +45,6 @@ const InteractiveActionCenter: React.FC<InteractiveActionCenterProps> = ({ organ
     setResult(null);
     setMediaUrl(null);
 
-    if (!organizationId) { // FIX: Validate organizationId
-      setError("Organization ID is missing. Cannot perform AI action.");
-      setLoading(false);
-      return;
-    }
-
     try {
       let outputText = '';
       let outputUrl = null;
@@ -65,8 +54,7 @@ const InteractiveActionCenter: React.FC<InteractiveActionCenterProps> = ({ organ
           // Logic mapping to adjust_module_settings -> content_generation
           // If KB is named, use it for queryFileSearchStore, otherwise use generateText
           if (kbName) {
-             // FIX: Pass organizationId to queryFileSearchStore
-             const kbResponse = await queryFileSearchStore(organizationId, prompt);
+             const kbResponse = await queryFileSearchStore(prompt);
              outputText = kbResponse.resposta; // Extract the string response
           } else {
              outputText = await generateText(prompt);
@@ -83,8 +71,7 @@ const InteractiveActionCenter: React.FC<InteractiveActionCenterProps> = ({ organ
 
         case 'audio_generation':
           // Logic mapping to adjust_module_settings -> audio_generation
-          // FIX: Pass selectedVoice to generateSpeech
-          const audioBase64 = await generateSpeech(prompt, voice); 
+          const audioBase64 = await generateSpeech(prompt, voice);
           if (audioBase64) {
              // Create a playable blob URL (simplified for mock, actual playback in AudioTools module)
              // For InteractiveActionCenter, just return success text
@@ -96,8 +83,7 @@ const InteractiveActionCenter: React.FC<InteractiveActionCenterProps> = ({ organ
 
         case 'file_search':
            if (!kbName) throw new Error("Nome da Base de Conhecimento é obrigatório para pesquisa.");
-           // FIX: Pass organizationId to queryFileSearchStore
-           const kbSearchResponse = await queryFileSearchStore(organizationId, prompt); 
+           const kbSearchResponse = await queryFileSearchStore(prompt);
            outputText = kbSearchResponse.resposta; // Extract the string response
            break;
 

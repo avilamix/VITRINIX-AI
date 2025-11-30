@@ -68,7 +68,6 @@ export class KnowledgeBaseService {
   async uploadFileAndAddToStore(
     organizationId: string,
     firebaseUid: string,
-    // FIX: Use any for file type
     file: any,
     metadata: MetadataDto,
   ): Promise<UploadFileResponseDto> {
@@ -98,8 +97,7 @@ export class KnowledgeBaseService {
       geminiFile.name,
     );
 
-    // FIX: Access 'file' model via this.prisma.file
-    const newFileEntry = await (this.prisma as any).file.create({
+    const newFileEntry = await this.prisma.file.create({
       data: {
         organizationId,
         uploadedByUserId: user.id,
@@ -140,8 +138,7 @@ export class KnowledgeBaseService {
     if (filters.sector) whereClause.sector = filters.sector;
     if (filters.client) whereClause.client = filters.client;
 
-    // FIX: Access 'file' model via this.prisma.file
-    const files = await (this.prisma as any).file.findMany({
+    const files = await this.prisma.file.findMany({
       where: whereClause,
       orderBy: { createdAt: 'desc' },
     });
@@ -163,8 +160,7 @@ export class KnowledgeBaseService {
 
   // --- Exclusão de Arquivos ---
   async deleteFile(organizationId: string, fileId: string, firebaseUid: string): Promise<void> {
-    // FIX: Access 'file' model via this.prisma.file
-    const fileToDelete = await (this.prisma as any).file.findUnique({
+    const fileToDelete = await this.prisma.file.findUnique({
       where: { id: fileId, organizationId },
     });
 
@@ -173,15 +169,13 @@ export class KnowledgeBaseService {
     }
     if (!fileToDelete.geminiFileId) {
       this.logger.warn(`File ${fileId} found in DB but no geminiFileId. Deleting from DB only.`);
-      // FIX: Access 'file' model via this.prisma.file
-      await (this.prisma as any).file.delete({ where: { id: fileId } });
+      await this.prisma.file.delete({ where: { id: fileId } });
       return;
     }
 
     await this.aiProxyService.deleteGeminiFile(organizationId, firebaseUid, fileToDelete.geminiFileId);
     
-    // FIX: Access 'file' model via this.prisma.file
-    await (this.prisma as any).file.delete({ where: { id: fileId } });
+    await this.prisma.file.delete({ where: { id: fileId } });
     this.logger.log(`File ${fileToDelete.originalName} (DB ID: ${fileId}) successfully deleted from Gemini and DB.`);
   }
 
@@ -205,7 +199,7 @@ export class KnowledgeBaseService {
       model,
     );
 
-    const textResponse = response.text() || 'No answer found based on your documents.';
+    const textResponse = response.text || 'No answer found based on your documents.';
     const groundingMetadata = response.groundingMetadata;
 
     const filesUsed: string[] = [];
@@ -216,8 +210,7 @@ export class KnowledgeBaseService {
       for (const chunk of groundingMetadata.groundingChunks) {
         if (chunk.retrievedFile && chunk.retrievedFile.uri) {
           const geminiFileId = chunk.retrievedFile.uri.split('/').pop();
-          // FIX: Access 'file' model via this.prisma.file
-          const dbFile = await (this.prisma as any).file.findFirst({
+          const dbFile = await this.prisma.file.findFirst({
             where: { geminiFileId, organizationId },
             select: { originalName: true },
           });

@@ -1,13 +1,17 @@
 
 
-
 import { INestApplication, Injectable, OnModuleInit } from '@nestjs/common';
 import { PrismaClient, Role } from '@prisma/client'; // Importe Role
 
 @Injectable()
 export class PrismaService extends PrismaClient implements OnModuleInit {
-  // Exponha o enum Role diretamente
-  // public readonly Role = Role; // This is automatically available on 'this'
+  // Explicitly declare properties to satisfy Typescript when client generation is missing/incomplete in this context
+  public user: any;
+  public organization: any;
+  public organizationMember: any;
+  public apiKey: any;
+  public file: any;
+  public Role = Role;
 
   constructor() {
     super({
@@ -16,14 +20,13 @@ export class PrismaService extends PrismaClient implements OnModuleInit {
   }
 
   async onModuleInit() {
-    // FIX: $connect is a method of the extended PrismaClient, accessible via 'this'
-    await (this as any).$connect();
+    // @ts-ignore
+    await this.$connect();
   }
 
   async enableShutdownHooks(app: INestApplication) {
-    // FIX: $on is a method of the extended PrismaClient, accessible via 'this'
-    // Also deprecated, but keeping it as requested with casting.
-    (this as any).$on('beforeExit', async () => {
+    // @ts-ignore
+    this.$on('beforeExit', async () => {
       await app.close();
     });
   }

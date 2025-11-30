@@ -1,19 +1,15 @@
 
-
 import React, { useState } from 'react';
 import Button from './Button';
 import { BookmarkSquareIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
-// FIX: Removed import { uploadFile } from '../services/cloudStorageService';
-import { saveLibraryItem, uploadFileAndCreateLibraryItemViaBackend } from '../services/firestoreService';
+import { uploadFile } from '../services/cloudStorageService';
+import { saveLibraryItem } from '../services/firestoreService';
 import { LibraryItem } from '../types';
-import { getActiveOrganization } from '../services/authService';
-
 
 interface SaveToLibraryButtonProps {
   content: string | Blob | File | null;
   type: LibraryItem['type'];
   userId: string;
-  organizationId?: string; // NEW: Added optional organizationId
   initialName?: string;
   tags?: string[];
   onSave?: (item: LibraryItem) => void;
@@ -27,7 +23,6 @@ const SaveToLibraryButton: React.FC<SaveToLibraryButtonProps> = ({
   content,
   type,
   userId,
-  organizationId: propOrganizationId,
   initialName = 'Untitled',
   tags = [],
   onSave,
@@ -39,87 +34,52 @@ const SaveToLibraryButton: React.FC<SaveToLibraryButtonProps> = ({
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
 
-  const activeOrganization = getActiveOrganization();
-  const organizationId = propOrganizationId || activeOrganization?.organization.id;
-
   const handleSave = async () => {
     if (!content) return;
-    if (!organizationId) {
-      alert('No active organization found. Please login.');
-      return;
-    }
-
     setLoading(true);
     try {
       let itemToSave: LibraryItem;
       const fileName = initialName || `Saved ${type} ${Date.now()}`;
-      const tagsArray = tags.filter(Boolean); // Ensure tags are clean strings
 
       if (content instanceof File || content instanceof Blob) {
-        // Handle File/Blob upload
+        // Handle File/Blob
         const fileToUpload = content instanceof File ? content : new File([content], fileName, { type: type === 'image' ? 'image/png' : type === 'video' ? 'video/mp4' : 'text/plain' });
-        
-        // FIX: Replaced direct uploadFile with new backend-driven upload function
-        const uploadedItem = await uploadFileAndCreateLibraryItemViaBackend(
-          organizationId,
-          userId,
-          fileToUpload,
-          fileName,
-          type,
-          tagsArray
-        );
-        itemToSave = uploadedItem; // The backend now returns a complete LibraryItem
+        const uploadedItem = await uploadFile(fileToUpload, userId, type);
+        itemToSave = { ...uploadedItem, name: fileName, tags };
+        await saveLibraryItem(itemToSave);
       } else {
-        // Handle Text/URL string content
-        let fileUrl: string;
-        let thumbnailUrl: string | undefined;
-        let fileType: LibraryItem['type'] = type;
-
+        // Handle Text/URL string
         if (type === 'text' || type === 'post' || type === 'ad') {
             const blob = new Blob([content], { type: 'text/plain' });
             const file = new File([blob], `${fileName}.txt`, { type: 'text/plain' });
-            const uploadedItem = await uploadFileAndCreateLibraryItemViaBackend(
-              organizationId,
-              userId,
-              file,
-              fileName,
-              fileType,
-              tagsArray
-            );
-            itemToSave = uploadedItem;
+            const uploadedItem = await uploadFile(file, userId, type);
+             itemToSave = { ...uploadedItem, name: fileName, tags };
+             await saveLibraryItem(itemToSave);
         } else {
-             // Assume URL string for image/video (already hosted or data uri)
+             // URL string for image/video (already hosted or data uri)
              if (content.startsWith('data:')) {
                  const res = await fetch(content);
                  const blob = await res.blob();
-                 const extension = type === 'image' ? 'png' : type === 'video' ? 'mp4' : 'bin';
+                 const extension = type === 'image' ? 'png' : 'mp4';
                  const file = new File([blob], `${fileName}.${extension}`, { type: blob.type });
-                 const uploadedItem = await uploadFileAndCreateLibraryItemViaBackend(
-                    organizationId,
-                    userId,
-                    file,
-                    fileName,
-                    fileType,
-                    tagsArray
-                 );
-                 itemToSave = uploadedItem;
+                 const uploadedItem = await uploadFile(file, userId, type);
+                 itemToSave = { ...uploadedItem, name: fileName, tags };
+                 await saveLibraryItem(itemToSave);
              } else {
-                 // Remote URL - save metadata directly if the file is already hosted externally
-                 // The backend's `files` endpoint supports creating LibraryItems with external `fileUrl`
+                 // Remote URL - in a real app we might fetch and re-upload, 
+                 // but here we trust the URL or mock logic
                  const newItem: LibraryItem = {
-                    id: '', // Backend will assign
-                    organizationId,
+                    id: `lib-${Date.now()}`,
                     userId,
-                    type: fileType,
-                    fileUrl: content,
-                    thumbnailUrl: content, // Assuming content URL can also serve as thumbnail if applicable
-                    tags: tagsArray,
+                    type,
+                    file_url: content,
+                    thumbnail_url: content,
+                    tags,
                     name: fileName,
-                    // FIX: createdAt should be a Date object
-                    createdAt: new Date(), 
-                    updatedAt: new Date() // Backend will set both
+                    createdAt: new Date().toISOString()
                  };
-                 itemToSave = await saveLibraryItem(newItem); // Use saveLibraryItem for metadata only
+                 await saveLibraryItem(newItem);
+                 itemToSave = newItem;
              }
         }
       }
@@ -127,9 +87,9 @@ const SaveToLibraryButton: React.FC<SaveToLibraryButtonProps> = ({
       setSaved(true);
       if (onSave) onSave(itemToSave);
       setTimeout(() => setSaved(false), 3000);
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error saving to library:", error);
-      alert(`Failed to save to library: ${error.message || String(error)}`);
+      alert("Failed to save to library");
     } finally {
       setLoading(false);
     }

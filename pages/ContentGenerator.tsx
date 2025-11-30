@@ -1,5 +1,3 @@
-
-
 import React, { useState, useCallback } from 'react';
 import Textarea from '../components/Textarea';
 import Button from '../components/Button';
@@ -8,37 +6,28 @@ import { generateText, generateImage } from '../services/geminiService';
 import { savePost } from '../services/firestoreService';
 import { Post } from '../types';
 import { GEMINI_FLASH_MODEL, GEMINI_IMAGE_FLASH_MODEL, PLACEHOLDER_IMAGE_BASE64 } from '../constants';
+import { useToast } from '../contexts/ToastContext';
 
-interface ContentGeneratorProps {
-  organizationId: string | undefined;
-  userId: string | undefined;
-}
-
-const ContentGenerator: React.FC<ContentGeneratorProps> = ({ organizationId, userId }) => {
+const ContentGenerator: React.FC = () => {
   const [prompt, setPrompt] = useState<string>('');
   const [generatedPost, setGeneratedPost] = useState<Post | null>(null);
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string>(PLACEHOLDER_IMAGE_BASE64);
   const [loadingText, setLoadingText] = useState<boolean>(false);
   const [loadingImage, setLoadingImage] = useState<boolean>(false);
-  const [error, setError] = useState<string | null>(null);
+  
+  const { addToast } = useToast();
+
+  // Mock user ID
+  const userId = 'mock-user-123';
 
   const generateContent = useCallback(async (isWeekly: boolean = false) => {
     if (!prompt.trim()) {
-      setError('Please enter a prompt to generate content.');
-      return;
-    }
-    if (!organizationId) {
-      setError('No active organization found. Please login.');
-      return;
-    }
-    if (!userId) {
-      setError('User not identified. Please login.');
+      addToast({ type: 'warning', title: 'Atenção', message: 'Por favor, insira um prompt para gerar conteúdo.' });
       return;
     }
 
     setLoadingText(true);
     setLoadingImage(true);
-    setError(null);
     setGeneratedPost(null);
     setGeneratedImageUrl(PLACEHOLDER_IMAGE_BASE64);
 
@@ -84,89 +73,74 @@ const ContentGenerator: React.FC<ContentGeneratorProps> = ({ organizationId, use
       setLoadingImage(false);
 
       const newPost: Post = {
-        id: '', // Backend will assign
-        organizationId: organizationId,
+        id: `post-${Date.now()}`,
         userId: userId,
-        contentText: postContent,
-        imageUrl: imageResponse.imageUrl || undefined,
-        createdAt: new Date(), // Backend will set
-        updatedAt: new Date(), // Backend will set
+        content_text: postContent,
+        image_url: imageResponse.imageUrl || undefined,
+        createdAt: new Date().toISOString(),
       };
       setGeneratedPost(newPost);
-      // No immediate save here, user explicitly clicks 'Salvar Post'
+      addToast({ type: 'success', title: 'Conteúdo Gerado', message: 'Texto e imagem foram gerados com sucesso.' });
+      
     } catch (err) {
       console.error('Error generating content:', err);
-      setError(`Failed to generate content: ${err instanceof Error ? err.message : String(err)}`);
+      addToast({ type: 'error', title: 'Erro na Geração', message: `Falha: ${err instanceof Error ? err.message : String(err)}` });
       setLoadingText(false);
       setLoadingImage(false);
     }
-  }, [prompt, organizationId, userId]);
+  }, [prompt, userId, addToast]);
 
   const handleGenerateOnePost = useCallback(() => generateContent(false), [generateContent]);
   const handleGenerateWeek = useCallback(() => generateContent(true), [generateContent]);
 
   const handleRegenerateImage = useCallback(async () => {
-    if (!generatedPost || !organizationId || !userId) {
-      setError('Please generate a post first to regenerate its image.');
+    if (!generatedPost) {
+      addToast({ type: 'error', message: 'Por favor gere um post primeiro.' });
       return;
     }
     setLoadingImage(true);
-    setError(null);
     try {
-      const imageDescription = `An alternative image for: "${generatedPost.contentText.substring(0, 100)}..."`;
+      const imageDescription = `An alternative image for: "${generatedPost.content_text.substring(0, 100)}..."`;
       const imageResponse = await generateImage(imageDescription, { model: GEMINI_IMAGE_FLASH_MODEL });
-      const newImageUrl = imageResponse.imageUrl || PLACEHOLDER_IMAGE_BASE64;
-      setGeneratedImageUrl(newImageUrl);
-      
+      setGeneratedImageUrl(imageResponse.imageUrl || PLACEHOLDER_IMAGE_BASE64);
       // Update the stored post with the new image URL
-      const updatedPost = { ...generatedPost, imageUrl: newImageUrl };
-      setGeneratedPost(updatedPost);
-
-      // Persist the updated post to the backend
-      await savePost(updatedPost); // Save the updated post (will PATCH if ID exists)
-
+      if (generatedPost) {
+        const updatedPost = { ...generatedPost, image_url: imageResponse.imageUrl || undefined };
+        setGeneratedPost(updatedPost);
+      }
+      addToast({ type: 'success', message: 'Imagem regenerada com sucesso.' });
     } catch (err) {
       console.error('Error regenerating image:', err);
-      setError(`Failed to regenerate image: ${err instanceof Error ? err.message : String(err)}`);
+      addToast({ type: 'error', title: 'Erro', message: 'Falha ao regenerar imagem.' });
     } finally {
       setLoadingImage(false);
     }
-  }, [generatedPost, organizationId, userId]);
+  }, [generatedPost, addToast]);
 
   const handleSavePost = useCallback(async () => {
-    if (!generatedPost || !organizationId || !userId) {
-      setError('Nenhum post para salvar. Gere um post primeiro.');
+    if (!generatedPost) {
+      addToast({ type: 'warning', message: 'Nenhum post para salvar.' });
       return;
     }
     setLoadingText(true); // Re-use loading state for saving
-    setError(null);
     try {
-      const savedPost = await savePost(generatedPost); // Save to backend
-      alert(`Post "${savedPost.contentText.substring(0, 30)}..." salvo com sucesso na biblioteca!`);
+      const savedPost = await savePost(generatedPost); // Save to mock Firestore
+      addToast({ 
+        type: 'success', 
+        title: 'Salvo na Biblioteca', 
+        message: `Post "${savedPost.content_text.substring(0, 20)}..." salvo com sucesso!` 
+      });
     } catch (err) {
       console.error('Error saving post:', err);
-      setError(`Falha ao salvar post: ${err instanceof Error ? err.message : String(err)}`);
+      addToast({ type: 'error', title: 'Erro ao Salvar', message: 'Não foi possível salvar o post na biblioteca.' });
     } finally {
       setLoadingText(false);
     }
-  }, [generatedPost, organizationId, userId]);
-
-  // TODO: Implement "Editar no Studio"
-  // const handleEditInStudio = useCallback(() => {
-  //   // Navigate to Creative Studio with generated content
-  //   console.log('Navigate to Creative Studio with:', generatedPost, generatedImageUrl);
-  // }, [generatedPost, generatedImageUrl]);
+  }, [generatedPost, addToast]);
 
   return (
     <div className="container mx-auto py-8 lg:py-10">
       <h2 className="text-3xl font-bold text-textdark mb-8">Content Generator</h2>
-
-      {error && (
-        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
-          <strong className="font-bold">Error!</strong>
-          <span className="block sm:inline"> {error}</span>
-        </div>
-      )}
 
       <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
         <h3 className="text-xl font-semibold text-textlight mb-5">Gerar Novo Conteúdo</h3>
@@ -199,16 +173,16 @@ const ContentGenerator: React.FC<ContentGeneratorProps> = ({ organizationId, use
       </div>
 
       {generatedPost && (
-        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
+        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 animate-in fade-in slide-in-from-bottom-4 duration-500">
           <h3 className="text-xl font-semibold text-textlight mb-5">Conteúdo Gerado</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex flex-col">
               <h4 className="text-lg font-semibold text-textlight mb-3">Texto do Post</h4>
-              {loadingText && !generatedPost.contentText ? ( // Check contentText specifically for text loading
+              {loadingText && !generatedPost.content_text ? ( // Check content_text specifically for text loading
                 <LoadingSpinner />
               ) : (
                 <div className="prose max-w-none text-textlight leading-relaxed bg-darkbg p-4 rounded-md h-full min-h-[150px]" style={{ whiteSpace: 'pre-wrap' }}>
-                  {generatedPost.contentText}
+                  {generatedPost.content_text}
                 </div>
               )}
             </div>
@@ -229,9 +203,6 @@ const ContentGenerator: React.FC<ContentGeneratorProps> = ({ organizationId, use
                 <Button onClick={handleRegenerateImage} isLoading={loadingImage} variant="outline" className="w-full sm:w-auto">
                   {loadingImage ? 'Regenerando...' : 'Regenerar Imagem'}
                 </Button>
-                {/* <Button onClick={handleEditInStudio} variant="secondary">
-                  Editar no Studio
-                </Button> */}
               </div>
             </div>
           </div>
@@ -239,8 +210,6 @@ const ContentGenerator: React.FC<ContentGeneratorProps> = ({ organizationId, use
             <Button onClick={handleSavePost} variant="primary" isLoading={loadingText} disabled={!generatedPost}>
               {loadingText ? 'Salvando Post...' : 'Salvar Post'}
             </Button>
-            {/* If there were multiple weekly posts, buttons to cycle through them */}
-            {/* <Button variant="secondary">Próximo Post</Button> */}
           </div>
         </div>
       )}

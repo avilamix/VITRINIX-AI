@@ -19,9 +19,6 @@ export const IMAGE_SIZES = ['1K', '2K', '4K']; // For Pro Image Model
 export const VIDEO_ASPECT_RATIOS = ['16:9', '9:16'];
 export const VIDEO_RESOLUTIONS = ['720p', '1080p'];
 
-// NEW: Library Item Types (must match backend DTO for consistency)
-export const LIBRARY_ITEM_TYPES = ['image', 'video', 'audio', 'text', 'post', 'ad'];
-
 // Placeholder base64 image for loading states
 export const PLACEHOLDER_IMAGE_BASE64 = `data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iNjQwIiBoZWlnaHQ9IjM2MCIgdmlld0JveD0iMCAwIDY0MCAzNjAiIHhtbG5zPSJodHRwOi8vd3d3LnAzLm9yZy8yMDAwL3N2ZyI+CiAgPHJlY3Qgd2lkdGg9IjY0MCIgaGVpZ2h0PSIzNjAiIGZpbGw9IiNlMGUwZTAiLz4KICA8dGV4dCB4PSI1MCUiIHk9IjUwJSIgZG9taW5hbnQtYmFzZWxpbmU9Im1pZGRsZSIgdGV4dC1hbmNob3I9Im1pZGRsZSIgZm9udC1mYW1pbHk9ImFyaWFsLCBzYW5zLXNlcmlmIiBmb250LXNpemU9IjUwIiBmaWxsPSIjYmJiIiBlc3NlbnRpYWw9InNlcnZlIiBmb250LXdlaWdodD0iYm9sZCI+Vml0cmluZVhBSTwvdGV4dD4KPC9zdmc+`;
 

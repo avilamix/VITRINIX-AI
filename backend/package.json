@@ -23,8 +23,7 @@
     "prisma:studio": "prisma studio"
   },
   "dependencies": {
-    "@google/genai": "^1.0.0",
-    "@google-cloud/storage": "^7.11.0",
+    "@google/generative-ai": "^0.14.0",
     "@nestjs/common": "^10.0.0",
     "@nestjs/config": "^3.2.2",
     "@nestjs/core": "^10.0.0",

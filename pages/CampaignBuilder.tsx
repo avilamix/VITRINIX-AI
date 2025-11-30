@@ -1,19 +1,14 @@
 
-
 import React, { useState, useCallback } from 'react';
 import Textarea from '../components/Textarea';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { campaignBuilder } from '../services/geminiService';
+import { saveCampaign } from '../services/firestoreService';
 import { Campaign } from '../types';
 import { useNavigate } from '../hooks/useNavigate'; // Custom hook for navigation
 
-interface CampaignBuilderProps {
-  organizationId: string | undefined;
-  userId: string | undefined;
-}
-
-const CampaignBuilder: React.FC<CampaignBuilderProps> = ({ organizationId, userId }) => {
+const CampaignBuilder: React.FC = () => {
   const [campaignPrompt, setCampaignPrompt] = useState<string>('');
   const [generatedCampaign, setGeneratedCampaign] = useState<Campaign | null>(null);
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState<string | null>(null);
@@ -21,18 +16,9 @@ const CampaignBuilder: React.FC<CampaignBuilderProps> = ({ organizationId, userI
   const [error, setError] = useState<string | null>(null);
   const { navigateTo } = useNavigate();
 
-
   const handleCreateCampaign = useCallback(async () => {
     if (!campaignPrompt.trim()) {
       setError('Please provide a campaign description.');
-      return;
-    }
-    if (!organizationId) {
-      setError('No active organization found. Please login.');
-      return;
-    }
-    if (!userId) {
-      setError('User not identified. Please login.');
       return;
     }
 
@@ -42,11 +28,10 @@ const CampaignBuilder: React.FC<CampaignBuilderProps> = ({ organizationId, userI
     setGeneratedVideoUrl(null);
 
     try {
-      // Pass organizationId and userId to campaignBuilder
-      const { campaign, videoUrl } = await campaignBuilder(campaignPrompt, organizationId, userId);
+      const { campaign, videoUrl } = await campaignBuilder(campaignPrompt);
       setGeneratedCampaign(campaign);
       setGeneratedVideoUrl(videoUrl);
-      // saveCampaign is now called inside geminiService.campaignBuilder
+      // saveCampaign is already called within campaignBuilder in geminiService.ts
       alert(`Campanha "${campaign.name}" criada e salva com sucesso!`);
     } catch (err) {
       console.error('Error building campaign:', err);
@@ -54,7 +39,7 @@ const CampaignBuilder: React.FC<CampaignBuilderProps> = ({ organizationId, userI
     } finally {
       setLoading(false);
     }
-  }, [campaignPrompt, organizationId, userId]);
+  }, [campaignPrompt]);
 
   const handleDownloadMaterials = useCallback(() => {
     if (!generatedCampaign) {
@@ -124,21 +109,21 @@ const CampaignBuilder: React.FC<CampaignBuilderProps> = ({ organizationId, userI
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             <div>
-              <h4 className="text-lg font-semibold text-textlight mb-4">Posts ({generatedCampaign.generatedPosts?.length || 0})</h4>
+              <h4 className="text-lg font-semibold text-textlight mb-4">Posts ({generatedCampaign.posts.length})</h4>
               <ul className="list-disc list-inside text-textlight space-y-3 max-h-64 overflow-y-auto bg-darkbg p-4 rounded-md border border-gray-700">
-                {generatedCampaign.generatedPosts?.map((post: any, index: number) => (
-                  <li key={index} className="text-sm">
-                    <strong>Post {index + 1}:</strong> {post.contentText?.substring(0, 100)}...
+                {generatedCampaign.posts.map((post, index) => (
+                  <li key={post.id || index} className="text-sm">
+                    <strong>Post {index + 1}:</strong> {post.content_text.substring(0, 100)}...
                   </li>
                 ))}
               </ul>
             </div>
             <div>
-              <h4 className="text-lg font-semibold text-textlight mb-4">Anúncios ({generatedCampaign.generatedAds?.length || 0})</h4>
+              <h4 className="text-lg font-semibold text-textlight mb-4">Anúncios ({generatedCampaign.ads.length})</h4>
               <ul className="list-disc list-inside text-textlight space-y-3 max-h-64 overflow-y-auto bg-darkbg p-4 rounded-md border border-gray-700">
-                {generatedCampaign.generatedAds?.map((ad: any, index: number) => (
-                  <li key={index} className="text-sm">
-                    <strong>Ad {index + 1} ({ad.platform}):</strong> "{ad.headline}" - {ad.copy?.substring(0, 70)}...
+                {generatedCampaign.ads.map((ad, index) => (
+                  <li key={ad.id || index} className="text-sm">
+                    <strong>Ad {index + 1} ({ad.platform}):</strong> "{ad.headline}" - {ad.copy.substring(0, 70)}...
                   </li>
                 ))}
               </ul>

@@ -5,17 +5,13 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { searchTrends, generateText } from '../services/geminiService';
+import { saveTrend } from '../services/firestoreService';
 import { Trend } from '../types';
 import { useNavigate } from '../hooks/useNavigate';
 import { GEMINI_FLASH_MODEL } from '../constants';
 import { LightBulbIcon } from '@heroicons/react/24/outline';
 
-interface TrendHunterProps {
-  organizationId: string | undefined;
-  userId: string | undefined;
-}
-
-const TrendHunter: React.FC<TrendHunterProps> = ({ organizationId, userId }) => {
+const TrendHunter: React.FC = () => {
   const [query, setQuery] = useState<string>('');
   const [city, setCity] = useState<string>('');
   const [trends, setTrends] = useState<Trend[]>([]);
@@ -29,6 +25,8 @@ const TrendHunter: React.FC<TrendHunterProps> = ({ organizationId, userId }) => 
 
   const { navigateTo } = useNavigate();
 
+  // For now, using a mock user ID. In a real app, this would come from auth context.
+  const userId = 'mock-user-123';
 
   // Attempt to get user's geolocation on mount
   useEffect(() => {
@@ -54,14 +52,6 @@ const TrendHunter: React.FC<TrendHunterProps> = ({ organizationId, userId }) => 
       setError('Please enter a search query for trends.');
       return;
     }
-    if (!organizationId) {
-      setError('No active organization found. Please login.');
-      return;
-    }
-    if (!userId) {
-      setError('User not identified. Please login.');
-      return;
-    }
 
     setLoading(true);
     setError(null);
@@ -71,12 +61,17 @@ const TrendHunter: React.FC<TrendHunterProps> = ({ organizationId, userId }) => 
     try {
       // Pass userLocation if city is provided, or undefined otherwise to rely on general search
       const location = city.trim() && userLocation ? userLocation : undefined;
-      // searchTrends now expects organizationId and userId
-      const fetchedTrends = await searchTrends(query, organizationId, userId, location); 
+      const fetchedTrends = await searchTrends(query, location);
 
-      setTrends(fetchedTrends);
+      // Add mock user ID before saving
+      const trendsWithUserId = fetchedTrends.map(t => ({ ...t, userId: userId }));
+      setTrends(trendsWithUserId);
 
-      alert(`${fetchedTrends.length} tendências encontradas e salvas com sucesso!`);
+      // Save to mock Firestore
+      for (const trend of trendsWithUserId) {
+        await saveTrend(trend);
+      }
+      alert(`${trendsWithUserId.length} tendências encontradas e salvas com sucesso!`);
 
     } catch (err) {
       console.error('Error searching trends:', err);
@@ -84,7 +79,7 @@ const TrendHunter: React.FC<TrendHunterProps> = ({ organizationId, userId }) => 
     } finally {
       setLoading(false);
     }
-  }, [query, city, userLocation, organizationId, userId]);
+  }, [query, city, userId, userLocation]);
 
   const handleGenerateContentIdea = useCallback(async (trend: Trend) => {
     setGeneratingIdeaFor(trend.id);
@@ -105,7 +100,7 @@ const TrendHunter: React.FC<TrendHunterProps> = ({ organizationId, userId }) => 
     console.log('Navigating to ContentGenerator with trend:', trend);
     navigateTo('ContentGenerator'); // Will need to enhance ContentGenerator to receive initial prompt
     // For now, we can just alert or log
-    alert(`Creating content based on trend: ${trend.query}\nSummary: ${trend.data?.substring(0, 100)}...`);
+    alert(`Creating content based on trend: ${trend.query}\nSummary: ${trend.data.substring(0, 100)}...`);
   }, [navigateTo]);
 
   const handleAddTrendToCalendar = useCallback((trend: Trend) => {

@@ -1,54 +1,7 @@
+
 export type Language = 'pt-BR' | 'en-US';
 
-// Define a type for translation keys to ensure strong typing
-type TranslationKeys = 
-  | 'sidebar.overview'
-  | 'sidebar.dashboard'
-  | 'sidebar.ai_assistant'
-  | 'sidebar.creation_suite'
-  | 'sidebar.content_gen'
-  | 'sidebar.ad_creator'
-  | 'sidebar.media_studio'
-  | 'sidebar.voice_lab'
-  | 'sidebar.strategy'
-  | 'sidebar.campaigns'
-  | 'sidebar.trends'
-  | 'sidebar.calendar'
-  | 'sidebar.communication'
-  | 'sidebar.ai_chat'
-  | 'sidebar.live_voice'
-  | 'sidebar.system'
-  | 'sidebar.library'
-  | 'sidebar.config'
-  | 'dashboard.title'
-  | 'dashboard.subtitle'
-  | 'dashboard.total_content'
-  | 'dashboard.total_content_desc'
-  | 'dashboard.campaigns_card'
-  | 'dashboard.campaigns_desc'
-  | 'dashboard.scheduled'
-  | 'dashboard.scheduled_desc'
-  | 'dashboard.trends_card'
-  | 'dashboard.trends_desc'
-  | 'dashboard.quick_actions'
-  | 'dashboard.btn_generate'
-  | 'dashboard.btn_ad'
-  | 'dashboard.btn_strategy'
-  | 'dashboard.btn_market'
-  | 'dashboard.btn_media'
-  | 'dashboard.btn_schedule'
-  | 'nav.profile'
-  | 'nav.logout'
-  | 'gen.loading'
-  | 'gen.error'
-  | 'gen.save'
-  | 'gen.cancel'
-  | 'gen.active'
-  | 'gen.back'; // NEW
-
-type TranslationsMap = Record<TranslationKeys, string>;
-
-export const translations: Record<Language, TranslationsMap> = {
+export const translations = {
   'en-US': {
     // Sidebar
     'sidebar.overview': 'Overview',
@@ -99,7 +52,6 @@ export const translations: Record<Language, TranslationsMap> = {
     'gen.save': 'Save',
     'gen.cancel': 'Cancel',
     'gen.active': 'Active',
-    'gen.back': 'Back', // NEW
   },
   'pt-BR': {
     // Sidebar
@@ -151,6 +103,5 @@ export const translations: Record<Language, TranslationsMap> = {
     'gen.save': 'Salvar',
     'gen.cancel': 'Cancelar',
     'gen.active': 'Ativo',
-    'gen.back': 'Voltar', // NEW
   }
 };

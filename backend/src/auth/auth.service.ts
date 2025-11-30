@@ -1,6 +1,5 @@
 
 
-
 import { Injectable, UnauthorizedException, Logger, NotFoundException } from '@nestjs/common';
 import { firebaseAuth } from '../config/firebase.config';
 import { PrismaService } from '../prisma/prisma.service';
@@ -25,14 +24,12 @@ export class AuthService {
   }
 
   async findOrCreateUser(firebaseUser: DecodedIdToken): Promise<User> {
-    // FIX: Access 'user' model via this.prisma.user
-    let user = await (this.prisma as any).user.findUnique({
+    let user = await this.prisma.user.findUnique({
       where: { firebaseUid: firebaseUser.uid },
     });
 
     if (!user) {
-      // FIX: Access 'user' model via this.prisma.user
-      user = await (this.prisma as any).user.create({
+      user = await this.prisma.user.create({
         data: {
           firebaseUid: firebaseUser.uid,
           email: firebaseUser.email,
@@ -42,8 +39,7 @@ export class AuthService {
       this.logger.log(`New user created: ${user.email}`);
     } else {
       if (user.email !== firebaseUser.email || (firebaseUser.name && user.name !== firebaseUser.name)) {
-        // FIX: Access 'user' model via this.prisma.user
-        user = await (this.prisma as any).user.update({
+        user = await this.prisma.user.update({
           where: { id: user.id },
           data: {
             email: firebaseUser.email,
@@ -57,8 +53,7 @@ export class AuthService {
   }
 
   async getUserOrganizations(userId: string): Promise<OrganizationMembershipDto[]> {
-    // FIX: Access 'organizationMember' model via this.prisma.organizationMember
-    const memberships = await (this.prisma as any).organizationMember.findMany({
+    const memberships = await this.prisma.organizationMember.findMany({
       where: { userId },
       include: {
         organization: true,
@@ -76,8 +71,7 @@ export class AuthService {
   }
 
   async getUserByFirebaseUid(firebaseUid: string): Promise<User> {
-    // FIX: Access 'user' model via this.prisma.user
-    const user = await (this.prisma as any).user.findUnique({ where: { firebaseUid } });
+    const user = await this.prisma.user.findUnique({ where: { firebaseUid } });
     if (!user) {
       throw new NotFoundException(`User with Firebase UID ${firebaseUid} not found.`);
     }

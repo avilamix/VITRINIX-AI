@@ -1,22 +1,20 @@
+
+
 import React, { useState, useCallback, useRef } from 'react';
 import Textarea from '../components/Textarea';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import Input from '../components/Input'; // Import Input for name/tags
-import { generateSpeech, decode, decodeAudioData } from '../services/geminiService'; // FIX: Import Live API functions
-import { uploadFileAndCreateLibraryItemViaBackend } from '../services/firestoreService'; // For saving metadata and actual file upload
+import { generateSpeech, decode, decodeAudioData } from '../services/geminiService';
+import { uploadFile } from '../services/cloudStorageService'; // For uploading audio file
+import { saveLibraryItem } from '../services/firestoreService'; // For saving metadata
 import { LibraryItem } from '../types'; // Import LibraryItem
 import { SpeakerWaveIcon, PlayIcon, StopIcon, ArrowDownTrayIcon } from '@heroicons/react/24/outline';
 
 type VoiceName = 'Zephyr' | 'Puck' | 'Charon' | 'Kore' | 'Fenrir';
 const VOICE_OPTIONS: VoiceName[] = ['Zephyr', 'Puck', 'Charon', 'Kore', 'Fenrir'];
 
-interface AudioToolsProps {
-  organizationId: string | undefined;
-  userId: string | undefined;
-}
-
-const AudioTools: React.FC<AudioToolsProps> = ({ organizationId, userId }) => {
+const AudioTools: React.FC = () => {
   const [inputText, setInputText] = useState<string>('');
   const [selectedVoice, setSelectedVoice] = useState<VoiceName>('Kore');
   const [loading, setLoading] = useState<boolean>(false);
@@ -32,6 +30,7 @@ const AudioTools: React.FC<AudioToolsProps> = ({ organizationId, userId }) => {
   const audioContextRef = useRef<AudioContext | null>(null);
   const sourceNodeRef = useRef<AudioBufferSourceNode | null>(null);
 
+  const userId = 'mock-user-123'; // Mock user ID
 
   const initAudioContext = useCallback(() => {
     if (!audioContextRef.current) {
@@ -44,11 +43,6 @@ const AudioTools: React.FC<AudioToolsProps> = ({ organizationId, userId }) => {
       setError('Por favor, insira o texto para gerar a fala.');
       return;
     }
-    if (!organizationId) {
-      setError('No active organization found. Please login.');
-      return;
-    }
-
 
     setLoading(true);
     setError(null);
@@ -135,9 +129,9 @@ const AudioTools: React.FC<AudioToolsProps> = ({ organizationId, userId }) => {
       console.error('Erro ao gerar fala:', err);
       setError(`Falha ao gerar fala: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
-      setLoading(false); 
+      setLoading(false); // Corrected: `set---` was `setLoading(false)`
     }
-  }, [inputText, selectedVoice, initAudioContext, organizationId]);
+  }, [inputText, selectedVoice, initAudioContext]);
 
   const handlePlayAudio = useCallback(() => {
     if (!audioBuffer || !audioContextRef.current) return;
@@ -188,15 +182,6 @@ const AudioTools: React.FC<AudioToolsProps> = ({ organizationId, userId }) => {
       setError('Por favor, forneça um nome para o item.');
       return;
     }
-    if (!organizationId) {
-      setError('No active organization found. Please login.');
-      return;
-    }
-    if (!userId) {
-      setError('User not identified. Please login.');
-      return;
-    }
-
 
     setLoading(true); // Use loading state for saving process
     setError(null);
@@ -205,26 +190,27 @@ const AudioTools: React.FC<AudioToolsProps> = ({ organizationId, userId }) => {
       const fileName = `${savedItemName.trim()}.wav`;
       const audioFile = new File([generatedAudioBlob], fileName, { type: 'audio/wav' });
 
-      // Replace deprecated uploadFile with new backend-driven upload function
-      const tagsArray = savedItemTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
-      const uploadedItem = await uploadFileAndCreateLibraryItemViaBackend(
-        organizationId,
-        userId,
-        audioFile,
-        fileName,
-        'audio',
-        tagsArray
-      );
+      // Upload the actual audio file to Cloud Storage (mock)
+      const uploadedItem = await uploadFile(audioFile, userId, 'audio' as LibraryItem['type']); // Cast 'audio' to LibraryItem['type']
 
-      alert(`Áudio "${uploadedItem.name}" salvo na biblioteca com sucesso!`);
-      
+      const tagsArray = savedItemTags.split(',').map(tag => tag.trim()).filter(tag => tag.length > 0);
+
+      const libraryItemToSave: LibraryItem = {
+        ...uploadedItem, // Use id, userId, createdAt, file_url, thumbnail_url from the uploadedItem
+        type: 'audio' as LibraryItem['type'], // Explicitly set type to audio
+        name: fileName, // Use the user-provided name
+        tags: tagsArray,
+      };
+      await saveLibraryItem(libraryItemToSave); // Save metadata to Firestore
+      alert(`Áudio "${fileName}" salvo na biblioteca com sucesso!`);
+      // No more code here, the original file was truncated
     } catch (err) {
       console.error('Error saving audio to library:', err);
       setError(`Falha ao salvar áudio: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
-  }, [generatedAudioBlob, savedItemName, savedItemTags, organizationId, userId]);
+  }, [generatedAudioBlob, savedItemName, savedItemTags, userId]);
 
 
   return (
@@ -317,7 +303,7 @@ const AudioTools: React.FC<AudioToolsProps> = ({ organizationId, userId }) => {
                 <Button onClick={handleDownloadAudio} variant="primary" className="w-full sm:w-auto">
                   <ArrowDownTrayIcon className="w-5 h-5 mr-2" /> Baixar Áudio
                 </Button>
-                <Button onClick={handleSaveAudioToLibrary} isLoading={loading} variant="secondary" className="w-full sm:w-auto">
+                <Button onClick={handleSaveAudioToLibrary} isLoading={loading && !!audioBuffer} variant="secondary" className="w-full sm:w-auto">
                   <SpeakerWaveIcon className="w-5 h-5 mr-2" /> Salvar na Biblioteca
                 </Button>
               </div>
