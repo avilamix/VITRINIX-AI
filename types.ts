@@ -206,13 +206,3 @@ export interface PlaceResult {
   text: string;
   places: Array<{ uri: string; title: string }>;
 }
-
-// NOVO: Interface para eventos de calendário
-export interface CalendarEvent {
-  id: string;
-  summary: string;
-  description?: string;
-  startTime: string; // ISO Date
-  endTime: string; // ISO Date
-  location?: string;
-}

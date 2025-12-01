@@ -1,5 +1,4 @@
 
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Textarea from '../components/Textarea';
 import Input from '../components/Input';
@@ -9,6 +8,7 @@ import SaveToLibraryButton from '../components/SaveToLibraryButton';
 import { generateImage, editImage, generateVideo, analyzeImage, analyzeVideo } from '../services/geminiService';
 import {
   GEMINI_IMAGE_PRO_MODEL,
+  GEMINI_IMAGE_FLASH_MODEL,
   VEO_FAST_GENERATE_MODEL,
   PLACEHOLDER_IMAGE_BASE64,
   IMAGE_ASPECT_RATIOS,
@@ -71,6 +71,7 @@ const CreativeStudio: React.FC = () => {
   const handleGenerateMedia = useCallback(async () => {
     if (!prompt.trim()) {
       addToast({ type: 'warning', message: 'Por favor, insira um prompt para a geração.' });
+      setError('A descrição da imagem (Prompt) é obrigatória.');
       return;
     }
 
@@ -132,7 +133,8 @@ const CreativeStudio: React.FC = () => {
 
       try {
         if (mediaType === 'image') {
-          const response = await editImage(prompt, base64Data, mimeType, GEMINI_IMAGE_PRO_MODEL);
+          // Use Flash Image model for editing per request (Nano Banana)
+          const response = await editImage(prompt, base64Data, mimeType, GEMINI_IMAGE_FLASH_MODEL);
           setGeneratedMediaUrl(response.imageUrl || null);
         } else {
           const response = await generateVideo(prompt, {
@@ -348,12 +350,12 @@ const CreativeStudio: React.FC = () => {
 
           <Textarea
             id="creativePrompt"
-            label="Descreva sua criação, edição ou análise (prompt para IA):"
+            label="Descreva a imagem (Prompt) *"
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             rows={5}
-            placeholder={`Ex: 'Um cachorro astronauta flutuando no espaço com planetas coloridos.' ou 'Transforme esta imagem em um estilo cyberpunk.' ou 'Analise o objeto principal nesta imagem e descreva-o.'`}
-            className="flex-1 min-h-[100px]"
+            placeholder={`Ex: 'Um cachorro astronauta flutuando no espaço com planetas coloridos.'`}
+            className={`flex-1 min-h-[100px] ${!prompt.trim() && error ? 'border-red-500 focus:ring-red-500' : ''}`}
           />
 
           <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-4 pt-4 border-t border-gray-900">

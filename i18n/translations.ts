@@ -1,4 +1,5 @@
 
+
 export type Language = 'pt-BR' | 'en-US';
 
 export const translations = {
@@ -17,7 +18,6 @@ export const translations = {
     'sidebar.campaigns': 'Campaigns',
     'sidebar.trends': 'Trends',
     'sidebar.local_finder': 'Local Finder',
-    'sidebar.calendar_manager': 'Calendar Manager', // NOVO
     'sidebar.calendar': 'Calendar',
     'sidebar.communication': 'Communication',
     'sidebar.ai_chat': 'AI Chat',
@@ -71,7 +71,6 @@ export const translations = {
     'sidebar.campaigns': 'Campanhas',
     'sidebar.trends': 'Tendências',
     'sidebar.local_finder': 'Explorador Local',
-    'sidebar.calendar_manager': 'Gerenciador de Agenda', // NOVO
     'sidebar.calendar': 'Calendário',
     'sidebar.communication': 'Comunicação',
     'sidebar.ai_chat': 'Chat IA',

@@ -17,14 +17,13 @@ import Chatbot from './pages/Chatbot';
 import AudioTools from './pages/AudioTools';
 import CodePlayground from './pages/CodePlayground';
 import LocalFinder from './pages/LocalFinder';
-import CalendarManager from './pages/CalendarManager';
 import Logo from './components/Logo'; 
-import TutorialOverlay from './components/TutorialOverlay'; // Import TutorialOverlay
+import TutorialOverlay from './components/TutorialOverlay'; 
 import { NavigationContext } from './hooks/useNavigate';
 import { ThemeProvider } from './contexts/ThemeContext';
 import { LanguageProvider } from './contexts/LanguageContext';
 import { ToastProvider } from './contexts/ToastContext';
-import { TutorialProvider } from './contexts/TutorialContext'; // Import TutorialProvider
+import { TutorialProvider } from './contexts/TutorialContext'; 
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { KeyIcon, CheckCircleIcon, PlayIcon } from '@heroicons/react/24/outline';
 import { testGeminiConnection } from './services/geminiService';
@@ -43,8 +42,7 @@ export type ModuleName =
   | 'Chatbot'
   | 'AudioTools'
   | 'CodePlayground'
-  | 'LocalFinder'
-  | 'CalendarManager';
+  | 'LocalFinder';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -140,7 +138,6 @@ function AppContent() {
       case 'AudioTools': return <AudioTools />;
       case 'CodePlayground': return <CodePlayground />;
       case 'LocalFinder': return <LocalFinder />;
-      case 'CalendarManager': return <CalendarManager />;
       case 'Settings': return <Settings onApiKeySelected={checkAndSelectApiKey} onOpenApiKeySelection={() => {}} />;
       default: return <Dashboard />;
     }
@@ -209,17 +206,21 @@ function AppContent() {
   }
 
   // Modules that require full height without internal padding/scroll (handled internally)
-  const isFullHeightModule = activeModule === 'Chatbot' || activeModule === 'CalendarManager' || activeModule === 'CodePlayground';
+  const isFullHeightModule = activeModule === 'Chatbot' || activeModule === 'CodePlayground' || activeModule === 'AudioTools';
 
   return (
     <NavigationContext.Provider value={{ setActiveModule, activeModule }}>
       <div className="flex flex-col h-screen bg-background text-body font-sans overflow-hidden">
-        <TutorialOverlay /> {/* Add Overlay here */}
+        <TutorialOverlay /> 
         <Navbar />
         <div className="flex flex-1 overflow-hidden relative">
           <Sidebar activeModule={activeModule} setActiveModule={setActiveModule} />
           {/* Main Content Area */}
-          <main className={`flex-1 flex flex-col min-w-0 relative ${isFullHeightModule ? 'h-full' : 'overflow-y-auto'}`}>
+          <main className={`flex-1 flex flex-col min-w-0 relative ${
+            isFullHeightModule 
+              ? 'h-full' 
+              : 'overflow-y-auto pb-48' // TAREFA 1: Padding Bottom Generoso para não cortar conteúdo
+          }`}>
             <div className={`w-full ${isFullHeightModule ? 'h-full' : 'max-w-7xl mx-auto p-4 md:p-8'}`}>
                 {renderModule()}
             </div>
@@ -236,7 +237,7 @@ function App() {
       <ThemeProvider>
         <LanguageProvider>
           <ToastProvider>
-            <TutorialProvider> {/* Add TutorialProvider */}
+            <TutorialProvider>
               <AppContent />
             </TutorialProvider>
           </ToastProvider>

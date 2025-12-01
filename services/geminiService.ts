@@ -456,6 +456,7 @@ export const queryArchitect = async (query: string): Promise<string> => {
 export const searchTrends = async (
   query: string,
   location?: { latitude: number; longitude: number },
+  language: string = 'en-US',
 ): Promise<Trend[]> => {
   const ai = await getGenAIClient();
   
@@ -467,10 +468,14 @@ export const searchTrends = async (
     toolConfig.retrievalConfig = { latLng: location };
   }
 
+  const prompt = language === 'pt-BR'
+    ? `Encontre as tendências de marketing atuais para "${query}". Forneça um resumo detalhado em português.`
+    : `Find current marketing trends for "${query}". Provide a detailed summary.`;
+
   try {
     const response = await ai.models.generateContent({
         model: GEMINI_FLASH_MODEL,
-        contents: `Find current marketing trends for "${query}". Provide a detailed summary.`,
+        contents: prompt,
         config: {
         tools,
         toolConfig: Object.keys(toolConfig).length > 0 ? toolConfig : undefined,
@@ -751,23 +756,6 @@ export const generateSpeech = async (
 
 // --- CHAT & LIVE (Helpers mantidos) ---
 
-export const startChatWithFunctions = async (
-  tools: any[],
-  systemInstruction?: string,
-  history?: any[]
-): Promise<Chat> => {
-  const ai = await getGenAIClient();
-  const chat = ai.chats.create({
-    model: GEMINI_FLASH_MODEL,
-    config: {
-      tools: tools,
-      systemInstruction: systemInstruction
-    },
-    history: history
-  });
-  return chat;
-};
-
 export const startChatAsync = async (
   model: string = GEMINI_FLASH_MODEL,
   provider: ProviderName = 'Google Gemini',
@@ -819,14 +807,18 @@ export const startChatAsync = async (
 
 export const sendMessageToChat = async (
   chat: Chat,
-  message: string,
+  message: string | (string | Part)[],
   onChunk?: (text: string) => void,
   signal?: AbortSignal
 ): Promise<string> => {
   if (signal?.aborted) return "";
 
   try {
-    const responseIterable = await chat.sendMessageStream({ message });
+    // UPDATED: Support for multimodal message content
+    const responseIterable = await chat.sendMessageStream(
+      // FIXED: chat.sendMessageStream expects an object with a 'message' property
+      { message }
+    );
     let fullText = '';
 
     for await (const chunk of responseIterable) {

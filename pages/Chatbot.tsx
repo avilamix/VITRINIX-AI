@@ -1,10 +1,9 @@
 
-
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { ChatMessage as ChatMessageType, ProviderName } from '../types';
-import { startChatAsync, sendMessageToChat, connectLiveSession, createBlob, decodeAudioData, decode, LiveSessionCallbacks } from '../services/geminiService';
-import { Chat } from '@google/genai';
-import { GEMINI_FLASH_MODEL } from '../constants';
+import { startChatAsync, sendMessageToChat, connectLiveSession, createBlob, decodeAudioData, decode, LiveSessionCallbacks, generateSpeech } from '../services/geminiService';
+import { Chat, Part } from '@google/genai';
+import { GEMINI_FLASH_MODEL, GEMINI_PRO_MODEL } from '../constants';
 import { 
   TrashIcon, 
   SparklesIcon, 
@@ -12,12 +11,17 @@ import {
   BoltIcon, 
   LightBulbIcon,
   ChatBubbleLeftRightIcon,
-  SpeakerWaveIcon
+  SpeakerWaveIcon,
+  PaperClipIcon,
+  Cog6ToothIcon,
+  XMarkIcon,
+  DocumentIcon
 } from '@heroicons/react/24/outline';
 import ChatMessage from '../components/ChatMessage';
 import TypingIndicator from '../components/TypingIndicator';
 import MultimodalChatInput from '../components/MultimodalChatInput';
 import AudioVisualizer from '../components/AudioVisualizer';
+import { useToast } from '../contexts/ToastContext';
 
 const SUGGESTIONS = [
   "Crie um calendário editorial de 7 dias para marketing de SaaS.",
@@ -38,7 +42,7 @@ const QUICK_PROMPTS = [
 
 const PROVIDERS: ProviderName[] = ['Google Gemini', 'OpenAI', 'Anthropic', 'Mistral', 'Meta LLaMA'];
 
-const SYSTEM_INSTRUCTION = `Você é um Assistente de IA Empresarial sofisticado, especializado em Marketing, Estratégia e Conteúdo.
+const DEFAULT_SYSTEM_INSTRUCTION = `Você é um Assistente de IA Empresarial sofisticado, especializado em Marketing, Estratégia e Conteúdo.
 Forneça respostas concisas, acionáveis e profissionais. Use um tom neutro e orientado para negócios.
 Quando solicitado conteúdo, formate-o claramente com títulos e marcadores.`;
 
@@ -52,6 +56,14 @@ const Chatbot: React.FC = () => {
   const [selectedProvider, setSelectedProvider] = useState<ProviderName>('Google Gemini');
   const [inputText, setInputText] = useState<string>('');
   
+  // Brain / Persona Settings
+  const [showBrainSettings, setShowBrainSettings] = useState(false);
+  const [systemInstruction, setSystemInstruction] = useState(DEFAULT_SYSTEM_INSTRUCTION);
+
+  // File Upload State
+  const [attachedFile, setAttachedFile] = useState<{name: string, type: string, data: string | Part} | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   const [useKnowledgeBase, setUseKnowledgeBase] = useState<boolean>(false);
   const kbName = localStorage.getItem('vitrinex_kb_name');
   
@@ -60,6 +72,10 @@ const Chatbot: React.FC = () => {
   const [isModelSpeaking, setIsModelSpeaking] = useState<boolean>(false);
   const [analyser, setAnalyser] = useState<AnalyserNode | null>(null);
   
+  // Audio Refs for Playback
+  const playbackContextRef = useRef<AudioContext | null>(null);
+  const playbackSourceRef = useRef<AudioBufferSourceNode | null>(null);
+
   const liveSessionRef = useRef<any>(null);
   const inputAudioContextRef = useRef<AudioContext | null>(null);
   const outputAudioContextRef = useRef<AudioContext | null>(null);
@@ -71,6 +87,7 @@ const Chatbot: React.FC = () => {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const { addToast } = useToast();
 
   useEffect(() => {
     if (messages.length > 0) {
@@ -97,14 +114,15 @@ const Chatbot: React.FC = () => {
       }
       setMessages(initialHistory);
 
-      const newChat = await startChatAsync(GEMINI_FLASH_MODEL, selectedProvider, SYSTEM_INSTRUCTION, initialHistory, useKnowledgeBase && !!kbName, kbName || undefined);
+      // Upgrade to GEMINI_PRO_MODEL for chatbot interactions
+      const newChat = await startChatAsync(GEMINI_PRO_MODEL, selectedProvider, systemInstruction, initialHistory, useKnowledgeBase && !!kbName, kbName || undefined);
       setChatSession(newChat);
     } catch (err) {
       setError(`Falha na conexão. Por favor, verifique as configurações.`);
     } finally {
       setLoading(false);
     }
-  }, [selectedProvider, useKnowledgeBase, kbName]);
+  }, [selectedProvider, useKnowledgeBase, kbName, systemInstruction]);
 
   useEffect(() => {
     initChat();
@@ -118,7 +136,7 @@ const Chatbot: React.FC = () => {
     if (!chatSession) return;
     abortControllerRef.current = new AbortController();
 
-    const newUserMessage: ChatMessageType = { role: 'user', text, timestamp: new Date().toISOString() };
+    const newUserMessage: ChatMessageType = { role: 'user', text: text + (attachedFile ? ` [Arquivo Anexado: ${attachedFile.name}]` : ''), timestamp: new Date().toISOString() };
     setMessages((prev) => [...prev, newUserMessage]);
     setLoading(true);
     setError(null);
@@ -126,9 +144,23 @@ const Chatbot: React.FC = () => {
     setMessages((prev) => [...prev, { role: 'model', text: '', timestamp: new Date().toISOString() }]);
 
     try {
+      // Prepare message payload (Text + Optional File)
+      let messagePayload: string | (string | Part)[] = text;
+      
+      if (attachedFile) {
+          if (typeof attachedFile.data === 'string') {
+              // It's a text content stuffing
+              messagePayload = `${text}\n\n[CONTEÚDO DO ARQUIVO ${attachedFile.name}]:\n${attachedFile.data}`;
+          } else {
+              // It's a multimodal part
+              messagePayload = [text, attachedFile.data];
+          }
+          setAttachedFile(null); // Clear after sending
+      }
+
       await sendMessageToChat(
         chatSession, 
-        text, 
+        messagePayload, 
         (partialText) => {
           setMessages((prev) => {
             const lastMsg = prev[prev.length - 1];
@@ -149,12 +181,98 @@ const Chatbot: React.FC = () => {
       setLoading(false);
       abortControllerRef.current = null;
     }
-  }, [chatSession]);
+  }, [chatSession, attachedFile]);
 
   const handleStopGeneration = useCallback(() => {
     abortControllerRef.current?.abort();
     setLoading(false);
   }, []);
+
+  // --- FILE UPLOAD LOGIC ---
+  const handleFileClick = () => fileInputRef.current?.click();
+  
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (!file) return;
+
+      if (file.size > 5 * 1024 * 1024) { // 5MB limit check
+          addToast({type: 'error', message: 'Arquivo muito grande. Limite de 5MB.'});
+          return;
+      }
+
+      try {
+          if (file.type.startsWith('text/') || file.name.endsWith('.md') || file.name.endsWith('.json') || file.name.endsWith('.csv')) {
+              const text = await file.text();
+              setAttachedFile({ name: file.name, type: 'text', data: text });
+          } else {
+              // Binary (Image/PDF) -> Base64 Part
+              const reader = new FileReader();
+              reader.onloadend = () => {
+                  const base64 = (reader.result as string).split(',')[1];
+                  const part: Part = {
+                      inlineData: {
+                          mimeType: file.type,
+                          data: base64
+                      }
+                  };
+                  setAttachedFile({ name: file.name, type: 'binary', data: part });
+              };
+              reader.readAsDataURL(file);
+          }
+          addToast({type: 'info', message: 'Arquivo anexado. Pronto para enviar.'});
+      } catch (err) {
+          console.error("File read error", err);
+          addToast({type: 'error', message: 'Erro ao ler arquivo.'});
+      }
+      e.target.value = ''; // Reset input
+  };
+
+  const removeAttachment = () => setAttachedFile(null);
+
+  // --- MESSAGE ACTIONS ---
+  const handleTTS = async (text: string) => {
+      if (playbackSourceRef.current) {
+          playbackSourceRef.current.stop();
+          playbackSourceRef.current = null;
+          return; // Toggle off behavior
+      }
+
+      try {
+          addToast({type: 'info', message: 'Gerando áudio...'});
+          const base64Audio = await generateSpeech(text.substring(0, 1000)); // Limit length
+          if (!base64Audio) throw new Error("No audio generated");
+
+          if (!playbackContextRef.current) playbackContextRef.current = new AudioContext();
+          
+          const audioBuffer = await decodeAudioData(decode(base64Audio), playbackContextRef.current, 24000, 1);
+          const source = playbackContextRef.current.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(playbackContextRef.current.destination);
+          source.onended = () => { playbackSourceRef.current = null; };
+          source.start();
+          playbackSourceRef.current = source;
+      } catch (err) {
+          addToast({type: 'error', message: 'Erro na reprodução de voz.'});
+      }
+  };
+
+  const handleDownloadTxt = (text: string) => {
+      const blob = new Blob([text], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `vitrinex-chat-${Date.now()}.txt`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+      addToast({type: 'success', message: 'Download iniciado.'});
+  };
+
+  const handleShareCopy = (text: string) => {
+      navigator.clipboard.writeText(text);
+      addToast({type: 'success', message: 'Texto copiado para a área de transferência.'});
+  };
 
   const handleStartVoice = useCallback(async () => {
     setError(null);
@@ -180,9 +298,6 @@ const Chatbot: React.FC = () => {
       mediaStreamSourceRef.current = source;
       scriptProcessorRef.current = inputAudioContextRef.current.createScriptProcessor(4096, 1, 1);
       
-      let nextStartTime = 0;
-      const audioSources = new Set<AudioBufferSourceNode>();
-
       const liveCallbacks: LiveSessionCallbacks = {
         onopen: () => {
           setIsLive(true);
@@ -193,15 +308,12 @@ const Chatbot: React.FC = () => {
           const audioData = message.serverContent?.modelTurn?.parts[0]?.inlineData.data;
           if (audioData && outputAudioContextRef.current && outputNodeRef.current) {
             setIsModelSpeaking(true);
-            nextStartTime = Math.max(nextStartTime, outputAudioContextRef.current.currentTime);
             const audioBuffer = await decodeAudioData(decode(audioData), outputAudioContextRef.current, 24000, 1);
             const audioSource = outputAudioContextRef.current.createBufferSource();
             audioSource.buffer = audioBuffer;
             audioSource.connect(outputNodeRef.current);
-            audioSource.onended = () => { audioSources.delete(audioSource); if (audioSources.size === 0) setIsModelSpeaking(false); };
-            audioSource.start(nextStartTime);
-            nextStartTime += audioBuffer.duration;
-            audioSources.add(audioSource);
+            audioSource.onended = () => { setIsModelSpeaking(false); };
+            audioSource.start();
           }
         },
         onerror: (e) => setError(`Erro na Live API: ${e.message}`),
@@ -246,7 +358,7 @@ const Chatbot: React.FC = () => {
         }
       };
 
-      const session = await connectLiveSession(liveCallbacks, SYSTEM_INSTRUCTION);
+      const session = await connectLiveSession(liveCallbacks, systemInstruction);
       liveSessionRef.current = session;
 
       scriptProcessorRef.current.onaudioprocess = (event) => {
@@ -259,7 +371,7 @@ const Chatbot: React.FC = () => {
       setIsListening(false);
       setMessages(prev => prev.slice(0, -1));
     }
-  }, []);
+  }, [messages, systemInstruction]);
 
   const handleStopVoice = useCallback(() => {
     liveSessionRef.current?.close();
@@ -284,6 +396,33 @@ const Chatbot: React.FC = () => {
   return (
     <div className="flex h-full bg-background relative overflow-hidden rounded-tl-xl border-l border-t border-gray-200">
       
+      {/* BRAIN SETTINGS MODAL */}
+      {showBrainSettings && (
+          <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
+              <div className="bg-surface rounded-xl shadow-2xl w-full max-w-lg border border-border">
+                  <div className="flex justify-between items-center p-4 border-b border-border">
+                      <h3 className="text-lg font-bold text-title flex items-center gap-2">
+                          <Cog6ToothIcon className="w-5 h-5 text-primary" /> Configurar Cérebro da IA
+                      </h3>
+                      <button onClick={() => setShowBrainSettings(false)} className="text-muted hover:text-error"><XMarkIcon className="w-6 h-6" /></button>
+                  </div>
+                  <div className="p-6">
+                      <p className="text-sm text-muted mb-3">Defina a persona e as diretrizes do assistente.</p>
+                      <textarea 
+                          value={systemInstruction}
+                          onChange={(e) => setSystemInstruction(e.target.value)}
+                          className="w-full h-40 p-3 rounded-lg bg-background border border-border focus:ring-2 focus:ring-primary focus:outline-none text-sm text-body resize-none"
+                          placeholder="Ex: Você é um especialista em..."
+                      />
+                  </div>
+                  <div className="p-4 border-t border-border flex justify-end gap-2">
+                      <button onClick={() => setShowBrainSettings(false)} className="px-4 py-2 text-sm text-body hover:bg-gray-100 rounded-lg">Cancelar</button>
+                      <button onClick={() => { setShowBrainSettings(false); initChat(); addToast({type:'success', message:'Persona atualizada!'}); }} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">Salvar & Reiniciar</button>
+                  </div>
+              </div>
+          </div>
+      )}
+
       <aside className="hidden md:flex flex-col w-72 bg-surface border-r border-gray-200 h-full flex-none z-10">
         <div className="p-5 border-b border-gray-200">
            <h2 className="text-xs font-bold text-title uppercase tracking-wider flex items-center gap-2">
@@ -337,14 +476,27 @@ const Chatbot: React.FC = () => {
               </div>
             </div>
           </div>
-          <button onClick={handleClearChat} className="p-1.5 text-muted hover:text-error hover:bg-red-50 rounded-md transition-colors" title="Limpar Histórico">
-            <TrashIcon className="w-4 h-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowBrainSettings(true)} className="p-1.5 text-muted hover:text-primary hover:bg-gray-100 rounded-md transition-colors" title="Configurar Cérebro (Persona)">
+               <Cog6ToothIcon className="w-5 h-5" />
+            </button>
+            <button onClick={handleClearChat} className="p-1.5 text-muted hover:text-error hover:bg-red-50 rounded-md transition-colors" title="Limpar Histórico">
+                <TrashIcon className="w-5 h-5" />
+            </button>
+          </div>
         </header>
 
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative pb-32"> {/* Added pb-32 for bottom spacing inside chat */}
           <div className="max-w-3xl mx-auto px-4 md:px-8 py-8 flex flex-col min-h-full">
-            {messages.map((msg, index) => (msg.text || loading) && <ChatMessage key={index} message={msg} />)}
+            {messages.map((msg, index) => (msg.text || loading) && 
+                <ChatMessage 
+                    key={index} 
+                    message={msg} 
+                    onSpeak={handleTTS}
+                    onDownload={handleDownloadTxt}
+                    onShare={handleShareCopy}
+                />
+            )}
             {loading && <div className="pl-2 mb-8"><TypingIndicator /></div>}
             {messages.length <= 1 && !loading && (
                <div className="mt-auto mb-10 flex flex-col items-center justify-center text-center opacity-60">
@@ -365,25 +517,53 @@ const Chatbot: React.FC = () => {
             </div>
         }
 
-        <div className="flex-none bg-surface border-t border-gray-200 p-4 md:p-6 z-20">
-          <div className="max-w-3xl mx-auto w-full relative">
+        <div className="flex-none bg-surface border-t border-gray-200 p-4 md:p-6 z-20 relative">
+          {/* File Attachment Indicator */}
+          {attachedFile && (
+              <div className="absolute -top-10 left-6 bg-primary/10 text-primary px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 border border-primary/20">
+                  <DocumentIcon className="w-4 h-4" />
+                  <span className="max-w-[200px] truncate">{attachedFile.name}</span>
+                  <button onClick={removeAttachment} className="hover:text-red-500"><XMarkIcon className="w-4 h-4" /></button>
+              </div>
+          )}
+
+          <div className="max-w-3xl mx-auto w-full relative flex items-end gap-2">
+             <input 
+                type="file" 
+                ref={fileInputRef} 
+                className="hidden" 
+                onChange={handleFileChange}
+                accept=".txt,.md,.csv,.json,.pdf,image/*" 
+             />
+             <button 
+                onClick={handleFileClick}
+                className="p-3 mb-0.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-muted hover:text-title transition-colors"
+                title="Anexar Arquivo"
+                disabled={loading}
+             >
+                <PaperClipIcon className="w-5 h-5" />
+             </button>
+
              {error && (
               <div className="absolute -top-14 left-0 right-0 mx-auto w-fit bg-red-100 text-red-800 text-xs px-4 py-2 rounded-full shadow-sm border border-red-200 flex items-center gap-2">
                 <span>{error}</span>
                 <button onClick={() => setError(null)} className="font-bold hover:text-red-900">&times;</button>
               </div>
             )}
-            <MultimodalChatInput 
-              onSendText={handleSendMessage}
-              onStartVoice={handleStartVoice}
-              onStopVoice={handleStopVoice}
-              isTextLoading={loading}
-              isVoiceActive={isLive}
-              isListening={isListening}
-              disabled={!chatSession && !isLive}
-              textValue={inputText}
-              onTextChange={setInputText}
-            />
+            
+            <div className="flex-1">
+                <MultimodalChatInput 
+                onSendText={handleSendMessage}
+                onStartVoice={handleStartVoice}
+                onStopVoice={handleStopVoice}
+                isTextLoading={loading}
+                isVoiceActive={isLive}
+                isListening={isListening}
+                disabled={!chatSession && !isLive}
+                textValue={inputText}
+                onTextChange={setInputText}
+                />
+            </div>
           </div>
         </div>
       </main>

@@ -1,18 +1,30 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { ChatMessage as ChatMessageType } from '../types';
-import { SparklesIcon, UserIcon, ClipboardDocumentIcon, WrenchScrewdriverIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, UserIcon, ClipboardDocumentIcon, WrenchScrewdriverIcon, SpeakerWaveIcon, ArrowDownTrayIcon, ShareIcon } from '@heroicons/react/24/outline';
 
 interface ChatMessageProps {
   message: ChatMessageType;
+  onSpeak?: (text: string) => void;
+  onDownload?: (text: string) => void;
+  onShare?: (text: string) => void;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onSpeak, onDownload, onShare }) => {
   const isUser = message.role === 'user';
   const isTool = message.role === 'tool';
+  const [isPlaying, setIsPlaying] = useState(false);
   
   const handleCopy = () => {
     navigator.clipboard.writeText(message.text);
+    if(onShare) onShare(message.text); // Trigger toast externally if needed
+  };
+
+  const handleSpeak = () => {
+    if(onSpeak) {
+        setIsPlaying(!isPlaying); // Simple toggle visual state, actual audio logic in parent
+        onSpeak(message.text);
+    }
   };
 
   if (isTool) {
@@ -60,19 +72,37 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message }) => {
             <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2" style={{ color: isUser ? 'white' : 'inherit' }}>
               {message.text}
             </div>
-            
-            {!isUser && (
-              <button 
-                onClick={handleCopy}
-                className="absolute top-3 right-3 p-1.5 text-muted hover:text-primary bg-background/50 hover:bg-background rounded-md opacity-0 group-hover:opacity-100 transition-all"
-                title="Copiar para a área de transferência"
-              >
-                <ClipboardDocumentIcon className="w-3.5 h-3.5" />
-              </button>
-            )}
           </div>
           
-          <span className={`text-[10px] text-muted mt-1.5 font-medium ${isUser ? 'text-right' : 'text-left'}`}>
+          {/* Action Toolbar for AI Messages */}
+          {!isUser && (
+             <div className="flex items-center gap-2 mt-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200">
+                <button 
+                    onClick={handleSpeak}
+                    className={`p-1.5 rounded-md transition-colors ${isPlaying ? 'text-primary bg-primary/10' : 'text-muted hover:text-primary hover:bg-gray-100'}`}
+                    title="Ouvir (TTS)"
+                >
+                    <SpeakerWaveIcon className="w-4 h-4" />
+                </button>
+                <button 
+                    onClick={() => onDownload && onDownload(message.text)}
+                    className="p-1.5 text-muted hover:text-primary hover:bg-gray-100 rounded-md transition-colors"
+                    title="Baixar Texto (.txt)"
+                >
+                    <ArrowDownTrayIcon className="w-4 h-4" />
+                </button>
+                <button 
+                    onClick={handleCopy}
+                    className="p-1.5 text-muted hover:text-primary hover:bg-gray-100 rounded-md transition-colors"
+                    title="Copiar/Compartilhar"
+                >
+                    <ClipboardDocumentIcon className="w-4 h-4" />
+                </button>
+             </div>
+          )}
+
+          {/* Timestamp */}
+          <span className={`text-[10px] text-muted mt-1 font-medium ${isUser ? 'text-right' : 'text-left'}`}>
             {new Date(message.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
           </span>
         </div>

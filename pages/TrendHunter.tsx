@@ -10,6 +10,7 @@ import { useNavigate } from '../hooks/useNavigate';
 import { GEMINI_FLASH_MODEL } from '../constants';
 import { LightBulbIcon, MapPinIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
 import { useToast } from '../contexts/ToastContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const TrendHunter: React.FC = () => {
   const [query, setQuery] = useState<string>('');
@@ -25,6 +26,7 @@ const TrendHunter: React.FC = () => {
 
   const { navigateTo } = useNavigate();
   const { addToast } = useToast();
+  const { language } = useLanguage();
 
   const userId = 'mock-user-123';
 
@@ -77,7 +79,7 @@ const TrendHunter: React.FC = () => {
           finalQuery += ` em ${city}`;
       }
 
-      const fetchedTrends = await searchTrends(finalQuery, location);
+      const fetchedTrends = await searchTrends(finalQuery, location, language);
       const trendsWithUserId = fetchedTrends.map(t => ({ ...t, userId: userId }));
       setTrends(trendsWithUserId);
 
@@ -93,12 +95,15 @@ const TrendHunter: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [query, city, userId, userLocation, addToast]);
+  }, [query, city, userId, userLocation, addToast, language]);
 
   const handleGenerateContentIdea = useCallback(async (trend: Trend) => {
     setGeneratingIdeaFor(trend.id);
     try {
-      const prompt = `Based on the trending topic "${trend.query}" and the following details: "${trend.data}", suggest a creative and engaging content idea (e.g., a social media post concept or blog title). Keep it concise.`;
+      const prompt = language === 'pt-BR'
+        ? `Com base no tópico em alta "${trend.query}" e nos seguintes detalhes: "${trend.data}", sugira uma ideia de conteúdo criativa e envolvente (por exemplo, um conceito de post para rede social ou título de blog). Mantenha a sugestão concisa e em português.`
+        : `Based on the trending topic "${trend.query}" and the following details: "${trend.data}", suggest a creative and engaging content idea (e.g., a social media post concept or blog title). Keep it concise.`;
+
       const idea = await generateText(prompt, { model: GEMINI_FLASH_MODEL });
       setGeneratedIdeas(prev => ({ ...prev, [trend.id]: idea }));
     } catch (err) {
@@ -107,7 +112,7 @@ const TrendHunter: React.FC = () => {
     } finally {
       setGeneratingIdeaFor(null);
     }
-  }, [addToast]);
+  }, [addToast, language]);
 
   const handleCreateContentFromTrend = useCallback((trend: Trend) => {
     navigateTo('ContentGenerator');

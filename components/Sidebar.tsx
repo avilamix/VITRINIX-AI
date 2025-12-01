@@ -82,7 +82,6 @@ const Sidebar: React.FC<SidebarProps> = ({ activeModule, setActiveModule }) => {
           <NavItem name="CampaignBuilder" label={t('sidebar.campaigns')} icon={SparklesIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
           <NavItem id="nav-trend-hunter" name="TrendHunter" label={t('sidebar.trends')} icon={MagnifyingGlassCircleIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
           <NavItem name="LocalFinder" label={t('sidebar.local_finder')} icon={MapPinIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
-          <NavItem name="CalendarManager" label={t('sidebar.calendar_manager')} icon={ClockIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
           <NavItem name="SmartScheduler" label={t('sidebar.calendar')} icon={CalendarDaysIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
 
           <div className="px-5 pb-2 pt-6 text-[10px] font-bold text-muted uppercase tracking-widest opacity-80">{t('sidebar.communication')}</div>
