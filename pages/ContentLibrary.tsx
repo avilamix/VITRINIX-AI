@@ -6,7 +6,9 @@ import { createFileSearchStore, uploadFileToSearchStore } from '../services/gemi
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import { TrashIcon, ArrowDownTrayIcon, ShareIcon, DocumentTextIcon, MusicalNoteIcon, CircleStackIcon, CloudArrowUpIcon } from '@heroicons/react/24/outline';
+import { downloadImage, shareImage } from '../utils/mediaUtils'; // NOVO
+// FIX: Add CalendarDaysIcon import
+import { TrashIcon, ArrowDownTrayIcon, ShareIcon, DocumentTextIcon, MusicalNoteIcon, CircleStackIcon, CloudArrowUpIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
 import { useNavigate } from '../hooks/useNavigate'; // Custom hook for navigation
 import { useToast } from '../contexts/ToastContext';
 
@@ -113,14 +115,23 @@ const ContentLibrary: React.FC = () => {
     }
   }, [addToast]);
 
-  const handleDownloadItem = useCallback((item: LibraryItem) => {
-    const link = document.createElement('a');
-    link.href = item.file_url;
-    link.download = item.name;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    addToast({ type: 'info', message: 'Download iniciado.' });
+  const handleDownloadItem = useCallback(async (item: LibraryItem) => {
+    addToast({ type: 'info', message: 'Iniciando download...' });
+    const success = await downloadImage(item.file_url, item.name);
+    if (!success) {
+      addToast({ type: 'error', message: 'Falha no download.' });
+    }
+  }, [addToast]);
+
+  const handleShareItem = useCallback(async (item: LibraryItem) => {
+    if (item.type !== 'image' && item.type !== 'video') {
+      addToast({ type: 'warning', message: 'Apenas imagens e vídeos podem ser compartilhados.' });
+      return;
+    }
+    const success = await shareImage(item.file_url, item.name, `Confira este arquivo da minha biblioteca: ${item.name}`);
+    if (!success) {
+      addToast({ type: 'info', message: 'Compartilhamento não disponível ou cancelado.' });
+    }
   }, [addToast]);
 
   const handleUseInCalendar = useCallback((item: LibraryItem) => {
@@ -260,13 +271,22 @@ const ContentLibrary: React.FC = () => {
                     <ArrowDownTrayIcon className="w-5 h-5 text-accent" />
                   </Button>
                   <Button
-                    onClick={() => handleUseInCalendar(item)}
+                    onClick={() => handleShareItem(item)}
+                    variant="ghost"
+                    size="sm"
+                    className="text-white hover:bg-primary/20"
+                    title="Compartilhar"
+                  >
+                    <ShareIcon className="w-5 h-5 text-accent" />
+                  </Button>
+                  <Button
+                    onClick={() => navigateTo('SmartScheduler')}
                     variant="ghost"
                     size="sm"
                     className="text-white hover:bg-primary/20"
                     title="Usar no Calendário"
                   >
-                    <ShareIcon className="w-5 h-5 text-accent" />
+                    <CalendarDaysIcon className="w-5 h-5 text-accent" />
                   </Button>
                   <Button
                     onClick={() => handleDeleteItem(item.id)}

@@ -360,7 +360,7 @@ const Chatbot: React.FC = () => {
         </div>
 
         {/* Messages */}
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 space-y-6">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto px-6 py-8 md:p-8 space-y-6">
             {messages.map((msg, index) => (
                 <ChatMessage 
                   key={`${msg.timestamp}-${index}`} 
@@ -375,7 +375,7 @@ const Chatbot: React.FC = () => {
         </div>
         
         {/* Suggestions & Input */}
-        <div className="p-4 pt-2 bg-surface border-t border-border">
+        <div className="p-4 bg-surface border-t border-border">
           {messages.length <= 2 && !loading && (
              <div className="flex flex-wrap gap-2 mb-3 animate-in fade-in">
                  {SUGGESTIONS.map((s, i) => (

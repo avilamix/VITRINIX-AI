@@ -4,6 +4,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import SaveToLibraryButton from '../components/SaveToLibraryButton';
 import LoadingSpinner from '../components/LoadingSpinner';
+import MediaActionsToolbar from '../components/MediaActionsToolbar'; // NOVO
 import { generateText, generateImage } from '../services/geminiService';
 import { savePost } from '../services/firestoreService';
 import { Post } from '../types';
@@ -211,6 +212,13 @@ const ContentGenerator: React.FC = () => {
                 <Button onClick={handleRegenerateImage} isLoading={loadingImage} variant="outline" className="w-full sm:w-auto">
                   {loadingImage ? 'Regenerando...' : 'Regenerar Imagem'}
                 </Button>
+                 {/* NOVO: Ações de Mídia */}
+                <MediaActionsToolbar
+                  mediaUrl={generatedImageUrl}
+                  fileName={`vitrinex-post.png`}
+                  shareTitle="Confira este post!"
+                  shareText={generatedPost.content_text}
+                />
               </div>
             </div>
           </div>

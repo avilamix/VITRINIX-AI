@@ -4,7 +4,8 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 import SaveToLibraryButton from '../components/SaveToLibraryButton';
 import LoadingSpinner from '../components/LoadingSpinner';
-import VoiceoverControl from '../components/VoiceoverControl'; // Importa o novo componente
+import VoiceoverControl from '../components/VoiceoverControl';
+import MediaActionsToolbar from '../components/MediaActionsToolbar'; // NOVO
 import { generateText, generateImage } from '../services/geminiService';
 import { saveAd } from '../services/firestoreService';
 import { Ad } from '../types';
@@ -94,20 +95,6 @@ const AdStudio: React.FC = () => {
       setLoading(false);
     }
   }, [productDescription, targetAudience, selectedPlatform, userId, addToast]);
-
-  const handleDownload = useCallback(() => {
-    if (!generatedImageUrl) {
-      addToast({ type: 'warning', message: 'Nenhuma imagem para baixar.' });
-      return;
-    }
-    const link = document.createElement('a');
-    link.href = generatedImageUrl;
-    link.download = `vitrinex-ad-${selectedPlatform}-${Date.now()}.png`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    addToast({ type: 'info', message: 'Download iniciado.' });
-  }, [generatedImageUrl, selectedPlatform, addToast]);
 
   const handleSaveAd = useCallback(async () => {
     if (!generatedAd) {
@@ -216,9 +203,13 @@ const AdStudio: React.FC = () => {
                 )}
               </div>
               <div className="mt-6 flex flex-wrap gap-3">
-                <Button onClick={handleDownload} variant="primary" className="w-full sm:w-auto">
-                  Baixar Criativo
-                </Button>
+                {/* Ações de Mídia agora usam o componente reutilizável */}
+                <MediaActionsToolbar
+                  mediaUrl={generatedImageUrl}
+                  fileName={`vitrinex-ad-${selectedPlatform}.png`}
+                  shareTitle={`Confira este anúncio para ${selectedPlatform}!`}
+                  shareText={generatedAd.copy}
+                />
                 <Button onClick={handleSaveAd} variant="primary" isLoading={loading} disabled={!generatedAd} className="w-full sm:w-auto">
                   {loading && generatedAd ? 'Salvando Anúncio...' : 'Salvar Anúncio'}
                 </Button>

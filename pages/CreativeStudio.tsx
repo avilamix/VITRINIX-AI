@@ -1,10 +1,10 @@
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Textarea from '../components/Textarea';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import SaveToLibraryButton from '../components/SaveToLibraryButton';
+import MediaActionsToolbar from '../components/MediaActionsToolbar'; // NOVO
 import { generateImage, editImage, generateVideo, analyzeImage, analyzeVideo } from '../services/geminiService';
 import {
   GEMINI_IMAGE_PRO_MODEL,
@@ -210,21 +210,6 @@ const CreativeStudio: React.FC = () => {
     };
   }, [file, prompt, mediaType, addToast]);
 
-
-  const handleExport = useCallback(() => {
-    if (!generatedMediaUrl) {
-      addToast({ type: 'warning', message: 'Nenhuma mídia gerada para exportar.' });
-      return;
-    }
-    const link = document.createElement('a');
-    link.href = generatedMediaUrl;
-    link.download = `vitrinex-creative-${mediaType}-${Date.now()}.${mediaType === 'image' ? 'png' : 'mp4'}`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-    addToast({ type: 'info', message: 'Download iniciado.' });
-  }, [generatedMediaUrl, mediaType, addToast]);
-
   useEffect(() => {
     return () => {
       if (previewUrl) {
@@ -429,7 +414,13 @@ const CreativeStudio: React.FC = () => {
           )}
 
           <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-auto pt-4 border-t border-gray-900">
-             <Button onClick={handleExport} variant="secondary" disabled={!generatedMediaUrl || loading} className="w-full sm:w-auto">Exportar</Button>
+             {/* NOVO: Ações de Mídia */}
+             <MediaActionsToolbar
+                mediaUrl={generatedMediaUrl}
+                fileName={`vitrinex-creative-${mediaType}.png`}
+                shareTitle="Confira este criativo!"
+                shareText={prompt}
+             />
           </div>
         </div>
       </div>
