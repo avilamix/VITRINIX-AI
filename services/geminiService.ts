@@ -13,7 +13,8 @@ import {
   File as GenAIFile,
   Modality,
   Tool,
-  Part
+  Part,
+  GenerateContentParameters
 } from '@google/genai';
 import {
   GEMINI_FLASH_MODEL,
@@ -181,6 +182,85 @@ export const generateText = async (
   } catch (error: any) {
     console.error("Gemini API Error (generateText):", error);
     throw new Error(`Erro na IA: ${error.message || 'Falha desconhecida'}`);
+  }
+};
+
+// FIX: Add missing generateTextStream function.
+// --- GERAÇÃO DE TEXTO (STREAMING) ---
+export const generateTextStream = async (
+  prompt: string | (string | Part)[],
+  options?: GenerateTextOptions,
+  useKnowledgeBase?: boolean,
+): Promise<AsyncGenerator<string>> => {
+  let {
+    model = GEMINI_FLASH_MODEL,
+    systemInstruction,
+    responseMimeType,
+    responseSchema,
+    tools,
+    thinkingBudget,
+    provider = 'Google Gemini',
+  } = options || {};
+
+  if (provider !== 'Google Gemini') {
+    async function* simulate() {
+      yield `[Simulação ${provider}]: Streaming... (Integração direta apenas para Gemini)`;
+    }
+    return simulate();
+  }
+
+  if (useKnowledgeBase) {
+    const localContent = localStorage.getItem(LOCAL_KB_STORAGE_KEY);
+    if (localContent) {
+      systemInstruction =
+        (systemInstruction || '') +
+        `\n\n[CONTEXTO DA BASE DE CONHECIMENTO LOCAL]\nUse as informações abaixo para responder às perguntas do usuário:\n${localContent.substring(
+          0,
+          30000,
+        )}... (truncado se muito longo)`;
+      console.log('RAG (Stream): Contexto local injetado no system instruction.');
+    }
+  }
+
+  const ai = await getGenAIClient();
+
+  const config: any = {
+    responseMimeType,
+    responseSchema,
+    tools,
+  };
+
+  if (systemInstruction) config.systemInstruction = systemInstruction;
+
+  // Thinking budget apenas para modelos suportados (2.5 family mostly)
+  if (thinkingBudget && model.includes('2.5')) {
+    config.thinkingConfig = { thinkingBudget };
+  }
+
+  const contents: GenerateContentParameters['contents'] =
+    typeof prompt === 'string'
+      ? [{ role: 'user', parts: [{ text: prompt }] }]
+      : [{ role: 'user', parts: prompt.map(p => (typeof p === 'string' ? { text: p } : p)) }];
+
+  try {
+    const responseStream = await ai.models.generateContentStream({
+      model,
+      contents,
+      config,
+    });
+
+    async function* processStream() {
+      for await (const chunk of responseStream) {
+        if (chunk.text) {
+          yield chunk.text;
+        }
+      }
+    }
+
+    return processStream();
+  } catch (error: any) {
+    console.error('Gemini API Error (generateTextStream):', error);
+    throw new Error(`Erro na IA (streaming): ${error.message || 'Falha desconhecida'}`);
   }
 };
 

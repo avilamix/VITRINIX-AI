@@ -228,7 +228,7 @@ const ContentLibrary: React.FC = () => {
           Nenhum item encontrado na biblioteca.
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
           {filteredItems.map((item) => (
             <div key={item.id} className="bg-lightbg rounded-lg shadow-sm border border-gray-800 overflow-hidden group">
               <div className="relative h-48 bg-gray-900 flex items-center justify-center overflow-hidden">

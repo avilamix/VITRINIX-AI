@@ -1,6 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react';
+
+import React, { useState, useRef, useEffect, useCallback } from 'react';
 import { PaperAirplaneIcon, MicrophoneIcon, StopCircleIcon } from '@heroicons/react/24/solid';
-import AudioVisualizer from './AudioVisualizer'; // Reutilizando o visualizador
+import SlashCommandPopover from './SlashCommandPopover';
+
+interface Command {
+  key: string;
+  text: string;
+  desc: string;
+}
 
 interface MultimodalChatInputProps {
   onSendText: (message: string) => void;
@@ -10,9 +17,7 @@ interface MultimodalChatInputProps {
   isVoiceActive: boolean;
   isListening: boolean;
   disabled?: boolean;
-  textValue: string;
-  onTextChange: (value: string) => void;
-  userAnalyser?: AnalyserNode | null; // Opcional para visualizar a voz do usuário
+  commands?: Command[];
 }
 
 const MultimodalChatInput: React.FC<MultimodalChatInputProps> = ({
@@ -23,11 +28,16 @@ const MultimodalChatInput: React.FC<MultimodalChatInputProps> = ({
   isVoiceActive,
   isListening,
   disabled,
-  textValue,
-  onTextChange,
-  userAnalyser,
+  commands = [],
 }) => {
+  const [textValue, setTextValue] = useState('');
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+
+  // --- FASE 2: Slash Command State ---
+  const [showCommands, setShowCommands] = useState(false);
+  const [filteredCommands, setFilteredCommands] = useState<Command[]>([]);
+  const [commandIndex, setCommandIndex] = useState(0);
+  const commandPopoverRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -36,18 +46,53 @@ const MultimodalChatInput: React.FC<MultimodalChatInputProps> = ({
     }
   }, [textValue]);
 
+  const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    const value = e.target.value;
+    setTextValue(value);
+
+    if (value.startsWith('/') && value.length > 0) {
+      const searchTerm = value.substring(1).toLowerCase();
+      const matchingCommands = commands.filter(cmd => cmd.key.substring(1).toLowerCase().startsWith(searchTerm));
+      setFilteredCommands(matchingCommands);
+      setShowCommands(matchingCommands.length > 0);
+      setCommandIndex(0);
+    } else {
+      setShowCommands(false);
+    }
+  };
+
+  const handleSelectCommand = useCallback((command: Command) => {
+    setTextValue(command.text);
+    setShowCommands(false);
+    textareaRef.current?.focus();
+  }, []);
+
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (e.key === 'Enter' && !e.shiftKey) {
+    if (showCommands && filteredCommands.length > 0) {
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setCommandIndex(prev => (prev + 1) % filteredCommands.length);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setCommandIndex(prev => (prev - 1 + filteredCommands.length) % filteredCommands.length);
+      } else if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        handleSelectCommand(filteredCommands[commandIndex]);
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setShowCommands(false);
+      }
+    } else if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();
     }
   };
-
+  
   const handleSubmit = (e?: React.FormEvent) => {
     e?.preventDefault();
     if (!textValue.trim() || isTextLoading || disabled) return;
     onSendText(textValue);
-    onTextChange('');
+    setTextValue('');
     if (textareaRef.current) textareaRef.current.style.height = 'auto';
   };
 
@@ -60,30 +105,28 @@ const MultimodalChatInput: React.FC<MultimodalChatInputProps> = ({
   };
 
   return (
-    <div className="relative">
-      {isListening && (
-        <div className="absolute bottom-full left-0 right-0 h-20 mb-2 flex items-center justify-center">
-            <div className="w-full max-w-sm h-full bg-surface/80 backdrop-blur-sm rounded-xl border border-gray-200 shadow-lg flex items-center justify-center px-4">
-                 <p className="text-sm font-medium text-primary animate-pulse mr-4">Ouvindo...</p>
-                 <div className="w-full h-1/2">
-                    {/* Placeholder for user voice visualizer */}
-                    <div className="w-full h-full bg-primary/10 rounded-lg"></div>
-                 </div>
-            </div>
+    <div className="relative flex-1">
+      {showCommands && (
+        <div ref={commandPopoverRef}>
+          <SlashCommandPopover 
+            commands={filteredCommands}
+            onSelect={handleSelectCommand}
+            selectedIndex={commandIndex}
+          />
         </div>
       )}
 
       <form
         onSubmit={handleSubmit}
-        className="relative flex items-end gap-2 bg-surface border border-gray-200 rounded-2xl p-2 shadow-soft transition-shadow duration-200 focus-within:shadow-md focus-within:border-gray-300"
+        className="relative flex items-end gap-2 bg-surface border border-border rounded-2xl p-2 shadow-soft transition-shadow duration-200 focus-within:shadow-md focus-within:border-gray-300 dark:focus-within:border-primary/50"
       >
         <textarea
           ref={textareaRef}
           value={textValue}
-          onChange={(e) => onTextChange(e.target.value)}
+          onChange={handleTextChange}
           onKeyDown={handleKeyDown}
-          placeholder={isListening ? "Ouvindo..." : "Digite ou use o microfone..."}
-          className="w-full bg-transparent text-body placeholder-muted text-base px-3 py-2.5 max-h-[160px] resize-none focus:outline-none scrollbar-hide"
+          placeholder={isListening ? "Ouvindo..." : "Digite uma mensagem ou '/' para comandos..."}
+          className="w-full bg-transparent text-body placeholder-muted text-base px-3 py-2.5 max-h-[160px] resize-none focus:outline-none"
           rows={1}
           disabled={isTextLoading || disabled || isListening}
         />
@@ -94,7 +137,7 @@ const MultimodalChatInput: React.FC<MultimodalChatInputProps> = ({
              disabled={!textValue.trim() || isTextLoading || disabled}
              className={`p-2.5 rounded-xl mb-0.5 transition-all duration-200 flex-shrink-0 ${
                !textValue.trim() || isTextLoading || disabled
-                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                 ? 'bg-gray-100 dark:bg-gray-800 text-gray-400 dark:text-gray-600 cursor-not-allowed'
                  : 'bg-primary text-white hover:bg-primary/90 shadow-sm'
              }`}
            >
@@ -109,7 +152,7 @@ const MultimodalChatInput: React.FC<MultimodalChatInputProps> = ({
           className={`p-2.5 rounded-xl mb-0.5 transition-all duration-200 flex-shrink-0 ${
             isListening
               ? 'bg-red-500 text-white shadow-lg'
-              : 'bg-gray-100 text-gray-600 hover:bg-primary hover:text-white'
+              : 'bg-gray-100 dark:bg-gray-800 text-gray-600 hover:bg-primary hover:text-white'
           }`}
         >
           {isListening ? (
