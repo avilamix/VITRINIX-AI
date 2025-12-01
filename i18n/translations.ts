@@ -1,5 +1,6 @@
 
 
+
 export type Language = 'pt-BR' | 'en-US';
 
 export const translations = {
@@ -12,12 +13,9 @@ export const translations = {
     'sidebar.content_gen': 'Content Gen',
     'sidebar.ad_creator': 'Ad Creator',
     'sidebar.media_studio': 'Media Studio',
-    'sidebar.voice_lab': 'Voice Lab',
-    'sidebar.code_playground': 'Code Playground',
     'sidebar.strategy': 'Strategy',
     'sidebar.campaigns': 'Campaigns',
     'sidebar.trends': 'Trends',
-    'sidebar.local_finder': 'Local Finder',
     'sidebar.calendar': 'Calendar',
     'sidebar.communication': 'Communication',
     'sidebar.ai_chat': 'AI Chat',
@@ -65,12 +63,9 @@ export const translations = {
     'sidebar.content_gen': 'Gerador de Conteúdo',
     'sidebar.ad_creator': 'Criador de Anúncios',
     'sidebar.media_studio': 'Estúdio de Mídia',
-    'sidebar.voice_lab': 'Laboratório de Voz',
-    'sidebar.code_playground': 'Laboratório de Código',
     'sidebar.strategy': 'Estratégia',
     'sidebar.campaigns': 'Campanhas',
     'sidebar.trends': 'Tendências',
-    'sidebar.local_finder': 'Explorador Local',
     'sidebar.calendar': 'Calendário',
     'sidebar.communication': 'Comunicação',
     'sidebar.ai_chat': 'Chat IA',

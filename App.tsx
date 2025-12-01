@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
@@ -15,8 +16,6 @@ import Settings from './pages/Settings';
 import LoadingSpinner from './components/LoadingSpinner';
 import Chatbot from './pages/Chatbot';
 import AudioTools from './pages/AudioTools';
-import CodePlayground from './pages/CodePlayground';
-import LocalFinder from './pages/LocalFinder';
 import Logo from './components/Logo'; 
 import TutorialOverlay from './components/TutorialOverlay'; 
 import { NavigationContext } from './hooks/useNavigate';
@@ -39,10 +38,7 @@ export type ModuleName =
   | 'ContentLibrary'
   | 'SmartScheduler'
   | 'Settings'
-  | 'Chatbot'
-  | 'AudioTools'
-  | 'CodePlayground'
-  | 'LocalFinder';
+  | 'Chatbot';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -135,9 +131,6 @@ function AppContent() {
       case 'ContentLibrary': return <ContentLibrary />;
       case 'SmartScheduler': return <SmartScheduler />;
       case 'Chatbot': return <Chatbot />;
-      case 'AudioTools': return <AudioTools />;
-      case 'CodePlayground': return <CodePlayground />;
-      case 'LocalFinder': return <LocalFinder />;
       case 'Settings': return <Settings onApiKeySelected={checkAndSelectApiKey} onOpenApiKeySelection={() => {}} />;
       default: return <Dashboard />;
     }
@@ -206,7 +199,7 @@ function AppContent() {
   }
 
   // Modules that require full height without internal padding/scroll (handled internally)
-  const isFullHeightModule = activeModule === 'Chatbot' || activeModule === 'CodePlayground' || activeModule === 'AudioTools';
+  const isFullHeightModule = activeModule === 'Chatbot';
 
   return (
     <NavigationContext.Provider value={{ setActiveModule, activeModule }}>

@@ -4,6 +4,7 @@ import Input from '../components/Input';
 import Button from '../components/Button';
 import SaveToLibraryButton from '../components/SaveToLibraryButton';
 import LoadingSpinner from '../components/LoadingSpinner';
+import VoiceoverControl from '../components/VoiceoverControl'; // Importa o novo componente
 import { generateText, generateImage } from '../services/geminiService';
 import { saveAd } from '../services/firestoreService';
 import { Ad } from '../types';
@@ -189,9 +190,13 @@ const AdStudio: React.FC = () => {
               <p className="text-textdark text-xl font-medium mb-4">{generatedAd.headline}</p>
 
               <h4 className="text-lg font-semibold text-textlight mb-3">Texto:</h4>
-              <p className="prose max-w-none text-textlight leading-relaxed bg-darkbg p-4 rounded-md h-auto min-h-[150px]" style={{ whiteSpace: 'pre-wrap' }}>
+              <div className="prose max-w-none text-textlight leading-relaxed bg-darkbg p-4 rounded-md h-auto min-h-[150px]" style={{ whiteSpace: 'pre-wrap' }}>
                 {generatedAd.copy}
-              </p>
+              </div>
+
+              {/* Implante do VoiceoverControl */}
+              <VoiceoverControl text={generatedAd.copy} />
+
               <div className="mt-6 flex flex-wrap gap-3">
                 <Button variant="secondary" onClick={() => addToast({ type: 'info', message: 'Funcionalidade em desenvolvimento.' })}>Gerar Variações</Button>
                 <Button variant="outline" onClick={() => addToast({ type: 'info', message: 'Funcionalidade em desenvolvimento.' })}>Editar</Button>

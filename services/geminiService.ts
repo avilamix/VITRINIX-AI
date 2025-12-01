@@ -1,4 +1,5 @@
 
+
 import {
   GoogleGenAI,
   GenerateContentResponse,
@@ -34,8 +35,6 @@ import {
   ChatMessage,
   KnowledgeBaseQueryResponse,
   OrganizationMembership,
-  GeminiPart,
-  PlaceResult,
 } from '../types';
 import { getFirebaseIdToken, getActiveOrganization } from './authService';
 
@@ -372,47 +371,6 @@ export const analyzeVideo = async (
   return "Análise de vídeo requer upload para Google File API (Feature em desenvolvimento para modo frontend-only).";
 };
 
-// --- TRANSCRIÇÃO DE ÁUDIO (STT) ---
-export const transcribeAudio = async (
-  audioFile: File,
-  prompt: string = "Transcreva o áudio a seguir.",
-  model: string = GEMINI_FLASH_MODEL
-): Promise<string> => {
-  const ai = await getGenAIClient();
-
-  // Convert File to Base64
-  const base64Data = await new Promise<string>((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = reader.result as string;
-      const base64 = result.split(',')[1];
-      resolve(base64);
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(audioFile);
-  });
-
-  try {
-    const response = await ai.models.generateContent({
-      model,
-      contents: [
-        {
-          role: 'user',
-          parts: [
-            { inlineData: { mimeType: audioFile.type, data: base64Data } },
-            { text: prompt }
-          ]
-        }
-      ]
-    });
-
-    return response.text || "Não foi possível transcrever o áudio.";
-  } catch (error: any) {
-    console.error("Transcription Error:", error);
-    throw new Error(`Erro na transcrição: ${error.message}`);
-  }
-};
-
 // --- ARCHITECT: ANÁLISE DE CÓDIGO (Simulação de RAG do Codebase) ---
 export const queryArchitect = async (query: string): Promise<string> => {
   const projectContext = `
@@ -455,18 +413,11 @@ export const queryArchitect = async (query: string): Promise<string> => {
 // --- SEARCH TRENDS (Grounding) ---
 export const searchTrends = async (
   query: string,
-  location?: { latitude: number; longitude: number },
   language: string = 'en-US',
 ): Promise<Trend[]> => {
   const ai = await getGenAIClient();
   
   const tools: Tool[] = [{ googleSearch: {} }];
-  const toolConfig: any = {};
-
-  if (location) {
-    tools.push({ googleMaps: {} });
-    toolConfig.retrievalConfig = { latLng: location };
-  }
 
   const prompt = language === 'pt-BR'
     ? `Encontre as tendências de marketing atuais para "${query}". Forneça um resumo detalhado em português.`
@@ -477,8 +428,7 @@ export const searchTrends = async (
         model: GEMINI_FLASH_MODEL,
         contents: prompt,
         config: {
-        tools,
-        toolConfig: Object.keys(toolConfig).length > 0 ? toolConfig : undefined,
+          tools,
         },
     });
 
@@ -507,87 +457,6 @@ export const searchTrends = async (
   } catch (e: any) {
       console.error("Search Trends Error:", e);
       throw new Error("Erro ao buscar tendências. Verifique se sua chave suporta Google Search Grounding.");
-  }
-};
-
-// --- GOOGLE MAPS GROUNDING ---
-export const findPlacesWithMaps = async (
-  prompt: string,
-  gpsLocation: { latitude: number; longitude: number } | null,
-  textLocation: string,
-): Promise<PlaceResult> => {
-  const ai = await getGenAIClient();
-  
-  let fullPrompt = prompt;
-  const config: any = {
-    tools: [{ googleMaps: {} }],
-  };
-
-  if (textLocation) {
-    fullPrompt = `${prompt} perto de ${textLocation}`;
-  } else if (gpsLocation) {
-    config.toolConfig = {
-      retrievalConfig: { latLng: gpsLocation },
-    };
-  }
-  
-  try {
-    const response = await ai.models.generateContent({
-        model: GEMINI_FLASH_MODEL,
-        contents: fullPrompt,
-        config,
-    });
-
-    const text = response.text || 'Nenhuma resposta gerada.';
-    const groundingChunks = response.candidates?.[0]?.groundingMetadata?.groundingChunks || [];
-
-    const places = groundingChunks
-        .filter((chunk: any) => chunk.maps?.uri && chunk.maps?.title)
-        .map((chunk: any) => ({
-        uri: chunk.maps.uri,
-        title: chunk.maps.title,
-        }));
-
-    return { text, places };
-  } catch (e: any) {
-      console.error("Maps Grounding Error:", e);
-      throw new Error("Erro ao buscar locais. Verifique se sua chave suporta Google Maps Grounding.");
-  }
-};
-
-// --- CODE EXECUTION ---
-export const executeCode = async (prompt: string): Promise<GeminiPart[]> => {
-  const ai = await getGenAIClient();
-
-  try {
-    const response = await ai.models.generateContent({
-        model: GEMINI_PRO_MODEL,
-        contents: prompt,
-        config: {
-        tools: [{ codeExecution: {} }],
-        },
-    });
-
-    const parts = response.candidates?.[0]?.content?.parts;
-
-    if (!parts) {
-        throw new Error('A resposta da IA estava vazia ou foi bloqueada.');
-    }
-
-    return parts.map(p => ({
-        text: p.text,
-        executableCode: p.executableCode ? {
-            language: 'PYTHON',
-            code: p.executableCode.code
-        } : undefined,
-        codeExecutionResult: p.codeExecutionResult ? {
-            outcome: p.codeExecutionResult.outcome as string,
-            output: p.codeExecutionResult.output
-        } : undefined
-    })) as GeminiPart[];
-  } catch (e: any) {
-      console.error("Code Execution Error:", e);
-      throw new Error(`Erro ao executar código: ${e.message}`);
   }
 };
 

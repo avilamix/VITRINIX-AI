@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 import { ModuleName } from '../App';
 import { useLanguage } from '../contexts/LanguageContext';
@@ -15,9 +16,6 @@ import {
   Cog6ToothIcon,
   ChatBubbleLeftRightIcon,
   SpeakerWaveIcon,
-  CodeBracketSquareIcon,
-  MapPinIcon,
-  ClockIcon
 } from '@heroicons/react/24/outline';
 
 interface SidebarProps {
@@ -75,13 +73,10 @@ const Sidebar: React.FC<SidebarProps> = ({ activeModule, setActiveModule }) => {
           <NavItem id="nav-content-gen" name="ContentGenerator" label={t('sidebar.content_gen')} icon={DocumentTextIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
           <NavItem id="nav-ad-studio" name="AdStudio" label={t('sidebar.ad_creator')} icon={MegaphoneIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
           <NavItem name="CreativeStudio" label={t('sidebar.media_studio')} icon={PencilSquareIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
-          <NavItem name="AudioTools" label={t('sidebar.voice_lab')} icon={SpeakerWaveIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
-          <NavItem name="CodePlayground" label={t('sidebar.code_playground')} icon={CodeBracketSquareIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
 
           <div className="px-5 pb-2 pt-6 text-[10px] font-bold text-muted uppercase tracking-widest opacity-80">{t('sidebar.strategy')}</div>
           <NavItem name="CampaignBuilder" label={t('sidebar.campaigns')} icon={SparklesIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
           <NavItem id="nav-trend-hunter" name="TrendHunter" label={t('sidebar.trends')} icon={MagnifyingGlassCircleIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
-          <NavItem name="LocalFinder" label={t('sidebar.local_finder')} icon={MapPinIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
           <NavItem name="SmartScheduler" label={t('sidebar.calendar')} icon={CalendarDaysIcon} activeModule={activeModule} setActiveModule={setActiveModule} />
 
           <div className="px-5 pb-2 pt-6 text-[10px] font-bold text-muted uppercase tracking-widest opacity-80">{t('sidebar.communication')}</div>

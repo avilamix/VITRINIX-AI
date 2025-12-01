@@ -68,18 +68,13 @@ const TrendHunter: React.FC = () => {
     setGeneratedIdeas({});
 
     try {
-      // Prioriza texto se digitado, senão GPS
-      const location = city.trim() ? undefined : (userLocation || undefined);
-      // Se city foi digitado, ele será passado via prompt ou lógica interna no service se implementado,
-      // mas searchTrends atualmente aceita coords. 
-      // NOTA: Para busca de trends, o Google Search Tool usa texto na query.
       // Se tiver cidade, concatenamos na query para garantir contexto.
       let finalQuery = query;
       if (city.trim()) {
           finalQuery += ` em ${city}`;
       }
 
-      const fetchedTrends = await searchTrends(finalQuery, location, language);
+      const fetchedTrends = await searchTrends(finalQuery, language);
       const trendsWithUserId = fetchedTrends.map(t => ({ ...t, userId: userId }));
       setTrends(trendsWithUserId);
 
@@ -95,7 +90,7 @@ const TrendHunter: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [query, city, userId, userLocation, addToast, language]);
+  }, [query, city, userId, addToast, language]);
 
   const handleGenerateContentIdea = useCallback(async (trend: Trend) => {
     setGeneratingIdeaFor(trend.id);

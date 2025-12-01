@@ -1,6 +1,7 @@
 
 
 
+
 export interface TranscriptionSegment {
   text: string;
   isFinal: boolean;
@@ -182,27 +183,4 @@ export interface LoginResponseDto {
     name?: string;
   };
   organizations: OrganizationMembership[];
-}
-
-// NOVO: Interface para as partes da resposta do Gemini, incluindo code execution
-export interface GeminiPart {
-  text?: string;
-  inlineData?: {
-    mimeType: string;
-    data: string;
-  };
-  executableCode?: {
-    language: 'PYTHON';
-    code: string;
-  };
-  codeExecutionResult?: {
-    outcome: string; // "OUTCOME_OK" | "OUTCOME_FAILED"
-    output: string;
-  };
-}
-
-// NOVO: Interface para resultados de busca com Google Maps
-export interface PlaceResult {
-  text: string;
-  places: Array<{ uri: string; title: string }>;
 }
