@@ -21,6 +21,8 @@ import ChatMessage from '../components/ChatMessage';
 import TypingIndicator from '../components/TypingIndicator';
 import MultimodalChatInput from '../components/MultimodalChatInput';
 import AudioVisualizer from '../components/AudioVisualizer';
+import Button from '../components/Button';
+import Textarea from '../components/Textarea';
 import { useToast } from '../contexts/ToastContext';
 
 const SUGGESTIONS = [
@@ -42,9 +44,13 @@ const QUICK_PROMPTS = [
 
 const PROVIDERS: ProviderName[] = ['Google Gemini', 'OpenAI', 'Anthropic', 'Mistral', 'Meta LLaMA'];
 
-const DEFAULT_SYSTEM_INSTRUCTION = `Você é um Assistente de IA Empresarial sofisticado, especializado em Marketing, Estratégia e Conteúdo.
-Forneça respostas concisas, acionáveis e profissionais. Use um tom neutro e orientado para negócios.
-Quando solicitado conteúdo, formate-o claramente com títulos e marcadores.`;
+// DIRETIVA DE ALINHAMENTO COGNITIVO: O System Prompt foi atualizado para refletir as capacidades atuais da aplicação.
+const DEFAULT_SYSTEM_INSTRUCTION = `Sua função principal é atuar como um Arquiteto de Marketing Digital e Copywriter Sênior para a plataforma VitrineX AI.
+Você é um especialista em Marketing, Estratégia e Conteúdo.
+Forneça respostas concisas, acionáveis e profissionais, formatadas com títulos e marcadores quando apropriado.
+Você utiliza ferramentas para gerar imagens, textos persuasivos e estratégias de campanha.
+Para qualquer solicitação de agendamento ou organização de calendário, você NÃO tem acesso a ferramentas de calendário. Em vez disso, instrua o usuário a utilizar o "Calendário Visual (SmartScheduler)" da plataforma para agendar o conteúdo.
+Você NÃO pode executar código, fazer cálculos complexos, ou buscar locais físicos em um mapa. Mantenha o foco em estratégia de marketing e criação de conteúdo textual.`;
 
 const STORAGE_KEY = 'nexus_chat_history';
 
@@ -399,174 +405,131 @@ const Chatbot: React.FC = () => {
       {/* BRAIN SETTINGS MODAL */}
       {showBrainSettings && (
           <div className="absolute inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in">
-              <div className="bg-surface rounded-xl shadow-2xl w-full max-w-lg border border-border">
+              <div className="bg-surface rounded-xl shadow-2xl w-full max-w-2xl border border-border flex flex-col">
                   <div className="flex justify-between items-center p-4 border-b border-border">
                       <h3 className="text-lg font-bold text-title flex items-center gap-2">
-                          <Cog6ToothIcon className="w-5 h-5 text-primary" /> Configurar Cérebro da IA
+                          <Cog6ToothIcon className="w-5 h-5 text-primary" />
+                          Configurar Cérebro da IA (System Prompt)
                       </h3>
-                      <button onClick={() => setShowBrainSettings(false)} className="text-muted hover:text-error"><XMarkIcon className="w-6 h-6" /></button>
+                      <button onClick={() => setShowBrainSettings(false)} className="p-1 rounded-full text-muted hover:bg-gray-100 dark:hover:bg-gray-700">
+                          <XMarkIcon className="w-5 h-5" />
+                      </button>
                   </div>
-                  <div className="p-6">
-                      <p className="text-sm text-muted mb-3">Defina a persona e as diretrizes do assistente.</p>
-                      <textarea 
+                  <div className="p-6 flex-1">
+                      <p className="text-sm text-muted mb-4">
+                          Esta instrução define a persona e o comportamento base do assistente de IA. Edite com cuidado para alinhar a IA com seus objetivos de marketing.
+                      </p>
+                      <Textarea
+                          id="systemInstruction"
                           value={systemInstruction}
                           onChange={(e) => setSystemInstruction(e.target.value)}
-                          className="w-full h-40 p-3 rounded-lg bg-background border border-border focus:ring-2 focus:ring-primary focus:outline-none text-sm text-body resize-none"
-                          placeholder="Ex: Você é um especialista em..."
+                          rows={15}
+                          className="font-mono text-xs"
                       />
                   </div>
-                  <div className="p-4 border-t border-border flex justify-end gap-2">
-                      <button onClick={() => setShowBrainSettings(false)} className="px-4 py-2 text-sm text-body hover:bg-gray-100 rounded-lg">Cancelar</button>
-                      <button onClick={() => { setShowBrainSettings(false); initChat(); addToast({type:'success', message:'Persona atualizada!'}); }} className="px-4 py-2 text-sm bg-primary text-white rounded-lg hover:bg-primary/90">Salvar & Reiniciar</button>
+                  <div className="p-4 bg-background/50 border-t border-border rounded-b-xl flex justify-end gap-3">
+                      <Button variant="secondary" onClick={() => setShowBrainSettings(false)}>Cancelar</Button>
+                      <Button variant="primary" onClick={() => { setShowBrainSettings(false); initChat(); addToast({ type: 'success', message: 'Cérebro da IA atualizado e chat reiniciado.' }); }}>
+                          Salvar e Reiniciar Chat
+                      </Button>
                   </div>
               </div>
           </div>
       )}
 
-      <aside className="hidden md:flex flex-col w-72 bg-surface border-r border-gray-200 h-full flex-none z-10">
-        <div className="p-5 border-b border-gray-200">
-           <h2 className="text-xs font-bold text-title uppercase tracking-wider flex items-center gap-2">
-              <BoltIcon className="w-4 h-4 text-primary" />
-              Ações Rápidas
-           </h2>
-        </div>
-        <div className="flex-1 overflow-y-auto p-4 space-y-1">
-           {QUICK_PROMPTS.map((prompt, idx) => (
-              <button key={idx} onClick={() => setInputText(prompt)} className="w-full text-left px-3 py-2.5 text-sm text-body hover:bg-gray-100 rounded-lg transition-colors border border-transparent hover:border-gray-200 truncate" title={prompt}>
-                {prompt}
-              </button>
-           ))}
-           <div className="pt-6 pb-2 px-1">
-              <h3 className="text-[10px] font-bold text-muted uppercase tracking-wider mb-2 flex items-center gap-2">
-                 <LightBulbIcon className="w-3.5 h-3.5" /> Inspiração
-              </h3>
-           </div>
-            {SUGGESTIONS.map((suggestion, idx) => (
-              <button key={`sug-${idx}`} onClick={() => handleSendMessage(suggestion)} className="w-full text-left px-3 py-3 text-xs text-muted hover:text-primary bg-background/50 hover:bg-background border border-gray-100 rounded-lg transition-all mb-2.5 line-clamp-3 leading-relaxed">
-                "{suggestion}"
-              </button>
-           ))}
-        </div>
+      {/* Main Chat Area */}
+      <div className="flex flex-col flex-1 h-full min-w-0">
         
-        <div className="p-4 border-t border-gray-200 bg-gray-50">
-            {selectedProvider === 'Google Gemini' && kbName ? (
-              <button onClick={() => setUseKnowledgeBase(!useKnowledgeBase)} className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-xs font-bold uppercase transition-colors border ${useKnowledgeBase ? 'bg-success/10 text-success border-success/20' : 'bg-white text-muted border-gray-200'}`}>
-                 <div className="flex items-center gap-2"><CircleStackIcon className="w-4 h-4" /> Base de Conhecimento</div>
-                 <div className={`w-2 h-2 rounded-full ${useKnowledgeBase ? 'bg-success' : 'bg-gray-300'}`}></div>
-              </button>
-            ) : (
-               <div className="text-center"><p className="text-[10px] text-muted mb-2">Conecte uma Base de Conhecimento na Biblioteca.</p></div>
-            )}
-        </div>
-      </aside>
-
-      <main className="flex-1 flex flex-col min-w-0 bg-background relative">
-        <header className="flex-none bg-surface/80 backdrop-blur-sm border-b border-gray-200 px-6 py-3 flex items-center justify-between z-10">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-               <ChatBubbleLeftRightIcon className="w-4 h-4" />
-            </div>
-            <div>
-              <h1 className="text-sm font-bold text-title leading-none">Interface de Chat IA</h1>
-              <div className="flex items-center gap-1 mt-0.5">
-                 <span className="text-[10px] text-muted font-medium">Provedor:</span>
-                 <select value={selectedProvider} onChange={(e) => setSelectedProvider(e.target.value as ProviderName)} className="text-[10px] font-semibold text-primary bg-transparent border-none p-0 focus:ring-0 cursor-pointer hover:underline">
-                    {PROVIDERS.map(p => <option key={p} value={p}>{p}</option>)}
-                 </select>
-              </div>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={() => setShowBrainSettings(true)} className="p-1.5 text-muted hover:text-primary hover:bg-gray-100 rounded-md transition-colors" title="Configurar Cérebro (Persona)">
-               <Cog6ToothIcon className="w-5 h-5" />
-            </button>
-            <button onClick={handleClearChat} className="p-1.5 text-muted hover:text-error hover:bg-red-50 rounded-md transition-colors" title="Limpar Histórico">
-                <TrashIcon className="w-5 h-5" />
-            </button>
-          </div>
-        </header>
-
-        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto relative pb-32"> {/* Added pb-32 for bottom spacing inside chat */}
-          <div className="max-w-3xl mx-auto px-4 md:px-8 py-8 flex flex-col min-h-full">
-            {messages.map((msg, index) => (msg.text || loading) && 
-                <ChatMessage 
-                    key={index} 
-                    message={msg} 
-                    onSpeak={handleTTS}
-                    onDownload={handleDownloadTxt}
-                    onShare={handleShareCopy}
-                />
-            )}
-            {loading && <div className="pl-2 mb-8"><TypingIndicator /></div>}
-            {messages.length <= 1 && !loading && (
-               <div className="mt-auto mb-10 flex flex-col items-center justify-center text-center opacity-60">
-                 <SparklesIcon className="w-12 h-12 text-gray-300 mb-3" />
-                 <p className="text-sm text-muted max-w-xs">Inicie uma conversa digitando ou usando o microfone.</p>
-               </div>
-            )}
-            <div ref={messagesEndRef} className="h-1" />
-          </div>
-        </div>
-
-        {isModelSpeaking && 
-            <div className="absolute bottom-24 left-1/2 -translate-x-1/2 w-64 h-16 pointer-events-none">
-                <div className="w-full h-full bg-surface/80 backdrop-blur-sm rounded-xl border border-gray-200 shadow-lg flex items-center justify-center px-4">
-                    <SpeakerWaveIcon className="w-5 h-5 text-primary mr-3 flex-shrink-0" />
-                    <AudioVisualizer analyser={analyser} isPlaying={isModelSpeaking} barColor="rgb(var(--color-primary))" />
+        {/* Header */}
+        <div className="flex items-center justify-between p-4 border-b border-gray-200 bg-surface">
+            <div className="flex items-center gap-3">
+                <div className="p-2 rounded-lg bg-primary/10 text-primary">
+                   <ChatBubbleLeftRightIcon className="w-5 h-5" />
+                </div>
+                <div>
+                   <h2 className="font-bold text-title text-lg">Assistente IA</h2>
+                   <div className="flex items-center gap-2">
+                      <div className={`w-2 h-2 rounded-full ${isLive ? 'bg-green-500 animate-pulse' : 'bg-gray-400'}`}></div>
+                      <p className="text-xs text-muted font-medium">{isLive ? 'Conexão de Voz Ativa' : 'Pronto para Ajudar'}</p>
+                   </div>
                 </div>
             </div>
-        }
+            <div className="flex items-center gap-2">
+                <button onClick={() => setUseKnowledgeBase(!useKnowledgeBase)} disabled={!kbName} className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all ${useKnowledgeBase ? 'bg-primary/10 text-primary border-primary/20' : 'bg-gray-100 text-muted border-gray-200 hover:bg-gray-200'}`} title={kbName ? "Usar Base de Conhecimento" : "Base de Conhecimento não configurada"}>
+                  <CircleStackIcon className="w-4 h-4" />
+                  <span className="hidden sm:inline">RAG</span>
+                </button>
+                <button onClick={() => setShowBrainSettings(true)} className="p-2 rounded-lg text-muted hover:bg-gray-100" title="Configurar Persona da IA">
+                    <Cog6ToothIcon className="w-5 h-5" />
+                </button>
+                <button onClick={handleClearChat} className="p-2 rounded-lg text-muted hover:bg-red-50 hover:text-red-500" title="Limpar Histórico">
+                    <TrashIcon className="w-5 h-5" />
+                </button>
+            </div>
+        </div>
 
-        <div className="flex-none bg-surface border-t border-gray-200 p-4 md:p-6 z-20 relative">
-          {/* File Attachment Indicator */}
+        {/* Messages */}
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto p-6 space-y-6">
+            {messages.map((msg, index) => (
+                <ChatMessage 
+                  key={`${msg.timestamp}-${index}`} 
+                  message={msg}
+                  onSpeak={handleTTS}
+                  onDownload={handleDownloadTxt}
+                  onShare={handleShareCopy}
+                />
+            ))}
+            {loading && <TypingIndicator />}
+            <div ref={messagesEndRef} />
+        </div>
+        
+        {/* Suggestions & Input */}
+        <div className="p-4 pt-2 bg-surface border-t border-gray-200">
+          {messages.length <= 2 && !loading && (
+             <div className="flex flex-wrap gap-2 mb-3 animate-in fade-in">
+                 {SUGGESTIONS.map((s, i) => (
+                    <button key={i} onClick={() => {setInputText(s); handleSendMessage(s);}} className="px-3 py-1.5 text-xs font-medium text-primary bg-primary/5 rounded-full hover:bg-primary/10 border border-primary/10 transition-colors">
+                      {s.substring(0, 40)}...
+                    </button>
+                 ))}
+             </div>
+          )}
+          
           {attachedFile && (
-              <div className="absolute -top-10 left-6 bg-primary/10 text-primary px-3 py-1.5 rounded-full text-xs font-medium flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2 border border-primary/20">
-                  <DocumentIcon className="w-4 h-4" />
-                  <span className="max-w-[200px] truncate">{attachedFile.name}</span>
-                  <button onClick={removeAttachment} className="hover:text-red-500"><XMarkIcon className="w-4 h-4" /></button>
-              </div>
+            <div className="mb-2 flex items-center justify-between bg-gray-100 dark:bg-gray-800 p-2 rounded-lg animate-in fade-in">
+                <div className="flex items-center gap-2 text-sm text-body">
+                   <DocumentIcon className="w-5 h-5 text-primary"/>
+                   <span className="font-medium truncate max-w-xs">{attachedFile.name}</span>
+                </div>
+                <button onClick={removeAttachment} className="p-1 rounded-full text-muted hover:bg-red-100 hover:text-red-600">
+                   <XMarkIcon className="w-4 h-4"/>
+                </button>
+            </div>
           )}
 
-          <div className="max-w-3xl mx-auto w-full relative flex items-end gap-2">
-             <input 
-                type="file" 
-                ref={fileInputRef} 
-                className="hidden" 
-                onChange={handleFileChange}
-                accept=".txt,.md,.csv,.json,.pdf,image/*" 
-             />
-             <button 
-                onClick={handleFileClick}
-                className="p-3 mb-0.5 rounded-xl bg-gray-100 hover:bg-gray-200 text-muted hover:text-title transition-colors"
-                title="Anexar Arquivo"
-                disabled={loading}
-             >
-                <PaperClipIcon className="w-5 h-5" />
-             </button>
+          <div className="flex items-center gap-2">
+            <button onClick={handleFileClick} className="p-2.5 rounded-xl text-muted hover:bg-gray-100" title="Anexar arquivo">
+              <PaperClipIcon className="w-5 h-5" />
+            </button>
+            <input type="file" ref={fileInputRef} onChange={handleFileChange} className="hidden" />
 
-             {error && (
-              <div className="absolute -top-14 left-0 right-0 mx-auto w-fit bg-red-100 text-red-800 text-xs px-4 py-2 rounded-full shadow-sm border border-red-200 flex items-center gap-2">
-                <span>{error}</span>
-                <button onClick={() => setError(null)} className="font-bold hover:text-red-900">&times;</button>
-              </div>
-            )}
-            
             <div className="flex-1">
-                <MultimodalChatInput 
+              <MultimodalChatInput
                 onSendText={handleSendMessage}
                 onStartVoice={handleStartVoice}
                 onStopVoice={handleStopVoice}
                 isTextLoading={loading}
                 isVoiceActive={isLive}
                 isListening={isListening}
-                disabled={!chatSession && !isLive}
                 textValue={inputText}
                 onTextChange={setInputText}
-                />
+              />
             </div>
           </div>
+
         </div>
-      </main>
+      </div>
+
     </div>
   );
 };

@@ -194,7 +194,6 @@ const CreativeStudio: React.FC = () => {
             setGeneratedAnalysis(`Análise de vídeo simulada para "${file.name}": "O vídeo se alinha com sua solicitação sobre ${prompt}."`);
           }
         }
-        // FIX: Add missing 'message' property to the toast object.
         addToast({ type: 'success', title: 'Análise Concluída', message: 'A mídia foi analisada com sucesso.' });
       } catch (err) {
         const errorMessage = `Falha ao analisar ${mediaType}: ${err instanceof Error ? err.message : String(err)}`;
