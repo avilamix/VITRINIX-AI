@@ -1,5 +1,4 @@
 
-
 import React, { useState } from 'react';
 import Button from './Button';
 import Input from './Input';
@@ -31,8 +30,8 @@ const InteractiveActionCenter: React.FC = () => {
   const [mediaUrl, setMediaUrl] = useState<string | null>(null); // For Image/Video results
   const [error, setError] = useState<string | null>(null);
 
-  // Form States
-  const [prompt, setPrompt] = useState('');
+  // Form States - Default prompt updated to match "Explain how AI works" logic
+  const [prompt, setPrompt] = useState('Explain how AI works in a few words');
   const [style, setStyle] = useState('');
   const [size, setSize] = useState('1K');
   const [voice, setVoice] = useState('Zephyr');

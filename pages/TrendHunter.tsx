@@ -1,15 +1,15 @@
 
-
 import React, { useState, useCallback, useEffect } from 'react';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { searchTrends, generateText } from '../services/geminiService';
 import { saveTrend } from '../services/firestoreService';
-import { Trend } from '../types';
+import { Trend, GroundingMetadata } from '../types';
 import { useNavigate } from '../hooks/useNavigate';
 import { GEMINI_FLASH_MODEL } from '../constants';
-import { LightBulbIcon } from '@heroicons/react/24/outline';
+import { LightBulbIcon, MapPinIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
+import { useToast } from '../contexts/ToastContext';
 
 const TrendHunter: React.FC = () => {
   const [query, setQuery] = useState<string>('');
@@ -18,18 +18,18 @@ const TrendHunter: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [userLocation, setUserLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [locationStatus, setLocationStatus] = useState<'pending' | 'success' | 'denied'>('pending');
   
-  // New state for inline idea generation
   const [generatedIdeas, setGeneratedIdeas] = useState<Record<string, string>>({});
   const [generatingIdeaFor, setGeneratingIdeaFor] = useState<string | null>(null);
 
   const { navigateTo } = useNavigate();
+  const { addToast } = useToast();
 
-  // For now, using a mock user ID. In a real app, this would come from auth context.
   const userId = 'mock-user-123';
 
-  // Attempt to get user's geolocation on mount
-  useEffect(() => {
+  const requestLocation = useCallback(() => {
+    setLocationStatus('pending');
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -37,49 +37,63 @@ const TrendHunter: React.FC = () => {
             latitude: position.coords.latitude,
             longitude: position.coords.longitude,
           });
+          setLocationStatus('success');
         },
         (err) => {
           console.warn('Geolocation access denied or failed:', err);
-          // Fallback or inform user that location-based trends might be less accurate
+          setLocationStatus('denied');
         },
         { enableHighAccuracy: false, timeout: 5000, maximumAge: 0 }
       );
+    } else {
+        setLocationStatus('denied');
     }
   }, []);
 
+  useEffect(() => {
+    requestLocation();
+  }, [requestLocation]);
+
   const handleSearchTrends = useCallback(async () => {
     if (!query.trim()) {
-      setError('Please enter a search query for trends.');
+      addToast({ type: 'warning', message: 'Por favor, insira um termo de busca para tendências.' });
       return;
     }
 
     setLoading(true);
     setError(null);
     setTrends([]);
-    setGeneratedIdeas({}); // Clear previous ideas
+    setGeneratedIdeas({});
 
     try {
-      // Pass userLocation if city is provided, or undefined otherwise to rely on general search
-      const location = city.trim() && userLocation ? userLocation : undefined;
-      const fetchedTrends = await searchTrends(query, location);
+      // Prioriza texto se digitado, senão GPS
+      const location = city.trim() ? undefined : (userLocation || undefined);
+      // Se city foi digitado, ele será passado via prompt ou lógica interna no service se implementado,
+      // mas searchTrends atualmente aceita coords. 
+      // NOTA: Para busca de trends, o Google Search Tool usa texto na query.
+      // Se tiver cidade, concatenamos na query para garantir contexto.
+      let finalQuery = query;
+      if (city.trim()) {
+          finalQuery += ` em ${city}`;
+      }
 
-      // Add mock user ID before saving
+      const fetchedTrends = await searchTrends(finalQuery, location);
       const trendsWithUserId = fetchedTrends.map(t => ({ ...t, userId: userId }));
       setTrends(trendsWithUserId);
 
-      // Save to mock Firestore
       for (const trend of trendsWithUserId) {
         await saveTrend(trend);
       }
-      alert(`${trendsWithUserId.length} tendências encontradas e salvas com sucesso!`);
+      addToast({ type: 'success', message: `${trendsWithUserId.length} tendências encontradas e salvas!` });
 
     } catch (err) {
-      console.error('Error searching trends:', err);
-      setError(`Failed to search trends: ${err instanceof Error ? err.message : String(err)}`);
+      const errorMessage = `Falha ao buscar tendências: ${err instanceof Error ? err.message : String(err)}`;
+      setError(errorMessage);
+      addToast({ type: 'error', title: 'Erro na Busca', message: errorMessage });
     } finally {
       setLoading(false);
     }
-  }, [query, city, userId, userLocation]);
+  }, [query, city, userId, userLocation, addToast]);
 
   const handleGenerateContentIdea = useCallback(async (trend: Trend) => {
     setGeneratingIdeaFor(trend.id);
@@ -89,26 +103,21 @@ const TrendHunter: React.FC = () => {
       setGeneratedIdeas(prev => ({ ...prev, [trend.id]: idea }));
     } catch (err) {
       console.error('Error generating idea:', err);
-      alert('Failed to generate content idea. Please try again.');
+      addToast({ type: 'error', title: 'Erro', message: 'Falha ao gerar ideia de conteúdo.' });
     } finally {
       setGeneratingIdeaFor(null);
     }
-  }, []);
+  }, [addToast]);
 
   const handleCreateContentFromTrend = useCallback((trend: Trend) => {
-    // Navigate to ContentGenerator and pre-fill prompt
-    console.log('Navigating to ContentGenerator with trend:', trend);
-    navigateTo('ContentGenerator'); // Will need to enhance ContentGenerator to receive initial prompt
-    // For now, we can just alert or log
-    alert(`Creating content based on trend: ${trend.query}\nSummary: ${trend.data.substring(0, 100)}...`);
-  }, [navigateTo]);
+    navigateTo('ContentGenerator');
+    addToast({ type: 'info', message: `Criando conteúdo baseado na tendência: ${trend.query}` });
+  }, [navigateTo, addToast]);
 
   const handleAddTrendToCalendar = useCallback((trend: Trend) => {
-    // Navigate to SmartScheduler to schedule content related to this trend
-    console.log('Navigating to SmartScheduler with trend:', trend);
-    navigateTo('SmartScheduler'); // Will need to enhance SmartScheduler to receive details
-    alert(`Adding trend "${trend.query}" to calendar (not implemented).`);
-  }, [navigateTo]);
+    navigateTo('SmartScheduler');
+    addToast({ type: 'info', message: `Adicionando tendência "${trend.query}" ao calendário.` });
+  }, [navigateTo, addToast]);
 
   const hasActiveFilters = query.trim() || city.trim();
 
@@ -120,38 +129,127 @@ const TrendHunter: React.FC = () => {
     setError(null);
   }, []);
 
+  const renderTextWithCitations = (text: string, metadata: GroundingMetadata | undefined) => {
+    if (!metadata?.groundingSupports || !metadata?.groundingChunks || metadata.groundingSupports.length === 0) {
+      return <p className="text-body leading-relaxed whitespace-pre-wrap">{text}</p>;
+    }
+  
+    const supports = metadata.groundingSupports;
+    const chunks = metadata.groundingChunks;
+    let textWithMarkdown = text;
+  
+    const sortedSupports = [...supports].sort(
+      (a, b) => (b.segment?.endIndex ?? 0) - (a.segment?.endIndex ?? 0),
+    );
+  
+    for (const support of sortedSupports) {
+      const endIndex = support.segment?.endIndex;
+      if (endIndex === undefined || !support.groundingChunkIndices?.length) continue;
+  
+      const citationLinks = support.groundingChunkIndices
+        .map(i => {
+          const uri = chunks[i]?.web?.uri || chunks[i]?.maps?.uri;
+          if (uri) {
+            return `[${i + 1}](${uri})`;
+          }
+          return null;
+        })
+        .filter(Boolean);
+  
+      if (citationLinks.length > 0) {
+        const citationString = " " + citationLinks.join("");
+        textWithMarkdown = textWithMarkdown.slice(0, endIndex) + citationString + textWithMarkdown.slice(endIndex);
+      }
+    }
+  
+    const parts = textWithMarkdown.split(/(\[\d+\]\(.+?\))/g);
+  
+    return (
+      <p className="text-body leading-relaxed whitespace-pre-wrap">
+        {parts.map((part, index) => {
+          const match = part.match(/\[(\d+)\]\((.+?)\)/);
+          if (match) {
+            const [, number, url] = match;
+            return (
+              <a
+                key={index}
+                href={url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block align-baseline text-xs bg-primary/10 text-primary font-bold px-1.5 py-0.5 rounded-md mx-0.5 hover:bg-primary/20 hover:underline"
+                title={`Ir para fonte ${number}`}
+              >
+                {number}
+              </a>
+            );
+          }
+          return part;
+        })}
+      </p>
+    );
+  };
+
   return (
     <div className="container mx-auto py-8 lg:py-10">
-      <h2 className="text-3xl font-bold text-textdark mb-8">Trend Hunter</h2>
+      <h2 className="text-3xl font-bold text-title mb-8">Caçador de Tendências</h2>
 
       {error && (
         <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
-          <strong className="font-bold">Error!</strong>
+          <strong className="font-bold">Erro!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
 
-      <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
-        <h3 className="text-xl font-semibold text-textlight mb-5">Buscar Tendências</h3>
-        <Input
-          id="trendQuery"
-          label="Nicho ou Tópico:"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Ex: 'Marketing digital para restaurantes', 'tecnologia vestível'"
-        />
-        <Input
-          id="trendCity"
-          label="Cidade (opcional, para tendências locais):"
-          value={city}
-          onChange={(e) => setCity(e.target.value)}
-          placeholder="Ex: 'São Paulo', 'Rio de Janeiro'"
-        />
-        {!userLocation && city.trim() && (
-          <p className="text-sm text-yellow-300 bg-yellow-900 p-3 rounded-md mb-6">
-            A geolocalização não está disponível. Tendências por cidade podem ser menos precisas.
-          </p>
-        )}
+      <div className="bg-surface p-6 rounded-xl shadow-card border border-gray-100 dark:border-gray-800 mb-8">
+        <h3 className="text-xl font-semibold text-title mb-5 flex justify-between items-center">
+            Buscar Tendências
+        </h3>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Input
+            id="trendQuery"
+            label="Nicho ou Tópico:"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            placeholder="Ex: 'Marketing digital para restaurantes'"
+            className="mb-0"
+            />
+            
+            <div className="relative">
+                <label className="block text-sm font-medium text-title mb-1.5 flex justify-between">
+                    <span>Local (Opcional)</span>
+                    {locationStatus === 'success' && !city && (
+                        <span className="text-xs text-success flex items-center gap-1">
+                            <GlobeAltIcon className="w-3 h-3" /> Usando GPS
+                        </span>
+                    )}
+                </label>
+                <div className="relative">
+                    <input
+                        id="trendCity"
+                        type="text"
+                        className={`block w-full px-3 py-2.5 bg-surface border rounded-lg shadow-sm text-body placeholder-muted transition-colors focus:outline-none sm:text-sm ${
+                            locationStatus === 'success' && !city
+                            ? 'border-success/50 ring-1 ring-success/20 pl-9' 
+                            : 'border-gray-200 focus:border-primary focus:ring-1 focus:ring-primary'
+                        }`}
+                        value={city}
+                        onChange={(e) => setCity(e.target.value)}
+                        placeholder={locationStatus === 'success' ? "GPS Ativo (Digite para alterar)" : "Digite cidade ou país..."}
+                    />
+                    {locationStatus === 'success' && !city && (
+                        <MapPinIcon className="absolute left-3 top-2.5 w-4 h-4 text-success" />
+                    )}
+                    <button 
+                        onClick={requestLocation}
+                        className={`absolute right-2 top-2 p-1 rounded hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors ${locationStatus === 'success' ? 'text-success' : 'text-muted'}`}
+                        title={locationStatus === 'success' ? 'GPS Ativo' : 'Ativar GPS'}
+                    >
+                        {locationStatus === 'pending' ? <LoadingSpinner className="w-4 h-4" /> : <MapPinIcon className="w-4 h-4" />}
+                    </button>
+                </div>
+            </div>
+        </div>
+
         <div className="flex flex-col sm:flex-row gap-3 mt-4">
           <Button
             onClick={handleSearchTrends}
@@ -174,24 +272,24 @@ const TrendHunter: React.FC = () => {
       </div>
 
       {trends.length > 0 && (
-        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
-          <h3 className="text-xl font-semibold text-textlight mb-5">Resultados de Tendências</h3>
+        <div className="bg-surface p-6 rounded-xl shadow-card border border-gray-100 dark:border-gray-800">
+          <h3 className="text-xl font-semibold text-title mb-5">Resultados de Tendências</h3>
           <div className="space-y-8">
             {trends.map((trend) => (
-              <div key={trend.id} className="p-5 border border-gray-700 rounded-md">
+              <div key={trend.id} className="p-5 border border-gray-200 dark:border-gray-700 rounded-lg hover:border-primary/30 transition-colors">
                 <div className="flex justify-between items-center mb-3">
-                  <h4 className="text-lg font-semibold text-textdark">{trend.query}</h4>
-                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${trend.score > 70 ? 'bg-green-800 text-green-200' : trend.score > 40 ? 'bg-yellow-800 text-yellow-200' : 'bg-primary/50 text-textdark'}`}>
+                  <h4 className="text-lg font-semibold text-title">{trend.query}</h4>
+                  <span className={`px-3 py-1 text-sm font-medium rounded-full ${trend.score > 70 ? 'bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-300' : trend.score > 40 ? 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/30 dark:text-yellow-300' : 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300'}`}>
                     Score Viral: {trend.score}
                   </span>
                 </div>
-                <p className="text-textlight leading-relaxed mb-4" style={{ whiteSpace: 'pre-wrap' }}>
-                  {trend.data}
-                </p>
+                <div className="mb-4">
+                   {renderTextWithCitations(trend.data, trend.groundingMetadata)}
+                </div>
                 {trend.sources && trend.sources.length > 0 && (
-                  <div className="mt-3">
-                    <p className="text-sm font-semibold text-textmuted mb-2">Fontes:</p>
-                    <ul className="list-disc list-inside text-sm text-primary space-y-1">
+                  <div className="mt-3 bg-background/50 p-3 rounded-lg">
+                    <p className="text-sm font-semibold text-muted mb-2">Fontes:</p>
+                    <ol className="list-decimal list-inside text-sm text-primary space-y-1">
                       {trend.sources.map((source, idx) => (
                         <li key={idx}>
                           <a href={source.uri} target="_blank" rel="noopener noreferrer" className="hover:underline">
@@ -199,18 +297,17 @@ const TrendHunter: React.FC = () => {
                           </a>
                         </li>
                       ))}
-                    </ul>
+                    </ol>
                   </div>
                 )}
                 
-                {/* Generated Idea Section */}
                 {generatedIdeas[trend.id] && (
-                  <div className="mt-4 mb-4 p-4 bg-accent/5 border border-accent/20 rounded-md animate-in fade-in">
-                     <h5 className="text-sm font-bold text-accent mb-1 flex items-center gap-2">
+                  <div className="mt-4 mb-4 p-4 bg-primary/5 border border-primary/20 rounded-md animate-in fade-in">
+                     <h5 className="text-sm font-bold text-primary mb-1 flex items-center gap-2">
                        <LightBulbIcon className="w-4 h-4" />
-                       Content Idea
+                       Ideia de Conteúdo
                      </h5>
-                     <p className="text-sm text-textlight italic">"{generatedIdeas[trend.id]}"</p>
+                     <p className="text-sm text-body italic">"{generatedIdeas[trend.id]}"</p>
                   </div>
                 )}
 
@@ -221,7 +318,7 @@ const TrendHunter: React.FC = () => {
                     variant="outline" 
                     className="w-full sm:w-auto"
                   >
-                    Generate Content Idea
+                    Gerar Ideia de Conteúdo
                   </Button>
                   <Button onClick={() => handleCreateContentFromTrend(trend)} variant="primary" className="w-full sm:w-auto">Criar Conteúdo da Tendência</Button>
                   <Button onClick={() => handleAddTrendToCalendar(trend)} variant="secondary" className="w-full sm:w-auto">Adicionar ao Calendário</Button>

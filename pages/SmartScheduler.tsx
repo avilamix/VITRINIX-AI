@@ -5,6 +5,7 @@ import LoadingSpinner from '../components/LoadingSpinner';
 import { getLibraryItems, getScheduleEntries, saveScheduleEntry, deleteScheduleEntry } from '../services/firestoreService';
 import { ScheduleEntry, LibraryItem } from '../types';
 import { PlusIcon, TrashIcon, CalendarDaysIcon, CheckCircleIcon, XCircleIcon, ClockIcon } from '@heroicons/react/24/outline';
+import { useToast } from '../contexts/ToastContext';
 
 const SmartScheduler: React.FC = () => {
   const [scheduledItems, setScheduledItems] = useState<ScheduleEntry[]>([]);
@@ -12,15 +13,15 @@ const SmartScheduler: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
 
-  // New schedule form state
   const [newSchedulePlatform, setNewSchedulePlatform] = useState<string>('');
   const [newScheduleDate, setNewScheduleDate] = useState<string>('');
   const [newScheduleTime, setNewScheduleTime] = useState<string>('');
   const [newScheduleContentId, setNewScheduleContentId] = useState<string>('');
-  const [newScheduleContentType, setNewScheduleContentType] = useState<ScheduleEntry['contentType']>('post'); // Use generic content type
+  const [newScheduleContentType, setNewScheduleContentType] = useState<ScheduleEntry['contentType']>('post');
   const [scheduling, setScheduling] = useState<boolean>(false);
 
-  const userId = 'mock-user-123'; // Mock user ID
+  const userId = 'mock-user-123';
+  const { addToast } = useToast();
 
   const fetchSchedulerData = useCallback(async () => {
     setLoading(true);
@@ -31,18 +32,18 @@ const SmartScheduler: React.FC = () => {
       setScheduledItems(fetchedSchedule.sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()));
       setLibraryItems(fetchedLibrary);
 
-      // Set default content for new schedule if available
       if (fetchedLibrary.length > 0 && !newScheduleContentId) {
         setNewScheduleContentId(fetchedLibrary[0].id);
-        setNewScheduleContentType(fetchedLibrary[0].type); // Set default content type based on library item
+        setNewScheduleContentType(fetchedLibrary[0].type);
       }
     } catch (err) {
-      console.error('Failed to fetch scheduler data:', err);
-      setError('Failed to load scheduler data. Please try again.');
+      const errorMessage = `Falha ao carregar dados do agendador: ${err instanceof Error ? err.message : String(err)}`;
+      setError(errorMessage);
+      addToast({ type: 'error', title: 'Erro de Carregamento', message: errorMessage });
     } finally {
       setLoading(false);
     }
-  }, [userId, newScheduleContentId]);
+  }, [userId, newScheduleContentId, addToast]);
 
   useEffect(() => {
     fetchSchedulerData();
@@ -51,7 +52,7 @@ const SmartScheduler: React.FC = () => {
 
   const handleScheduleContent = useCallback(async () => {
     if (!newSchedulePlatform || !newScheduleDate || !newScheduleTime || !newScheduleContentId) {
-      setError('Please fill all fields for scheduling.');
+      addToast({ type: 'warning', message: 'Por favor, preencha todos os campos para agendar.' });
       return;
     }
 
@@ -66,26 +67,24 @@ const SmartScheduler: React.FC = () => {
         datetime: new Date(combinedDateTime).toISOString(),
         platform: newSchedulePlatform,
         contentId: newScheduleContentId,
-        contentType: newScheduleContentType, // Use the selected content type
+        contentType: newScheduleContentType,
         status: 'scheduled',
       };
       const savedEntry = await saveScheduleEntry(newEntry);
       setScheduledItems((prev) => [...prev, savedEntry].sort((a, b) => new Date(a.datetime).getTime() - new Date(b.datetime).getTime()));
 
-      // Reset form
       setNewSchedulePlatform('');
       setNewScheduleDate('');
       setNewScheduleTime('');
-      // Keep selected content, but maybe clear if user wants
-      // setNewScheduleContentId(libraryItems.length > 0 ? libraryItems[0].id : '');
-      alert('Conteúdo agendado com sucesso!');
+      addToast({ type: 'success', message: 'Conteúdo agendado com sucesso!' });
     } catch (err) {
-      console.error('Error scheduling content:', err);
-      setError(`Failed to schedule content: ${err instanceof Error ? err.message : String(err)}`);
+      const errorMessage = `Falha ao agendar conteúdo: ${err instanceof Error ? err.message : String(err)}`;
+      setError(errorMessage);
+      addToast({ type: 'error', title: 'Erro', message: errorMessage });
     } finally {
       setScheduling(false);
     }
-  }, [newSchedulePlatform, newScheduleDate, newScheduleTime, newScheduleContentId, newScheduleContentType, userId, libraryItems]);
+  }, [newSchedulePlatform, newScheduleDate, newScheduleTime, newScheduleContentId, newScheduleContentType, userId, addToast]);
 
   const handleDeleteSchedule = useCallback(async (entryId: string) => {
     if (window.confirm('Tem certeza que deseja cancelar este agendamento?')) {
@@ -93,14 +92,15 @@ const SmartScheduler: React.FC = () => {
       try {
         await deleteScheduleEntry(entryId);
         setScheduledItems((prev) => prev.filter((entry) => entry.id !== entryId));
+        addToast({ type: 'success', message: 'Agendamento cancelado.' });
       } catch (err) {
-        console.error('Error deleting schedule entry:', err);
-        setError(`Failed to delete schedule entry: ${err instanceof Error ? err.message : String(err)}`);
+        const errorMessage = `Falha ao cancelar agendamento: ${err instanceof Error ? err.message : String(err)}`;
+        setError(errorMessage);
+        addToast({ type: 'error', title: 'Erro', message: errorMessage });
       }
     }
-  }, []);
+  }, [addToast]);
 
-  // Helper to get item details for display
   const getItemDetails = useCallback((contentId: string) => {
     return libraryItems.find(item => item.id === contentId);
   }, [libraryItems]);
@@ -119,16 +119,15 @@ const SmartScheduler: React.FC = () => {
 
   return (
     <div className="container mx-auto py-8 lg:py-10">
-      <h2 className="text-3xl font-bold text-textdark mb-8">Smart Scheduler (Autopost)</h2>
+      <h2 className="text-3xl font-bold text-textdark mb-8">Agendador Inteligente (Autopost)</h2>
 
       {error && (
         <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
-          <strong className="font-bold">Error!</strong>
+          <strong className="font-bold">Erro!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
 
-      {/* New Schedule Form */}
       <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
         <h3 className="text-xl font-semibold text-textlight mb-5">Agendar Nova Publicação</h3>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -143,7 +142,7 @@ const SmartScheduler: React.FC = () => {
                 setNewScheduleContentId(e.target.value);
                 const selectedItem = libraryItems.find(item => item.id === e.target.value);
                 if (selectedItem) {
-                  setNewScheduleContentType(selectedItem.type); // Set content type based on selected library item
+                  setNewScheduleContentType(selectedItem.type);
                 }
               }}
               className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm mb-2"
@@ -207,7 +206,7 @@ const SmartScheduler: React.FC = () => {
             {scheduling ? 'Agendando...' : 'Agendar'}
           </Button>
           <Button
-            onClick={() => alert('Publicar Agora not implemented. (Would trigger immediate backend autopost)')}
+            onClick={() => addToast({ type: 'info', message: 'Publicar Agora não implementado. (Iria acionar o autopost do backend imediatamente)' })}
             variant="secondary"
             className="w-full md:w-auto"
             disabled={!newScheduleContentId || !newSchedulePlatform}
@@ -217,13 +216,12 @@ const SmartScheduler: React.FC = () => {
         </div>
       </div>
 
-      {/* Scheduled Posts & History */}
       <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
         <h3 className="text-xl font-semibold text-textlight mb-5">Próximos Agendamentos e Histórico</h3>
         {loading ? (
           <div className="flex justify-center items-center h-48">
             <LoadingSpinner />
-            <p className="ml-2 text-textlight">Loading schedule...</p>
+            <p className="ml-2 text-textlight">Carregando agendamentos...</p>
           </div>
         ) : scheduledItems.length === 0 ? (
           <div className="text-center text-textlight p-4">Nenhum agendamento encontrado.</div>
@@ -282,9 +280,6 @@ const SmartScheduler: React.FC = () => {
                             <TrashIcon className="w-4 h-4 text-red-300" /> Cancelar
                           </Button>
                         )}
-                        {/* <Button variant="secondary" size="sm">
-                          <ShareIcon className="w-4 h-4" /> Repostar (TODO)
-                        </Button> */}
                       </td>
                     </tr>
                   );

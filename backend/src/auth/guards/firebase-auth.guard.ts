@@ -1,3 +1,4 @@
+
 import { Injectable, CanActivate, ExecutionContext, UnauthorizedException } from '@nestjs/common';
 import { AuthService } from '../auth.service';
 import { Request } from 'express';
@@ -18,7 +19,7 @@ export class FirebaseAuthGuard implements CanActivate {
     try {
       const decodedToken: DecodedIdToken = await this.authService.validateFirebaseToken(idToken);
       // Attach the decoded Firebase user to the request
-      request['user'] = decodedToken;
+      (request as any)['user'] = decodedToken;
       return true;
     } catch (error) {
       throw new UnauthorizedException('Invalid or expired Firebase ID token');
@@ -26,7 +27,9 @@ export class FirebaseAuthGuard implements CanActivate {
   }
 
   private extractTokenFromHeader(request: Request): string | undefined {
-    const [type, token] = request.headers.authorization?.split(' ') ?? [];
+    // Cast to any to avoid strict type checks on headers if Request type definition is conflicting
+    const headers = (request as any).headers;
+    const [type, token] = headers.authorization?.split(' ') ?? [];
     return type === 'Bearer' ? token : undefined;
   }
 }

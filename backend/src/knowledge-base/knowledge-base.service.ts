@@ -1,11 +1,10 @@
 
-
 import { Injectable, BadRequestException, NotFoundException, Logger, HttpException, HttpStatus } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { DecodedIdToken } from 'firebase-admin/auth';
 import { GeminiConfigService } from '../config/gemini.config';
 import { ApiKeysService } from '../api-keys/api-keys.service';
-import { GoogleGenAI, File as GenAIFile, GenerateContentRequest } from '@google/genai'; 
+import { GoogleGenAI, File as GenAIFile, GenerateContentParameters } from '@google/genai'; 
 import { FileSearchStoreResponseDto } from './dto/create-store.dto';
 import { ListFilesResponseDto, UploadFileResponseDto } from './dto/upload-file.dto';
 import { QueryKnowledgeBaseResponseDto } from './dto/query-store.dto';
@@ -200,7 +199,7 @@ export class KnowledgeBaseService {
     );
 
     const textResponse = response.text || 'No answer found based on your documents.';
-    const groundingMetadata = response.groundingMetadata;
+    const groundingMetadata = response.candidates?.[0]?.groundingMetadata;
 
     const filesUsed: string[] = [];
     const referencedSnippets: string[] = [];
@@ -208,8 +207,11 @@ export class KnowledgeBaseService {
 
     if (groundingMetadata && groundingMetadata.groundingChunks) {
       for (const chunk of groundingMetadata.groundingChunks) {
-        if (chunk.retrievedFile && chunk.retrievedFile.uri) {
-          const geminiFileId = chunk.retrievedFile.uri.split('/').pop();
+        // Cast chunk to any to access potential file search properties that are not in basic type definition
+        const anyChunk = chunk as any;
+        
+        if (anyChunk.retrievedFile && anyChunk.retrievedFile.uri) {
+          const geminiFileId = anyChunk.retrievedFile.uri.split('/').pop();
           const dbFile = await this.prisma.file.findFirst({
             where: { geminiFileId, organizationId },
             select: { originalName: true },
@@ -218,8 +220,8 @@ export class KnowledgeBaseService {
             filesUsed.push(dbFile.originalName);
           }
         }
-        if (chunk.retrievedSegment && chunk.retrievedSegment.text) {
-          referencedSnippets.push(chunk.retrievedSegment.text);
+        if (anyChunk.retrievedSegment && anyChunk.retrievedSegment.text) {
+          referencedSnippets.push(anyChunk.retrievedSegment.text);
         }
       }
       if (filesUsed.length > 0 || referencedSnippets.length > 0) {

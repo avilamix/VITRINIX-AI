@@ -1,6 +1,8 @@
 import React, { useState, useCallback } from 'react';
 import Textarea from '../components/Textarea';
 import Button from '../components/Button';
+import Input from '../components/Input';
+import SaveToLibraryButton from '../components/SaveToLibraryButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { generateText, generateImage } from '../services/geminiService';
 import { savePost } from '../services/firestoreService';
@@ -14,6 +16,10 @@ const ContentGenerator: React.FC = () => {
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string>(PLACEHOLDER_IMAGE_BASE64);
   const [loadingText, setLoadingText] = useState<boolean>(false);
   const [loadingImage, setLoadingImage] = useState<boolean>(false);
+  
+  // Library Save State
+  const [savedItemName, setSavedItemName] = useState<string>('');
+  const [savedItemTags, setSavedItemTags] = useState<string>('');
   
   const { addToast } = useToast();
 
@@ -30,6 +36,8 @@ const ContentGenerator: React.FC = () => {
     setLoadingImage(true);
     setGeneratedPost(null);
     setGeneratedImageUrl(PLACEHOLDER_IMAGE_BASE64);
+    setSavedItemName('');
+    setSavedItemTags('');
 
     try {
       let fullPrompt = `Generate a compelling social media post for: "${prompt}".`;
@@ -206,10 +214,51 @@ const ContentGenerator: React.FC = () => {
               </div>
             </div>
           </div>
-          <div className="mt-8 flex gap-3">
-            <Button onClick={handleSavePost} variant="primary" isLoading={loadingText} disabled={!generatedPost}>
-              {loadingText ? 'Salvando Post...' : 'Salvar Post'}
-            </Button>
+          
+          <div className="mt-8 pt-6 border-t border-gray-800">
+            <h4 className="text-lg font-semibold text-textlight mb-4">Salvar na Biblioteca</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <Input
+                id="saveName"
+                label="Nome do Item"
+                value={savedItemName}
+                onChange={(e) => setSavedItemName(e.target.value)}
+                placeholder="Ex: Post Campanha Verão"
+              />
+              <Input
+                id="saveTags"
+                label="Tags (separadas por vírgula)"
+                value={savedItemTags}
+                onChange={(e) => setSavedItemTags(e.target.value)}
+                placeholder="Ex: instagram, verão, promoção"
+              />
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <Button onClick={handleSavePost} variant="primary" isLoading={loadingText} disabled={!generatedPost} className="w-full sm:w-auto">
+                {loadingText ? 'Salvando Post Completo...' : 'Salvar Post Completo'}
+              </Button>
+              <SaveToLibraryButton
+                content={generatedImageUrl}
+                type="image"
+                userId={userId}
+                initialName={savedItemName || 'Imagem Gerada'}
+                tags={savedItemTags.split(',').map(t => t.trim()).filter(Boolean)}
+                label="Salvar Apenas Imagem"
+                variant="secondary"
+                disabled={!generatedImageUrl || generatedImageUrl === PLACEHOLDER_IMAGE_BASE64}
+                className="w-full sm:w-auto"
+              />
+              <SaveToLibraryButton
+                content={generatedPost.content_text}
+                type="text"
+                userId={userId}
+                initialName={savedItemName ? `${savedItemName} (Texto)` : 'Texto do Post'}
+                tags={savedItemTags.split(',').map(t => t.trim()).filter(Boolean)}
+                label="Salvar Apenas Texto"
+                variant="outline"
+                className="w-full sm:w-auto"
+              />
+            </div>
           </div>
         </div>
       )}

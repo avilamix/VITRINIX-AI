@@ -17,14 +17,13 @@ const ContentLibrary: React.FC = () => {
   const [selectedTag, setSelectedTag] = useState<string>('all');
   const [uploading, setUploading] = useState<boolean>(false);
   
-  // Knowledge Base State
   const [kbLoading, setKbLoading] = useState<boolean>(false);
   const [kbStoreName, setKbStoreName] = useState<string | null>(localStorage.getItem('vitrinex_kb_name'));
   
   const { navigateTo } = useNavigate();
   const { addToast } = useToast();
 
-  const userId = 'mock-user-123'; // Mock user ID
+  const userId = 'mock-user-123';
 
   const fetchLibrary = useCallback(async (tags?: string[]) => {
     setLoading(true);
@@ -48,7 +47,7 @@ const ContentLibrary: React.FC = () => {
      setKbLoading(true);
      try {
          const store = await createFileSearchStore(`VitrineX KB - ${new Date().toLocaleDateString()}`);
-         if (store && store.storeName) { // Use storeName from backend response
+         if (store && store.storeName) {
              localStorage.setItem('vitrinex_kb_name', store.storeName);
              setKbStoreName(store.storeName);
              addToast({ type: 'success', title: 'Base Criada', message: 'Base de Conhecimento criada! Você já pode indexar arquivos.' });
@@ -61,43 +60,22 @@ const ContentLibrary: React.FC = () => {
      }
   };
 
-  const handleIndexFile = async (item: LibraryItem) => {
-      if (!kbStoreName) {
-          addToast({ type: 'warning', message: 'Crie uma Base de Conhecimento primeiro.' });
-          return;
-      }
-      if (item.type !== 'text' && item.type !== 'post') {
-          addToast({ type: 'info', message: 'Indexação suportada apenas no momento do upload para este tipo de arquivo.' });
-          return;
-      }
-      addToast({ type: 'info', message: 'Funcionalidade de re-indexação pendente. Envie o arquivo novamente.' });
-  };
-
   const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
       setUploading(true);
       try {
         let type: LibraryItem['type'];
-        if (file.type.startsWith('image')) {
-          type = 'image';
-        } else if (file.type.startsWith('video')) {
-          type = 'video';
-        } else if (file.type.startsWith('audio')) { 
-          type = 'audio';
-        } else {
-          type = 'text';
-        }
+        if (file.type.startsWith('image')) type = 'image';
+        else if (file.type.startsWith('video')) type = 'video';
+        else if (file.type.startsWith('audio')) type = 'audio';
+        else type = 'text';
         
-        // 1. Upload to Storage (Mock)
         const newItem = await uploadFile(file, userId, type);
         
-        // 2. Optional: Upload to Knowledge Base if exists and is a suitable file type
         if (kbStoreName && (type === 'text' || file.type === 'application/pdf' || file.type.startsWith('application/vnd.openxmlformats'))) {
-            const confirmIndex = window.confirm(`Deseja indexar "${file.name}" na sua Base de Conhecimento para pesquisa?`);
-            if (confirmIndex) {
+            if (window.confirm(`Deseja indexar "${file.name}" na sua Base de Conhecimento para pesquisa?`)) {
                 try {
-                    // Corrected call: uploadFileToSearchStore expects File and MetadataDto
                     await uploadFileToSearchStore(file, {}); 
                     addToast({ type: 'success', title: 'Indexado', message: 'Arquivo indexado na IA com sucesso!' });
                     newItem.tags.push('indexed');
@@ -108,16 +86,16 @@ const ContentLibrary: React.FC = () => {
             }
         }
 
-        await saveLibraryItem(newItem); // Save metadata to Firestore
+        await saveLibraryItem(newItem);
         setLibraryItems((prev) => [newItem, ...prev]);
         addToast({ type: 'success', message: 'Arquivo enviado com sucesso!' });
 
       } catch (err) {
-        console.error('Error uploading file:', err);
-        addToast({ type: 'error', title: 'Erro no Upload', message: `Falha: ${err instanceof Error ? err.message : String(err)}` });
+        const errorMessage = `Falha: ${err instanceof Error ? err.message : String(err)}`;
+        addToast({ type: 'error', title: 'Erro no Upload', message: errorMessage });
       } finally {
         setUploading(false);
-        event.target.value = ''; // Clear input
+        event.target.value = '';
       }
     }
   }, [userId, kbStoreName, addToast]);
@@ -146,12 +124,10 @@ const ContentLibrary: React.FC = () => {
   }, [addToast]);
 
   const handleUseInCalendar = useCallback((item: LibraryItem) => {
-    // Navigate to SmartScheduler and pre-fill with this item
-    navigateTo('SmartScheduler'); // Will need to enhance SmartScheduler to receive item
+    navigateTo('SmartScheduler');
     addToast({ type: 'info', message: `Item "${item.name}" pronto para agendar.` });
   }, [navigateTo, addToast]);
 
-  // Extract all unique tags
   const allTags = Array.from(new Set(libraryItems.flatMap(item => item.tags)));
   const filteredItems = libraryItems
     .filter(item => item.name.toLowerCase().includes(searchTerm.toLowerCase()))
@@ -162,14 +138,13 @@ const ContentLibrary: React.FC = () => {
   const handleClearFilters = useCallback(() => {
     setSearchTerm('');
     setSelectedTag('all');
-    fetchLibrary(); // Refetch all items after clearing
+    fetchLibrary();
   }, [fetchLibrary]);
 
   return (
     <div className="container mx-auto py-8 lg:py-10">
-      <h2 className="text-3xl font-bold text-textdark mb-8">Content Library</h2>
+      <h2 className="text-3xl font-bold text-textdark mb-8">Biblioteca de Conteúdo</h2>
       
-      {/* Knowledge Base Section */}
       <div className="bg-gradient-to-r from-gray-900 to-gray-800 p-6 rounded-lg shadow-md border border-gray-700 mb-8 flex flex-col md:flex-row items-center justify-between gap-4">
           <div>
               <h3 className="text-xl font-semibold text-white flex items-center gap-2">
@@ -246,7 +221,7 @@ const ContentLibrary: React.FC = () => {
       {loading ? (
         <div className="flex justify-center items-center h-48">
           <LoadingSpinner />
-          <p className="ml-2 text-textlight">Loading library...</p>
+          <p className="ml-2 text-textlight">Carregando biblioteca...</p>
         </div>
       ) : filteredItems.length === 0 ? (
         <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 text-center text-textlight">

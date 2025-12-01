@@ -32,7 +32,7 @@ export class AiProxyController {
     @CurrentUser('uid') firebaseUid: string,
   ): Promise<GenerateTextResponseDto> {
     const response = await this.aiProxyService.generateText(organizationId, firebaseUid, dto.prompt, dto.model, dto.options);
-    return { text: response.text() }; // Retorna apenas o texto
+    return { text: response.text }; // Retorna apenas o texto
   }
 
   @Post('generate-image')

@@ -1,4 +1,5 @@
 
+
 import React, { useState, useCallback } from 'react';
 import Textarea from '../components/Textarea';
 import Button from '../components/Button';
@@ -7,6 +8,7 @@ import { campaignBuilder } from '../services/geminiService';
 import { saveCampaign } from '../services/firestoreService';
 import { Campaign } from '../types';
 import { useNavigate } from '../hooks/useNavigate'; // Custom hook for navigation
+import { useToast } from '../contexts/ToastContext';
 
 const CampaignBuilder: React.FC = () => {
   const [campaignPrompt, setCampaignPrompt] = useState<string>('');
@@ -15,10 +17,11 @@ const CampaignBuilder: React.FC = () => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const { navigateTo } = useNavigate();
+  const { addToast } = useToast();
 
   const handleCreateCampaign = useCallback(async () => {
     if (!campaignPrompt.trim()) {
-      setError('Please provide a campaign description.');
+      addToast({ type: 'warning', message: 'Por favor, forneça uma descrição para a campanha.' });
       return;
     }
 
@@ -31,19 +34,20 @@ const CampaignBuilder: React.FC = () => {
       const { campaign, videoUrl } = await campaignBuilder(campaignPrompt);
       setGeneratedCampaign(campaign);
       setGeneratedVideoUrl(videoUrl);
-      // saveCampaign is already called within campaignBuilder in geminiService.ts
-      alert(`Campanha "${campaign.name}" criada e salva com sucesso!`);
+      addToast({ type: 'success', title: 'Sucesso!', message: `Campanha "${campaign.name}" criada e salva com sucesso!` });
     } catch (err) {
       console.error('Error building campaign:', err);
-      setError(`Failed to build campaign: ${err instanceof Error ? err.message : String(err)}`);
+      const errorMessage = `Falha ao criar campanha: ${err instanceof Error ? err.message : String(err)}`;
+      setError(errorMessage);
+      addToast({ type: 'error', title: 'Erro na Criação', message: errorMessage });
     } finally {
       setLoading(false);
     }
-  }, [campaignPrompt]);
+  }, [campaignPrompt, addToast]);
 
   const handleDownloadMaterials = useCallback(() => {
     if (!generatedCampaign) {
-      setError('No campaign materials to download.');
+      addToast({ type: 'warning', message: 'Nenhum material de campanha para baixar.' });
       return;
     }
     const campaignData = JSON.stringify(generatedCampaign, null, 2);
@@ -56,26 +60,26 @@ const CampaignBuilder: React.FC = () => {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
-  }, [generatedCampaign]);
+    addToast({ type: 'info', message: 'Download dos materiais iniciado.' });
+  }, [generatedCampaign, addToast]);
 
   const handleAddCalendar = useCallback(() => {
-    // Navigate to SmartScheduler and pass campaign details for scheduling
     if (generatedCampaign) {
-      console.log('Navigating to SmartScheduler with campaign:', generatedCampaign);
-      navigateTo('SmartScheduler'); // Will need to enhance SmartScheduler to receive campaign details
+      navigateTo('SmartScheduler'); 
+      addToast({ type: 'info', message: `Navegando para o calendário para agendar a campanha "${generatedCampaign.name}".` });
     } else {
-      setError('No campaign generated to add to calendar.');
+      addToast({ type: 'warning', message: 'Nenhuma campanha gerada para adicionar ao calendário.' });
     }
-  }, [generatedCampaign, navigateTo]);
+  }, [generatedCampaign, navigateTo, addToast]);
 
 
   return (
     <div className="container mx-auto py-8 lg:py-10">
-      <h2 className="text-3xl font-bold text-textdark mb-8">Campaign Builder</h2>
+      <h2 className="text-3xl font-bold text-textdark mb-8">Construtor de Campanhas</h2>
 
       {error && (
         <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
-          <strong className="font-bold">Error!</strong>
+          <strong className="font-bold">Erro!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
@@ -142,7 +146,6 @@ const CampaignBuilder: React.FC = () => {
           <div className="flex flex-col sm:flex-row gap-3">
             <Button onClick={handleDownloadMaterials} variant="primary" className="w-full sm:w-auto">Baixar Materiais</Button>
             <Button onClick={handleAddCalendar} variant="secondary" className="w-full sm:w-auto">Adicionar ao Calendário</Button>
-            {/* <Button variant="outline">Ver Detalhes (TODO)</Button> */}
           </div>
         </div>
       )}

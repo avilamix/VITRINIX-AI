@@ -30,7 +30,8 @@
     "@google/generative-ai": "^0.24.1",
     "rxjs": "^7.8.2",
     "class-transformer": "^0.5.1",
-    "buffer": "^6.0.3"
+    "buffer": "^6.0.3",
+    "@tanstack/react-query": "^5.24.1"
   },
   "devDependencies": {
     "@types/node": "^22.14.0",

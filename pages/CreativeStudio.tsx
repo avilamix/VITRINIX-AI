@@ -19,6 +19,7 @@ import {
   DEFAULT_IMAGE_SIZE,
   DEFAULT_VIDEO_RESOLUTION,
 } from '../constants';
+import { useToast } from '../contexts/ToastContext';
 
 type MediaType = 'image' | 'video';
 
@@ -38,11 +39,10 @@ const CreativeStudio: React.FC = () => {
   const [videoAspectRatio, setVideoAspectRatio] = useState<string>(DEFAULT_ASPECT_RATIO);
   const [videoResolution, setVideoResolution] = useState<string>(DEFAULT_VIDEO_RESOLUTION);
 
-  // State for saving to library
   const [savedItemName, setSavedItemName] = useState<string>('');
   const [savedItemTags, setSavedItemTags] = useState<string>('');
 
-
+  const { addToast } = useToast();
   const userId = 'mock-user-123';
 
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
@@ -50,28 +50,27 @@ const CreativeStudio: React.FC = () => {
     if (selectedFile) {
       setFile(selectedFile);
       setPreviewUrl(URL.createObjectURL(selectedFile));
-      setGeneratedMediaUrl(null); // Clear generated media when new file is uploaded
-      setGeneratedAnalysis(null); // Clear analysis
+      setGeneratedMediaUrl(null);
+      setGeneratedAnalysis(null);
       setError(null);
-      setSavedItemName(selectedFile.name.split('.').slice(0, -1).join('.')); // Pre-fill name
+      setSavedItemName(selectedFile.name.split('.').slice(0, -1).join('.'));
 
-      // Determine media type based on file type
       if (selectedFile.type.startsWith('image')) {
         setMediaType('image');
       } else if (selectedFile.type.startsWith('video')) {
         setMediaType('video');
       } else {
-        setError('Unsupported file type. Please upload an image or video.');
+        addToast({ type: 'error', message: 'Tipo de arquivo não suportado. Por favor, envie uma imagem ou vídeo.' });
         setFile(null);
         setPreviewUrl(null);
         setSavedItemName('');
       }
     }
-  }, []);
+  }, [addToast]);
 
   const handleGenerateMedia = useCallback(async () => {
     if (!prompt.trim()) {
-      setError('Please enter a prompt for generation.');
+      addToast({ type: 'warning', message: 'Por favor, insira um prompt para a geração.' });
       return;
     }
 
@@ -79,8 +78,8 @@ const CreativeStudio: React.FC = () => {
     setError(null);
     setGeneratedMediaUrl(null);
     setGeneratedAnalysis(null);
-    setSavedItemName(''); // Clear previous save name
-    setSavedItemTags(''); // Clear previous save tags
+    setSavedItemName('');
+    setSavedItemTags('');
 
     try {
       if (mediaType === 'image') {
@@ -90,7 +89,7 @@ const CreativeStudio: React.FC = () => {
           imageSize: imageSize,
         });
         setGeneratedMediaUrl(response.imageUrl || null);
-      } else { // mediaType === 'video'
+      } else {
         const response = await generateVideo(prompt, {
           model: VEO_FAST_GENERATE_MODEL,
           config: {
@@ -101,18 +100,20 @@ const CreativeStudio: React.FC = () => {
         });
         setGeneratedMediaUrl(response || null);
       }
-      setSavedItemName(`Generated ${mediaType} - ${prompt.substring(0, 30)}...`); // Pre-fill name based on prompt
+      setSavedItemName(`Gerado ${mediaType} - ${prompt.substring(0, 30)}...`);
+      addToast({ type: 'success', title: 'Mídia Gerada', message: `${mediaType === 'image' ? 'Imagem' : 'Vídeo'} gerado com sucesso.` });
     } catch (err) {
-      console.error(`Error generating ${mediaType}:`, err);
-      setError(`Failed to generate ${mediaType}: ${err instanceof Error ? err.message : String(err)}`);
+      const errorMessage = `Falha ao gerar ${mediaType}: ${err instanceof Error ? err.message : String(err)}`;
+      setError(errorMessage);
+      addToast({ type: 'error', title: 'Erro', message: errorMessage });
     } finally {
       setLoading(false);
     }
-  }, [prompt, mediaType, imageAspectRatio, imageSize, videoAspectRatio, videoResolution]);
+  }, [prompt, mediaType, imageAspectRatio, imageSize, videoAspectRatio, videoResolution, addToast]);
 
   const handleEditMedia = useCallback(async () => {
     if (!file || !previewUrl || !prompt.trim()) {
-      setError('Please upload a file and enter a prompt for editing.');
+      addToast({ type: 'warning', message: 'Por favor, carregue um arquivo e insira um prompt para editar.' });
       return;
     }
 
@@ -120,13 +121,13 @@ const CreativeStudio: React.FC = () => {
     setError(null);
     setGeneratedMediaUrl(null);
     setGeneratedAnalysis(null);
-    setSavedItemName(''); // Clear previous save name
-    setSavedItemTags(''); // Clear previous save tags
+    setSavedItemName('');
+    setSavedItemTags('');
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onloadend = async () => {
-      const base64Data = (reader.result as string).split(',')[1]; // Extract base64 part
+      const base64Data = (reader.result as string).split(',')[1];
       const mimeType = file.type;
 
       try {
@@ -134,11 +135,9 @@ const CreativeStudio: React.FC = () => {
           const response = await editImage(prompt, base64Data, mimeType, GEMINI_IMAGE_PRO_MODEL);
           setGeneratedMediaUrl(response.imageUrl || null);
         } else {
-          // Video editing is complex and usually involves multiple frames or specialized APIs.
-          // For this example, we'll simulate video editing as if it's generating a new video based on existing and prompt.
           const response = await generateVideo(prompt, {
             model: VEO_FAST_GENERATE_MODEL,
-            image: { imageBytes: base64Data, mimeType: mimeType }, // Use initial frame as reference
+            image: { imageBytes: base64Data, mimeType: mimeType },
             config: {
               numberOfVideos: 1,
               resolution: videoResolution as "720p" | "1080p",
@@ -147,73 +146,73 @@ const CreativeStudio: React.FC = () => {
           });
           setGeneratedMediaUrl(response || null);
         }
-        setSavedItemName(`Edited ${mediaType} - ${prompt.substring(0, 30)}...`); // Pre-fill name based on prompt
+        setSavedItemName(`Editado ${mediaType} - ${prompt.substring(0, 30)}...`);
+        addToast({ type: 'success', title: 'Mídia Editada', message: `${mediaType === 'image' ? 'Imagem' : 'Vídeo'} editado com sucesso.` });
       } catch (err) {
-        console.error(`Error editing ${mediaType}:`, err);
-        setError(`Failed to edit ${mediaType}: ${err instanceof Error ? err.message : String(err)}`);
+        const errorMessage = `Falha ao editar ${mediaType}: ${err instanceof Error ? err.message : String(err)}`;
+        setError(errorMessage);
+        addToast({ type: 'error', title: 'Erro de Edição', message: errorMessage });
       } finally {
         setLoading(false);
       }
     };
     reader.onerror = (err) => {
       console.error('File reading error:', err);
-      setError('Failed to read file for editing.');
+      addToast({ type: 'error', message: 'Falha ao ler o arquivo para edição.' });
       setLoading(false);
     };
-  }, [file, previewUrl, prompt, mediaType, videoAspectRatio, videoResolution]);
+  }, [file, previewUrl, prompt, mediaType, videoAspectRatio, videoResolution, addToast]);
 
   const handleAnalyzeMedia = useCallback(async () => {
-    if (!file || !prompt.trim()) { // Removed previewUrl check as file is sufficient
-      setError('Please upload a file and enter a prompt for analysis.');
+    if (!file || !prompt.trim()) {
+      addToast({ type: 'warning', message: 'Por favor, carregue um arquivo e insira um prompt para análise.' });
       return;
     }
 
     setLoading(true);
     setError(null);
-    setGeneratedAnalysis(null); // Clear previous analysis
-    setSavedItemName(''); // Clear previous save name
-    setSavedItemTags(''); // Clear previous save tags
+    setGeneratedAnalysis(null);
+    setSavedItemName('');
+    setSavedItemTags('');
 
     const reader = new FileReader();
     reader.readAsDataURL(file);
     reader.onloadend = async () => {
-      const base64Data = (reader.result as string).split(',')[1]; // Extract base64 part
+      const base64Data = (reader.result as string).split(',')[1];
       const mimeType = file.type;
 
       try {
         if (mediaType === 'image') {
           const analysis = await analyzeImage(base64Data, mimeType, prompt);
           setGeneratedAnalysis(analysis);
-        } else { // mediaType === 'video'
-          // For video analysis, Gemini expects a GCS URI or similar, not inlineData.
-          // This is a simplification. In a real app, the video would need to be uploaded to GCS first.
-          // For now, we'll just log an error or provide a mock analysis.
-          if (file.size > 2 * 1024 * 1024) { // Roughly check if it's too large for direct analysis in mock.
-             setGeneratedAnalysis('Video analysis is currently simulated for smaller videos, or requires Google Cloud Storage URI for larger files. Mock analysis: "This video appears to show dynamic content based on your prompt."');
+        } else {
+          if (file.size > 2 * 1024 * 1024) {
+             setGeneratedAnalysis('Análise de vídeo é simulada para vídeos menores ou requer URI do Google Cloud Storage para arquivos maiores. Análise simulada: "Este vídeo parece mostrar conteúdo dinâmico com base no seu prompt."');
           } else {
-            // In a real scenario, you'd upload the video to GCS and pass its URI.
-            // For this mock, we'll just use the prompt as a basis for a simple response.
-            setGeneratedAnalysis(`Simulated video analysis for "${file.name}": "The video aligns with your request regarding ${prompt}."`);
+            setGeneratedAnalysis(`Análise de vídeo simulada para "${file.name}": "O vídeo se alinha com sua solicitação sobre ${prompt}."`);
           }
         }
+        // FIX: Add missing 'message' property to the toast object.
+        addToast({ type: 'success', title: 'Análise Concluída', message: 'A mídia foi analisada com sucesso.' });
       } catch (err) {
-        console.error(`Error analyzing ${mediaType}:`, err);
-        setError(`Failed to analyze ${mediaType}: ${err instanceof Error ? err.message : String(err)}`);
+        const errorMessage = `Falha ao analisar ${mediaType}: ${err instanceof Error ? err.message : String(err)}`;
+        setError(errorMessage);
+        addToast({ type: 'error', title: 'Erro na Análise', message: errorMessage });
       } finally {
         setLoading(false);
       }
     };
     reader.onerror = (err) => {
       console.error('File reading error for analysis:', err);
-      setError('Failed to read file for analysis.');
+      addToast({ type: 'error', message: 'Falha ao ler o arquivo para análise.' });
       setLoading(false);
     };
-  }, [file, prompt, mediaType]);
+  }, [file, prompt, mediaType, addToast]);
 
 
   const handleExport = useCallback(() => {
     if (!generatedMediaUrl) {
-      setError('No generated media to export.');
+      addToast({ type: 'warning', message: 'Nenhuma mídia gerada para exportar.' });
       return;
     }
     const link = document.createElement('a');
@@ -222,10 +221,10 @@ const CreativeStudio: React.FC = () => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
-  }, [generatedMediaUrl, mediaType]);
+    addToast({ type: 'info', message: 'Download iniciado.' });
+  }, [generatedMediaUrl, mediaType, addToast]);
 
   useEffect(() => {
-    // Clean up previous preview URL when file changes or component unmounts
     return () => {
       if (previewUrl) {
         URL.revokeObjectURL(previewUrl);
@@ -235,17 +234,16 @@ const CreativeStudio: React.FC = () => {
 
   return (
     <div className="container mx-auto py-8 lg:py-10">
-      <h2 className="text-3xl font-bold text-textdark mb-8">Creative Studio</h2>
+      <h2 className="text-3xl font-bold text-textdark mb-8">Estúdio Criativo</h2>
 
       {error && (
         <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
-          <strong className="font-bold">Error!</strong>
+          <strong className="font-bold">Erro!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Input/Controls Panel */}
         <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 h-full flex flex-col">
           <h3 className="text-xl font-semibold text-textlight mb-5">Ferramentas Criativas</h3>
 
@@ -258,7 +256,7 @@ const CreativeStudio: React.FC = () => {
               value={mediaType}
               onChange={(e) => {
                 setMediaType(e.target.value as MediaType);
-                setFile(null); // Clear file when changing media type
+                setFile(null);
                 setPreviewUrl(null);
                 setGeneratedMediaUrl(null);
                 setGeneratedAnalysis(null);
@@ -294,7 +292,6 @@ const CreativeStudio: React.FC = () => {
             </div>
           )}
 
-          {/* Image Generation Specific Controls */}
           {mediaType === 'image' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
@@ -309,7 +306,7 @@ const CreativeStudio: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label htmlFor="imageSize" className="block text-sm font-medium text-textlight mb-1">Image Size:</label>
+                <label htmlFor="imageSize" className="block text-sm font-medium text-textlight mb-1">Tamanho da Imagem:</label>
                 <select
                   id="imageSize"
                   value={imageSize}
@@ -322,7 +319,6 @@ const CreativeStudio: React.FC = () => {
             </div>
           )}
 
-          {/* Video Generation Specific Controls */}
           {mediaType === 'video' && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
@@ -337,7 +333,7 @@ const CreativeStudio: React.FC = () => {
                 </select>
               </div>
               <div>
-                <label htmlFor="videoResolution" className="block text-sm font-medium text-textlight mb-1">Resolution:</label>
+                <label htmlFor="videoResolution" className="block text-sm font-medium text-textlight mb-1">Resolução:</label>
                 <select
                   id="videoResolution"
                   value={videoResolution}
@@ -362,22 +358,21 @@ const CreativeStudio: React.FC = () => {
 
           <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-4 pt-4 border-t border-gray-900">
             <Button onClick={handleGenerateMedia} isLoading={loading && !file} variant="primary" className="w-full sm:w-auto">
-              {loading && !file ? `Gerando ${mediaType}...` : `Gerar ${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)} IA`}
+              {loading && !file ? `Gerando ${mediaType}...` : `Gerar ${mediaType === 'image' ? 'Imagem' : 'Vídeo'} com IA`}
             </Button>
             <Button onClick={handleEditMedia} isLoading={loading && !!file} variant="secondary" disabled={!file} className="w-full sm:w-auto">
               {loading && !!file ? `Editando ${mediaType}...` : `Editar com IA`}
             </Button>
             <Button onClick={handleAnalyzeMedia} isLoading={loading && !!file && generatedAnalysis === null} variant="outline" disabled={!file || !prompt.trim()} className="w-full sm:w-auto">
-              {loading && !!file && generatedAnalysis === null ? `Analisando ${mediaType}...` : `Analisar ${mediaType.charAt(0).toUpperCase() + mediaType.slice(1)}`}
+              {loading && !!file && generatedAnalysis === null ? `Analisando ${mediaType}...` : `Analisar ${mediaType === 'image' ? 'Imagem' : 'Vídeo'}`}
             </Button>
           </div>
         </div>
 
-        {/* Output/Viewer Panel */}
         <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 h-full flex flex-col">
           <h3 className="text-xl font-semibold text-textlight mb-5">Resultados e Exportação</h3>
           <div className="relative w-full aspect-video bg-gray-900 rounded-md flex items-center justify-center overflow-hidden border border-gray-700 mb-6 flex-1">
-            {loading && !generatedMediaUrl && !generatedAnalysis ? ( // Show spinner only if actively generating/analyzing and no result yet
+            {loading && !generatedMediaUrl && !generatedAnalysis ? (
               <LoadingSpinner />
             ) : generatedMediaUrl ? (
               mediaType === 'image' ? (
@@ -408,7 +403,7 @@ const CreativeStudio: React.FC = () => {
                     label="Nome do Item:"
                     value={savedItemName}
                     onChange={(e) => setSavedItemName(e.target.value)}
-                    placeholder={`Nome para o ${mediaType} gerado`}
+                    placeholder={`Nome para ${mediaType === 'image' ? 'a imagem' : 'o vídeo'} gerado`}
                   />
                   <Textarea
                     id="savedItemTags"

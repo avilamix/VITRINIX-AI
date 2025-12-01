@@ -5,6 +5,7 @@ import { ModuleName } from '../App'; // Import ModuleName type
 // Define the type for the navigation context
 interface NavigationContextType {
   setActiveModule: (moduleName: ModuleName) => void;
+  activeModule: ModuleName;
 }
 
 // Create the actual context
@@ -20,10 +21,12 @@ export const useNavigate = () => {
       navigateTo: (moduleName: ModuleName) => {
         console.log(`Navigation to ${moduleName} requested, but NavigationContext is not available.`);
       },
+      activeModule: 'Dashboard' as ModuleName,
     };
   }
 
   return {
     navigateTo: context.setActiveModule,
+    activeModule: context.activeModule,
   };
 };

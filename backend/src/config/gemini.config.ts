@@ -12,7 +12,7 @@ export class GeminiConfigService {
 
   // Configurações padrão para geração de conteúdo
   readonly DEFAULT_GENERATION_CONFIG = {
-    model: 'gemini-1.5-flash', // Modelo padrão para tarefas gerais
+    model: 'gemini-2.5-flash', // Updated to 2.5-flash per documentation
     temperature: 0.7,
     topP: 0.95,
     maxOutputTokens: 1024,

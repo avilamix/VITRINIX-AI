@@ -1,10 +1,12 @@
 
+
 import React, { useState } from 'react';
 import Button from './Button';
 import { BookmarkSquareIcon, CheckCircleIcon } from '@heroicons/react/24/outline';
 import { uploadFile } from '../services/cloudStorageService';
 import { saveLibraryItem } from '../services/firestoreService';
 import { LibraryItem } from '../types';
+import { useToast } from '../contexts/ToastContext';
 
 interface SaveToLibraryButtonProps {
   content: string | Blob | File | null;
@@ -23,7 +25,7 @@ const SaveToLibraryButton: React.FC<SaveToLibraryButtonProps> = ({
   content,
   type,
   userId,
-  initialName = 'Untitled',
+  initialName = 'Sem Título',
   tags = [],
   onSave,
   className = '',
@@ -33,22 +35,21 @@ const SaveToLibraryButton: React.FC<SaveToLibraryButtonProps> = ({
 }) => {
   const [loading, setLoading] = useState(false);
   const [saved, setSaved] = useState(false);
+  const { addToast } = useToast();
 
   const handleSave = async () => {
     if (!content) return;
     setLoading(true);
     try {
       let itemToSave: LibraryItem;
-      const fileName = initialName || `Saved ${type} ${Date.now()}`;
+      const fileName = initialName || `Salvo ${type} ${Date.now()}`;
 
       if (content instanceof File || content instanceof Blob) {
-        // Handle File/Blob
         const fileToUpload = content instanceof File ? content : new File([content], fileName, { type: type === 'image' ? 'image/png' : type === 'video' ? 'video/mp4' : 'text/plain' });
         const uploadedItem = await uploadFile(fileToUpload, userId, type);
         itemToSave = { ...uploadedItem, name: fileName, tags };
         await saveLibraryItem(itemToSave);
       } else {
-        // Handle Text/URL string
         if (type === 'text' || type === 'post' || type === 'ad') {
             const blob = new Blob([content], { type: 'text/plain' });
             const file = new File([blob], `${fileName}.txt`, { type: 'text/plain' });
@@ -56,7 +57,6 @@ const SaveToLibraryButton: React.FC<SaveToLibraryButtonProps> = ({
              itemToSave = { ...uploadedItem, name: fileName, tags };
              await saveLibraryItem(itemToSave);
         } else {
-             // URL string for image/video (already hosted or data uri)
              if (content.startsWith('data:')) {
                  const res = await fetch(content);
                  const blob = await res.blob();
@@ -66,8 +66,6 @@ const SaveToLibraryButton: React.FC<SaveToLibraryButtonProps> = ({
                  itemToSave = { ...uploadedItem, name: fileName, tags };
                  await saveLibraryItem(itemToSave);
              } else {
-                 // Remote URL - in a real app we might fetch and re-upload, 
-                 // but here we trust the URL or mock logic
                  const newItem: LibraryItem = {
                     id: `lib-${Date.now()}`,
                     userId,
@@ -87,9 +85,10 @@ const SaveToLibraryButton: React.FC<SaveToLibraryButtonProps> = ({
       setSaved(true);
       if (onSave) onSave(itemToSave);
       setTimeout(() => setSaved(false), 3000);
+      addToast({ type: 'success', message: 'Item salvo na biblioteca!' });
     } catch (error) {
       console.error("Error saving to library:", error);
-      alert("Failed to save to library");
+      addToast({ type: 'error', title: 'Erro', message: 'Falha ao salvar na biblioteca.' });
     } finally {
       setLoading(false);
     }

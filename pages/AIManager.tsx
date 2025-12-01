@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect, useCallback } from 'react';
 import Textarea from '../components/Textarea';
 import Button from '../components/Button';
@@ -37,7 +38,7 @@ const AIManager: React.FC = () => {
       }
     } catch (err) {
       console.error('Failed to fetch user profile:', err);
-      setError('Failed to load business profile. Please update it in Settings.');
+      setError('Falha ao carregar o perfil do negócio. Por favor, atualize-o em Configurações.');
     } finally {
       setIsProfileLoading(false);
     }
@@ -50,7 +51,7 @@ const AIManager: React.FC = () => {
 
   const handleGenerateStrategy = useCallback(async () => {
     if (!prompt.trim()) {
-      setError('Please enter a prompt to generate a strategy.');
+      setError('Por favor, insira um prompt para gerar uma estratégia.');
       return;
     }
 
@@ -65,7 +66,7 @@ const AIManager: React.FC = () => {
       setSuggestions(result.suggestions);
     } catch (err) {
       console.error('Error generating strategy:', err);
-      setError(`Failed to generate strategy: ${err instanceof Error ? err.message : String(err)}`);
+      setError(`Falha ao gerar estratégia: ${err instanceof Error ? err.message : String(err)}`);
     } finally {
       setLoading(false);
     }
@@ -78,7 +79,7 @@ const AIManager: React.FC = () => {
       await updateUserProfile(userId, { businessProfile: updatedProfile });
     } catch (err) {
       console.error('Failed to update business profile for AI Manager:', err);
-      setError('Failed to save profile changes for AI Manager. This might affect future generations.');
+      setError('Falha ao salvar as alterações do perfil para o Gerente de IA. Isso pode afetar futuras gerações.');
     }
   }, [userProfile, userId]);
 
@@ -87,7 +88,7 @@ const AIManager: React.FC = () => {
     return (
       <div className="flex justify-center items-center h-48">
         <LoadingSpinner />
-        <p className="ml-2 text-textlight">Loading business profile...</p>
+        <p className="ml-2 text-textlight">Carregando perfil do negócio...</p>
       </div>
     );
   }
@@ -95,7 +96,7 @@ const AIManager: React.FC = () => {
   return (
     <div className="container mx-auto py-8 lg:py-10">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
-        <h2 className="text-3xl font-bold text-textdark">AI Manager</h2>
+        <h2 className="text-3xl font-bold text-textdark">Gerente de IA</h2>
         
         <div className="flex bg-lightbg rounded-lg p-1 border border-gray-800">
            <button 
@@ -117,7 +118,7 @@ const AIManager: React.FC = () => {
 
       {error && (
         <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
-          <strong className="font-bold">Error!</strong>
+          <strong className="font-bold">Erro!</strong>
           <span className="block sm:inline"> {error}</span>
         </div>
       )}

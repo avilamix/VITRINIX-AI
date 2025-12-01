@@ -1,5 +1,3 @@
-
-
 import { Controller, Post, Get, Param, Body, UseGuards, UploadedFile, UseInterceptors, HttpCode, HttpStatus, Query, ParseUUIDPipe, Delete } from '@nestjs/common';
 import { ApiBearerAuth, ApiBody, ApiConsumes, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -69,7 +67,7 @@ export class KnowledgeBaseController {
   @ApiResponse({ status: 200, description: 'File uploaded and imported successfully', type: UploadFileResponseDto })
   async uploadFile(
     @Param('organizationId', ParseUUIDPipe) organizationId: string,
-    @UploadedFile() file: any,
+    @UploadedFile() file: any, // Changed to any to avoid Express namespace issues if types are missing
     @CurrentUser('uid') firebaseUid: string,
     @Body() metadata: MetadataDto, // Metadados vêm do body como outros campos do form-data
   ): Promise<UploadFileResponseDto> {

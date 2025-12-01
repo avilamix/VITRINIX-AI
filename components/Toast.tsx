@@ -57,7 +57,7 @@ const Toast: React.FC<ToastProps> = ({ id, type, title, message, duration = 5000
               className="bg-transparent rounded-md inline-flex text-muted hover:text-body focus:outline-none"
               onClick={() => onClose(id)}
             >
-              <span className="sr-only">Close</span>
+              <span className="sr-only">Fechar</span>
               <XMarkIcon className="w-5 h-5" />
             </button>
           </div>

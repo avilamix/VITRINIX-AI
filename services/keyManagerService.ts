@@ -1,7 +1,6 @@
 
-
 import { ApiKeyConfig, ProviderName, KeyStatus } from '../types';
-import { GoogleGenAI } from '@google/genai';
+import { GoogleGenAI } from '@google/genai'; // Usando o novo SDK
 import { getFirebaseIdToken, getActiveOrganization } from './authService';
 
 const BACKEND_URL = 'http://localhost:3000'; // Backend URL
@@ -10,17 +9,19 @@ const BACKEND_URL = 'http://localhost:3000'; // Backend URL
 const getActiveOrganizationId = (): string => {
   const activeOrg = getActiveOrganization();
   if (!activeOrg) {
-    throw new Error('No active organization found. Please login and select an organization.');
+    // Return a default mock ID if auth service hasn't loaded yet or is in offline mode
+    return 'mock-org-default';
   }
   return activeOrg.organization.id;
 };
 
-// MOCK: Validates an API key against its provider via Backend
+// Validates an API key against its provider via Backend OR Client-side fallback
 export const validateKey = async (config: ApiKeyConfig): Promise<{ status: KeyStatus; error?: string }> => {
   const organizationId = getActiveOrganizationId();
-  const idToken = await getFirebaseIdToken();
-
+  
+  // 1. Tentar validação via Backend
   try {
+    const idToken = await getFirebaseIdToken();
     const response = await fetch(`${BACKEND_URL}/api-keys/${organizationId}/validate`, {
       method: 'POST',
       headers: {
@@ -30,27 +31,48 @@ export const validateKey = async (config: ApiKeyConfig): Promise<{ status: KeySt
       body: JSON.stringify(config),
     });
 
-    if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || `Backend validation failed: ${response.statusText}`);
+    if (response.ok) {
+      return response.json();
     }
-
-    return response.json();
-  } catch (error: any) {
-    console.error('Error validating key via backend:', error);
-    return { status: 'invalid', error: `Validation failed: ${error.message}` };
+    // Se falhar (ex: 404, 500 ou Network Error), cai no catch e tenta client-side
+  } catch (error) {
+    console.warn('Backend validation failed/unreachable, attempting client-side validation.', error);
   }
+
+  // 2. Fallback: Validação Client-Side (Direto com Google)
+  if (config.provider === 'Google Gemini') {
+    try {
+      const ai = new GoogleGenAI({ apiKey: config.key });
+      
+      // Validação completa usando o prompt "Explain how AI works..." para garantir que a chave tem permissão de geração
+      // Isso replica a lógica do snippet Python fornecido pelo usuário.
+      await ai.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: "Explain how AI works in a few words"
+      });
+
+      return { status: 'valid' };
+    } catch (error: any) {
+      console.error('Client-side key validation failed:', error);
+      
+      let errorMsg = error.message || 'Erro desconhecido';
+      if (errorMsg.includes('401') || errorMsg.includes('API key not valid')) {
+          return { status: 'invalid', error: 'Chave de API inválida ou expirada.' };
+      }
+      return { status: 'invalid', error: `Erro na validação: ${errorMsg}` };
+    }
+  }
+
+  // Para outros provedores em modo offline, não podemos validar client-side facilmente sem expor lógica ou CORS
+  return { status: 'unchecked', error: 'Backend indisponível para validar este provedor.' };
 };
 
 // MOCK: Retrieves the "best" API key for a given provider, applying fallback logic.
-// This function will primarily be used by frontend-only components (like Live Conversation)
-// if direct backend proxy is not feasible/implemented for that specific interaction.
-// Otherwise, the backend's AiProxyService handles key selection internally.
 export const getBestApiKey = async (providerName: ProviderName): Promise<string> => {
   const organizationId = getActiveOrganizationId();
-  const idToken = await getFirebaseIdToken();
 
   try {
+    const idToken = await getFirebaseIdToken();
     const response = await fetch(`${BACKEND_URL}/api-keys/${organizationId}/best-key?provider=${encodeURIComponent(providerName)}`, {
       method: 'GET',
       headers: {
@@ -59,50 +81,41 @@ export const getBestApiKey = async (providerName: ProviderName): Promise<string>
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || `Failed to get best API key from backend: ${response.statusText}`);
+        throw new Error('Backend unavailable');
     }
 
     const data = await response.json();
-    return data.key; // Backend should return the decrypted key string
+    return data.key; 
   } catch (error: any) {
-    console.error(`Error fetching best API key for ${providerName} from backend:`, error);
-    // Fallback if backend call fails (e.g., backend down, no keys configured)
-    if (providerName === 'Google Gemini' && process.env.API_KEY) {
-      console.warn(`Falling back to process.env.API_KEY for Google Gemini.`);
-      return process.env.API_KEY;
+    // Fallback: Check local storage active key first
+    const localActiveKey = localStorage.getItem('vitrinex_gemini_api_key');
+    
+    if (providerName === 'Google Gemini') {
+        if (localActiveKey) return localActiveKey;
+        if (process.env.API_KEY) return process.env.API_KEY;
     }
+    
     throw new Error(`No active API key found for ${providerName}. Please configure them.`);
   }
 };
 
-
 /**
  * MOCK: Executes an AI operation with fallback logic across multiple API keys for a given provider.
- * This is primarily for frontend components that *must* make direct API calls (e.g., Live API).
- * Most other AI operations should go through the backend's AI Proxy service.
- * @param providerName The name of the AI provider.
- * @param operation A callback function that performs the AI operation with an API key.
- * @returns The result of the successful operation.
- * @throws Error if all API keys fail.
  */
 export const executeWithProviderFallback = async <T>(
   providerName: ProviderName,
   operation: (apiKey: string) => Promise<T>,
 ): Promise<T> => {
-  // In this refactored architecture, this function is *only* for non-proxied frontend interactions.
-  // The primary method for most AI calls should be via the backend's AI Proxy.
-  // For Gemini, we will attempt to get a key from the backend, then fall back to process.env.API_KEY.
   
   let keyToUse: string | undefined;
   try {
     keyToUse = await getBestApiKey(providerName);
   } catch (e) {
-    console.warn(`Could not get best API key from backend for ${providerName}: ${e.message}`);
-    if (providerName === 'Google Gemini' && process.env.API_KEY) {
-      keyToUse = process.env.API_KEY;
-    } else {
-      throw new Error(`No API key available for ${providerName}. Please ensure it's configured and valid.`);
+    console.warn(`Could not get best API key from backend for ${providerName}: ${(e as Error).message}`);
+    // Ultimate fallback for frontend demo
+    if (providerName === 'Google Gemini') {
+        const localKey = localStorage.getItem('vitrinex_gemini_api_key');
+        keyToUse = localKey || process.env.API_KEY;
     }
   }
 
@@ -110,15 +123,11 @@ export const executeWithProviderFallback = async <T>(
     throw new Error(`No API key available for ${providerName}.`);
   }
 
-  // Execute the operation with the obtained key
   try {
     const result = await operation(keyToUse);
-    console.log(`Operation successful with key for ${providerName}.`);
     return result;
   } catch (error: any) {
-    console.error(`Direct frontend operation failed for ${providerName} with key: ${error.message}`);
-    // In a real scenario, this would trigger more complex fallback logic or re-validation.
-    // For now, we simply re-throw as the backend should handle multi-key fallback.
-    throw new Error(`Frontend AI operation failed for ${providerName}: ${error.message}`);
+    console.error(`Direct frontend operation failed for ${providerName}: ${error.message}`);
+    throw new Error(`AI Operation failed: ${error.message}`);
   }
 };

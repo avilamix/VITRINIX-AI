@@ -1,17 +1,29 @@
+
 import React from 'react';
 import Logo from './Logo';
 import { useTheme } from '../contexts/ThemeContext';
 import { useLanguage } from '../contexts/LanguageContext';
-import { SunIcon, MoonIcon, GlobeAltIcon } from '@heroicons/react/24/outline';
+import { useNavigate } from '../hooks/useNavigate';
+import { SunIcon, MoonIcon, GlobeAltIcon, ChevronLeftIcon } from '@heroicons/react/24/outline';
 
 const Navbar: React.FC = () => {
   const { theme, toggleTheme } = useTheme();
   const { language, setLanguage, t } = useLanguage();
+  const { navigateTo, activeModule } = useNavigate();
 
   return (
-    <nav className="bg-surface text-body px-6 py-3 shadow-sm border-b border-gray-200 z-20 transition-colors duration-200">
+    <nav className="bg-surface text-body px-4 md:px-6 py-3 shadow-sm border-b border-gray-200 z-20 transition-colors duration-200">
       <div className="flex justify-between items-center max-w-full">
-        <div className="flex items-center">
+        <div className="flex items-center gap-3">
+            {activeModule !== 'Dashboard' && (
+              <button 
+                onClick={() => navigateTo('Dashboard')}
+                className="md:hidden p-2 -ml-2 text-muted hover:text-primary transition-colors rounded-full hover:bg-gray-100 dark:hover:bg-gray-800"
+                aria-label="Voltar ao Dashboard"
+              >
+                <ChevronLeftIcon className="w-5 h-5" />
+              </button>
+            )}
             <Logo className="h-9 w-9" />
         </div>
         
@@ -46,7 +58,7 @@ const Navbar: React.FC = () => {
            <button 
              onClick={toggleTheme} 
              className="p-2 rounded-full text-muted hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
-             title={theme === 'light' ? 'Switch to Dark Mode' : 'Switch to Light Mode'}
+             title={theme === 'light' ? 'Mudar para o Modo Escuro' : 'Mudar para o Modo Claro'}
            >
              {theme === 'light' ? (
                 <MoonIcon className="w-5 h-5" />

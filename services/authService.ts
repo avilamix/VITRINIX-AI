@@ -11,7 +11,18 @@ const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
 
 let currentUserId: string | null = 'mock-user-123'; // Simulate a logged-in user
 let currentUserProfile: UserProfile | null = null;
-let currentUserOrganizations: OrganizationMembership[] = [];
+
+// Initialize with a default mock organization so getActiveOrganization() works immediately
+let currentUserOrganizations: OrganizationMembership[] = [
+  {
+    organization: {
+      id: 'mock-org-default',
+      name: 'Minha Organização',
+      fileSearchStoreName: undefined
+    },
+    role: 'ADMIN'
+  }
+];
 
 // MOCK para obter o token do Firebase (deveria vir do SDK do Firebase Auth no frontend)
 const getFirebaseIdToken = async (): Promise<string> => {
@@ -36,8 +47,9 @@ export const loginWithGoogle = async (): Promise<UserProfile> => {
     });
 
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || `Login failed: ${response.statusText}`);
+      // Fallback for frontend-only demo if backend is down
+      console.warn("Backend login failed, using local mock.");
+      throw new Error("Backend unavailable");
     }
 
     const data: LoginResponseDto = await response.json();
@@ -59,8 +71,18 @@ export const loginWithGoogle = async (): Promise<UserProfile> => {
     return currentUserProfile;
 
   } catch (error) {
-    console.error('Error during login:', error);
-    throw new Error(`Failed to login: ${error instanceof Error ? error.message : String(error)}`);
+    console.warn('Backend login failed, proceeding with mock session:', error);
+    // Ensure profile exists in mock
+    if (!currentUserProfile) {
+        const profile = await getUserProfile(currentUserId!);
+        currentUserProfile = profile || {
+            id: currentUserId!,
+            email: 'mock@example.com',
+            plan: 'premium',
+            businessProfile: { name: 'Minha Empresa', industry: 'Tech', targetAudience: 'Everyone', visualStyle: 'Modern' }
+        };
+    }
+    return currentUserProfile!;
   }
 };
 
@@ -70,13 +92,14 @@ export const logout = async (): Promise<void> => {
 
   currentUserId = null;
   currentUserProfile = null;
-  currentUserOrganizations = [];
+  // Don't clear organizations to keep the app usable in demo mode without relogin
+  // currentUserOrganizations = []; 
   console.log('Mock user logged out.');
 };
 
 export const getCurrentUser = async (): Promise<UserProfile | null> => {
-  console.log('Simulating getting current user...');
-  await new Promise(resolve => setTimeout(resolve, MOCK_API_DELAY / 2)); // Simulate network delay
+  // console.log('Simulating getting current user...');
+  // await new Promise(resolve => setTimeout(resolve, MOCK_API_DELAY / 2)); // Simulate network delay
 
   if (currentUserId && !currentUserProfile) {
     // If we have a currentUserId but no profile, try to fetch it

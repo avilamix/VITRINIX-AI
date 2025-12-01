@@ -2,6 +2,7 @@ import React, { useState, useCallback } from 'react';
 import Textarea from '../components/Textarea';
 import Input from '../components/Input';
 import Button from '../components/Button';
+import SaveToLibraryButton from '../components/SaveToLibraryButton';
 import LoadingSpinner from '../components/LoadingSpinner';
 import { generateText, generateImage } from '../services/geminiService';
 import { saveAd } from '../services/firestoreService';
@@ -22,6 +23,10 @@ const AdStudio: React.FC = () => {
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string>(PLACEHOLDER_IMAGE_BASE64);
   const [loading, setLoading] = useState<boolean>(false);
   
+  // Library Save State
+  const [savedItemName, setSavedItemName] = useState<string>('');
+  const [savedItemTags, setSavedItemTags] = useState<string>('');
+  
   const { addToast } = useToast();
 
   const userId = 'mock-user-123';
@@ -35,6 +40,8 @@ const AdStudio: React.FC = () => {
     setLoading(true);
     setGeneratedAd(null);
     setGeneratedImageUrl(PLACEHOLDER_IMAGE_BASE64);
+    setSavedItemName('');
+    setSavedItemTags('');
 
     try {
       const adPrompt = `Generate a compelling ad for ${selectedPlatform}.
@@ -125,7 +132,7 @@ const AdStudio: React.FC = () => {
 
   return (
     <div className="container mx-auto py-8 lg:py-10">
-      <h2 className="text-3xl font-bold text-textdark mb-8">Ad Studio</h2>
+      <h2 className="text-3xl font-bold text-textdark mb-8">Estúdio de Anúncios</h2>
 
       <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 mb-8">
         <h3 className="text-xl font-semibold text-textlight mb-5">Detalhes do Anúncio</h3>
@@ -178,10 +185,10 @@ const AdStudio: React.FC = () => {
           <h3 className="text-xl font-semibold text-textlight mb-5">Anúncio Gerado para {generatedAd.platform}</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div>
-              <h4 className="text-lg font-semibold text-textlight mb-3">Headline:</h4>
+              <h4 className="text-lg font-semibold text-textlight mb-3">Título:</h4>
               <p className="text-textdark text-xl font-medium mb-4">{generatedAd.headline}</p>
 
-              <h4 className="text-lg font-semibold text-textlight mb-3">Copy:</h4>
+              <h4 className="text-lg font-semibold text-textlight mb-3">Texto:</h4>
               <p className="prose max-w-none text-textlight leading-relaxed bg-darkbg p-4 rounded-md h-auto min-h-[150px]" style={{ whiteSpace: 'pre-wrap' }}>
                 {generatedAd.copy}
               </p>
@@ -212,6 +219,37 @@ const AdStudio: React.FC = () => {
                 </Button>
               </div>
             </div>
+          </div>
+
+          <div className="mt-8 pt-6 border-t border-gray-800">
+            <h4 className="text-lg font-semibold text-textlight mb-4">Salvar Criativo na Biblioteca</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <Input
+                    id="adSaveName"
+                    label="Nome do Arquivo"
+                    value={savedItemName}
+                    onChange={(e) => setSavedItemName(e.target.value)}
+                    placeholder="Ex: Anúncio Black Friday"
+                />
+                <Input
+                    id="adSaveTags"
+                    label="Tags"
+                    value={savedItemTags}
+                    onChange={(e) => setSavedItemTags(e.target.value)}
+                    placeholder="Ex: ad, instagram, black friday"
+                />
+            </div>
+            <SaveToLibraryButton
+                content={generatedImageUrl}
+                type="image"
+                userId={userId}
+                initialName={savedItemName || `Anúncio ${generatedAd.platform}`}
+                tags={savedItemTags.split(',').map(t => t.trim()).filter(Boolean)}
+                label="Salvar Apenas Criativo (Imagem)"
+                variant="secondary"
+                disabled={!generatedImageUrl || generatedImageUrl === PLACEHOLDER_IMAGE_BASE64}
+                className="w-full sm:w-auto"
+            />
           </div>
         </div>
       )}

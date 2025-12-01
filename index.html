@@ -4,11 +4,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Enterprise AI Platform</title>
-    <!-- Google Fonts: Inter -->
+    <title>VitrineX AI Platform</title>
+    <!-- Google Fonts: Inter & JetBrains Mono (para código) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
     
     <!-- Tailwind CSS CDN -->
     <script src="https://cdn.tailwindcss.com"></script>
@@ -19,9 +19,10 @@
           extend: {
             fontFamily: {
               sans: ['Inter', 'sans-serif'],
+              mono: ['JetBrains Mono', 'monospace'],
             },
             colors: {
-              // Semantic Colors mapped to CSS Variables for Runtime Theming
+              // Semantic Colors mapped to CSS Variables
               primary: 'rgb(var(--color-primary) / <alpha-value>)', 
               secondary: 'rgb(var(--color-secondary) / <alpha-value>)',
               surface: 'rgb(var(--color-surface) / <alpha-value>)',
@@ -38,17 +39,18 @@
               error: '#EF4444',
               info: '#3B82F6',
               
-              // Dark mode specific helpers
-              darkbg: '#0D0D0D', 
-              lightbg: '#1A1A1A',
+              // Helpers
+              border: 'rgb(var(--color-border) / <alpha-value>)',
             },
             boxShadow: {
               'soft': '0 4px 20px -2px rgba(0, 0, 0, 0.05)',
-              'card': '0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.06)',
+              'card': '0 0 0 1px rgba(0,0,0,0.03), 0 2px 8px rgba(0,0,0,0.04)',
+              'glow': '0 0 15px rgba(var(--color-primary), 0.3)',
             },
             borderRadius: {
               'xl': '0.75rem',
               '2xl': '1rem',
+              '3xl': '1.5rem',
             }
           }
         }
@@ -57,40 +59,35 @@
     <style>
       :root {
         /* 
-          WHITE LABEL THEME CONFIGURATION 
-          Light Mode (Default)
-          Bg: #FFFFFF (255 255 255)
-          Text: #1A1A1A (26 26 26)
+          MODERN SAAS THEME (Slate/Blue Based)
         */
         
-        /* Brand Color (Default: Enterprise Blue) - RGB values */
-        --color-primary: 37 99 235; /* Blue-600 */
-        --color-secondary: 71 85 105; /* Slate-600 */
+        /* Brand Color: Vibrant Blue-Violet */
+        --color-primary: 79 70 229; /* Indigo-600 */
+        --color-secondary: 100 116 139; /* Slate-500 */
 
-        /* Light Mode Palette */
-        --color-background: 255 255 255; /* #FFFFFF */
-        --color-surface: 248 250 252;    /* Slate-50 / Very Light Grey for Contrast */
+        /* Light Mode */
+        --color-background: 248 250 252; /* Slate-50 (Cool White) */
+        --color-surface: 255 255 255;    /* Pure White */
+        --color-border: 226 232 240;     /* Slate-200 */
         
         /* Typography */
-        --color-text-title: 26 26 26;    /* #1A1A1A */
+        --color-text-title: 15 23 42;    /* Slate-900 */
         --color-text-body: 51 65 85;     /* Slate-700 */
         --color-text-muted: 100 116 139; /* Slate-500 */
       }
 
-      /* Dark Mode Palette */
+      /* Dark Mode (Rich Navy/Slate - Not Pitch Black) */
       .dark {
-        /* Dark Mode 
-           Bg: #0D0D0D (13 13 13)
-           Text: #F2F2F2 (242 242 242)
-        */
-        --color-primary: 96 165 250;     /* Blue-400 */
+        --color-primary: 99 102 241;     /* Indigo-500 (Lighter for dark mode) */
         
-        --color-background: 13 13 13;    /* #0D0D0D */
-        --color-surface: 30 30 30;       /* Dark Grey for Surface Cards */
+        --color-background: 15 23 42;    /* Slate-900 */
+        --color-surface: 30 41 59;       /* Slate-800 */
+        --color-border: 51 65 85;        /* Slate-700 */
         
-        --color-text-title: 242 242 242; /* #F2F2F2 */
-        --color-text-body: 209 213 219;  /* Gray-300 */
-        --color-text-muted: 156 163 175; /* Gray-400 */
+        --color-text-title: 241 245 249; /* Slate-100 */
+        --color-text-body: 203 213 225;  /* Slate-300 */
+        --color-text-muted: 148 163 184; /* Slate-400 */
       }
 
       body {
@@ -98,30 +95,30 @@
         color: rgb(var(--color-text-body));
         -webkit-font-smoothing: antialiased;
         -moz-osx-font-smoothing: grayscale;
-        transition: background-color 0.2s ease, color 0.2s ease;
+        transition: background-color 0.3s ease, color 0.3s ease;
       }
       
-      /* Apply transition to all major color changing elements */
+      /* Smooth transitions for all colored elements */
       div, nav, aside, section, article, header, footer, button, input, textarea, select {
-         transition-property: background-color, border-color, color, fill, stroke;
+         transition-property: background-color, border-color, color, fill, stroke, box-shadow;
          transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
          transition-duration: 200ms;
       }
       
-      /* Scrollbar Styling */
+      /* Modern Scrollbar */
       ::-webkit-scrollbar {
-        width: 8px;
-        height: 8px;
+        width: 6px;
+        height: 6px;
       }
       ::-webkit-scrollbar-track {
         background: transparent;
       }
       ::-webkit-scrollbar-thumb {
-        background: rgba(var(--color-text-muted), 0.2);
-        border-radius: 4px;
+        background: rgba(148, 163, 184, 0.3); /* Slate-400 with opacity */
+        border-radius: 10px;
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: rgba(var(--color-text-muted), 0.4);
+        background: rgba(148, 163, 184, 0.5);
       }
     </style>
 <script type="importmap">
@@ -152,13 +149,15 @@
     "rxjs": "https://aistudiocdn.com/rxjs@^7.8.2",
     "@nestjs/platform-express/": "https://aistudiocdn.com/@nestjs/platform-express@^11.1.9/",
     "class-transformer": "https://aistudiocdn.com/class-transformer@^0.5.1",
-    "buffer": "https://aistudiocdn.com/buffer@^6.0.3"
+    "buffer": "https://aistudiocdn.com/buffer@^6.0.3",
+    "@tanstack/react-query": "https://aistudiocdn.com/@tanstack/react-query@^5.24.1"
   }
 }
 </script>
 </head>
-<body class="h-full">
+<body class="h-full overflow-hidden bg-background text-body">
     <div id="root" class="h-full"></div>
     <script type="module" src="/index.tsx"></script>
 </body>
 </html>
+    

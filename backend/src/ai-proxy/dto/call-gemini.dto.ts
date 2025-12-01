@@ -1,12 +1,11 @@
 
-
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional, ValidateNested, IsObject } from 'class-validator';
-import { GenerateContentRequest, Part, Tool, ToolConfig, FunctionDeclaration } from '@google/genai';
+import { GenerateContentParameters, Part, Tool, ToolConfig, FunctionDeclaration } from '@google/genai';
 import { Type } from 'class-transformer';
 
 // Replicar tipos do SDK para validação
-class ContentPartDto implements Part {
+class ContentPartDto {
   @ApiProperty({ type: 'string', required: false })
   @IsString()
   @IsOptional()
@@ -120,7 +119,7 @@ class ToolFunctionDeclarationParametersDto {
   required?: string[];
 }
 
-class ToolFunctionDeclarationDto implements FunctionDeclaration {
+class ToolFunctionDeclarationDto {
   @ApiProperty()
   @IsString()
   @IsNotEmpty()
@@ -137,7 +136,7 @@ class ToolFunctionDeclarationDto implements FunctionDeclaration {
   parameters: ToolFunctionDeclarationParametersDto;
 }
 
-class ToolDto implements Tool {
+class ToolDto {
   @ApiProperty({ type: [ToolFunctionDeclarationDto], required: false })
   @IsOptional()
   @ValidateNested({ each: true })
@@ -198,11 +197,11 @@ class GeminiConfigDto {
   @ApiProperty({ type: 'object', required: false })
   @IsObject()
   @IsOptional()
-  responseSchema?: any; // Cannot strongly type GenerateContentRequest['config']['responseSchema'] without circular dependency or complex setup
+  responseSchema?: any; 
 }
 
 export class CallGeminiDto {
-  @ApiProperty({ example: 'gemini-1.5-flash', required: false })
+  @ApiProperty({ example: 'gemini-2.5-flash', required: false })
   @IsString()
   @IsOptional()
   model?: string;

@@ -1,7 +1,7 @@
 
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional, IsObject, ValidateNested, IsArray } from 'class-validator';
-import { GenerateContentRequest, Tool } from '@google/genai'; // Import Tool
+import { GenerateContentParameters, Tool } from '@google/genai'; // Import Tool and Parameters
 
 export class GenerateTextDto {
   @ApiProperty({ example: 'Write a blog post about AI in marketing.' })
@@ -9,7 +9,7 @@ export class GenerateTextDto {
   @IsNotEmpty()
   prompt: string;
 
-  @ApiProperty({ example: 'gemini-1.5-flash', default: 'gemini-1.5-flash', required: false })
+  @ApiProperty({ example: 'gemini-2.5-flash', default: 'gemini-2.5-flash', required: false })
   @IsString()
   @IsOptional()
   model?: string;
@@ -21,7 +21,7 @@ export class GenerateTextDto {
   })
   @IsObject()
   @IsOptional()
-  options?: Partial<GenerateContentRequest['generationConfig']>;
+  options?: Partial<GenerateContentParameters['config']>;
 
   @ApiProperty({
     type: 'array',

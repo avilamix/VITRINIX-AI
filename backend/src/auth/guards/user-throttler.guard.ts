@@ -13,13 +13,13 @@ export class UserThrottlerGuard extends ThrottlerGuard {
 
   // Override getTracker to use Firebase UID instead of IP
   protected getTracker(req: Request): string {
-    const firebaseUser: DecodedIdToken = req['user']; // Assuming FirebaseAuthGuard has run and attached user
+    const firebaseUser: DecodedIdToken = (req as any)['user']; // Assuming FirebaseAuthGuard has run and attached user
 
     if (firebaseUser?.uid) {
       return firebaseUser.uid; // Use Firebase UID as the tracker
     }
     // Fallback to IP if Firebase UID is not available (e.g., public endpoints not using auth guard)
-    return req.ip; 
+    return (req as any).ip; 
   }
 
   // Override canActivate to ensure FirebaseAuthGuard has run if applicable
@@ -27,16 +27,17 @@ export class UserThrottlerGuard extends ThrottlerGuard {
     const request = context.switchToHttp().getRequest<Request>();
     // Check if the request is protected by FirebaseAuthGuard. If so, ensure user is set.
     // This is a heuristic. A more robust solution involves metadata or specific decorators.
-    const isProtectedByFirebaseAuth = request.headers.authorization?.startsWith('Bearer');
+    const headers = (request as any).headers;
+    const isProtectedByFirebaseAuth = headers.authorization?.startsWith('Bearer');
     
     if (isProtectedByFirebaseAuth) {
       // If the route is expected to be authenticated, ensure req.user is populated.
       // This implicitly waits for FirebaseAuthGuard to run if it's chained before this guard.
       try {
-        if (!request['user']) {
+        if (!(request as any)['user']) {
             // Re-validate token if not already done, or simply fail if token is missing/invalid
-            const idToken = request.headers.authorization.split(' ')[1];
-            request['user'] = await this.authService.validateFirebaseToken(idToken);
+            const idToken = headers.authorization.split(' ')[1];
+            (request as any)['user'] = await this.authService.validateFirebaseToken(idToken);
         }
       } catch (e) {
         // If Firebase auth fails here, let FirebaseAuthGuard (if present) handle the 401.

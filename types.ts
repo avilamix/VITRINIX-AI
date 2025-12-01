@@ -1,5 +1,6 @@
 
 
+
 export interface TranscriptionSegment {
   text: string;
   isFinal: boolean;
@@ -56,6 +57,15 @@ export interface Campaign {
   createdAt: string; // ISO date string
 }
 
+// NOVO: Interface para metadados de grounding
+export interface GroundingMetadata {
+  groundingChunks: Array<{ web?: { uri: string; title: string }; maps?: { uri: string; title: string } }>;
+  groundingSupports: Array<{
+    segment: { startIndex: number; endIndex: number; text: string };
+    groundingChunkIndices: number[];
+  }>;
+}
+
 // Define Trend interface
 export interface Trend {
   id: string;
@@ -64,6 +74,7 @@ export interface Trend {
   score: number; // e.g., viral score
   data: string; // summary of the trend
   sources?: Array<{ uri: string; title: string }>;
+  groundingMetadata?: GroundingMetadata; // NOVO
   createdAt: string; // ISO date string
 }
 
@@ -92,9 +103,13 @@ export interface ScheduleEntry {
 
 // Define ChatMessage interface for Chatbot
 export interface ChatMessage {
-  role: 'user' | 'model';
+  role: 'user' | 'model' | 'tool';
   text: string;
   timestamp: string; // ISO date string
+  toolCall?: {
+    name: string;
+    args: any;
+  };
 }
 
 // --- API Key Management Types ---
@@ -169,5 +184,35 @@ export interface LoginResponseDto {
   organizations: OrganizationMembership[];
 }
 
+// NOVO: Interface para as partes da resposta do Gemini, incluindo code execution
+export interface GeminiPart {
+  text?: string;
+  inlineData?: {
+    mimeType: string;
+    data: string;
+  };
+  executableCode?: {
+    language: 'PYTHON';
+    code: string;
+  };
+  codeExecutionResult?: {
+    outcome: string; // "OUTCOME_OK" | "OUTCOME_FAILED"
+    output: string;
+  };
+}
 
-// REMOVED Global declaration to avoid conflict with src/types.ts
+// NOVO: Interface para resultados de busca com Google Maps
+export interface PlaceResult {
+  text: string;
+  places: Array<{ uri: string; title: string }>;
+}
+
+// NOVO: Interface para eventos de calendário
+export interface CalendarEvent {
+  id: string;
+  summary: string;
+  description?: string;
+  startTime: string; // ISO Date
+  endTime: string; // ISO Date
+  location?: string;
+}
