@@ -8,8 +8,10 @@ import { getUserProfile, updateUserProfile } from '../services/firestoreService'
 import { testGeminiConnection } from '../services/geminiService';
 import { UserProfile } from '../types';
 import { DEFAULT_BUSINESS_PROFILE } from '../constants';
-import { KeyIcon, ServerStackIcon, InformationCircleIcon, ArrowDownOnSquareIcon } from '@heroicons/react/24/outline';
+import { KeyIcon, ServerStackIcon, InformationCircleIcon, ArrowDownOnSquareIcon, PaintBrushIcon, GlobeAltIcon, SunIcon, MoonIcon } from '@heroicons/react/24/outline';
 import { useToast } from '../contexts/ToastContext';
+import { useTheme } from '../contexts/ThemeContext';
+import { useLanguage } from '../contexts/LanguageContext';
 
 const Settings: React.FC<{ onApiKeySelected: () => void; onOpenApiKeySelection: () => void; }> = ({ onApiKeySelected }) => {
   // Profile State
@@ -24,6 +26,8 @@ const Settings: React.FC<{ onApiKeySelected: () => void; onOpenApiKeySelection: 
   const [keyError, setKeyError] = useState<string | null>(null);
 
   const { addToast } = useToast();
+  const { theme, toggleTheme } = useTheme();
+  const { language, setLanguage } = useLanguage();
   const userId = 'mock-user-123';
 
   useEffect(() => {
@@ -118,7 +122,7 @@ const Settings: React.FC<{ onApiKeySelected: () => void; onOpenApiKeySelection: 
   };
 
   return (
-    <div className="animate-in fade-in duration-500 space-y-10 max-w-3xl mx-auto">
+    <div className="animate-in fade-in duration-500 space-y-10 max-w-3xl mx-auto pb-10">
       <h2 className="text-3xl font-bold text-title">Configurações</h2>
       
       {/* API Key Section */}
@@ -160,6 +164,66 @@ const Settings: React.FC<{ onApiKeySelected: () => void; onOpenApiKeySelection: 
                       Exportar Chave
                   </Button>
               </div>
+          </div>
+      </div>
+
+      {/* System Preferences Section */}
+      <div className="bg-surface p-8 rounded-xl shadow-card border border-border">
+          <h3 className="text-xl font-semibold text-title mb-6 flex items-center gap-2">
+            <PaintBrushIcon className="w-5 h-5 text-primary" /> Preferências do Sistema
+          </h3>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+             {/* Theme Selection */}
+             <div>
+                <label className="block text-sm font-medium text-title mb-3">Aparência</label>
+                <div className="flex gap-4">
+                   <button 
+                     onClick={() => theme === 'dark' && toggleTheme()}
+                     className={`flex-1 flex flex-col items-center justify-center gap-2 p-4 rounded-xl border transition-all ${
+                       theme === 'light' 
+                       ? 'border-primary bg-primary/5 text-primary ring-1 ring-primary' 
+                       : 'border-border hover:border-gray-300 dark:hover:border-gray-600 text-muted'
+                     }`}
+                   >
+                      <SunIcon className="w-6 h-6" />
+                      <span className="text-sm font-medium">Claro</span>
+                   </button>
+                   <button 
+                     onClick={() => theme === 'light' && toggleTheme()}
+                     className={`flex-1 flex flex-col items-center justify-center gap-2 p-4 rounded-xl border transition-all ${
+                       theme === 'dark' 
+                       ? 'border-primary bg-primary/5 text-primary ring-1 ring-primary' 
+                       : 'border-border hover:border-gray-300 dark:hover:border-gray-600 text-muted'
+                     }`}
+                   >
+                      <MoonIcon className="w-6 h-6" />
+                      <span className="text-sm font-medium">Escuro</span>
+                   </button>
+                </div>
+             </div>
+
+             {/* Language Selection */}
+             <div>
+                <label className="block text-sm font-medium text-title mb-3">Idioma</label>
+                <div className="relative">
+                   <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                      <GlobeAltIcon className="h-5 w-5 text-muted" />
+                   </div>
+                   <select 
+                      value={language}
+                      onChange={(e) => setLanguage(e.target.value as any)}
+                      className="block w-full pl-10 pr-10 py-3 bg-surface border border-border rounded-xl shadow-sm focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary sm:text-sm appearance-none transition-colors"
+                   >
+                      <option value="pt-BR">Português (Brasil)</option>
+                      <option value="en-US">English (United States)</option>
+                   </select>
+                   <div className="absolute inset-y-0 right-0 flex items-center px-2 pointer-events-none">
+                      <svg className="h-4 w-4 text-muted" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7"></path></svg>
+                   </div>
+                </div>
+                <p className="mt-2 text-xs text-muted">Isso afetará a interface e as respostas padrão da IA.</p>
+             </div>
           </div>
       </div>
 

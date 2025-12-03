@@ -3,7 +3,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>VitrineX AI Platform</title>
     <!-- Google Fonts: Inter & JetBrains Mono (para código) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -90,6 +90,12 @@
         --color-text-muted: 148 163 184; /* Slate-400 */
       }
 
+      html, body {
+        height: 100%;
+        overflow-x: hidden; /* Eliminar rolagem horizontal */
+        overscroll-behavior-y: none; /* Prevenir efeito elástico no mobile */
+      }
+
       body {
         background-color: rgb(var(--color-background));
         color: rgb(var(--color-text-body));
@@ -156,7 +162,7 @@
 }
 </script>
 </head>
-<body class="h-full overflow-hidden bg-background text-body">
+<body class="h-full bg-background text-body">
     <div id="root" class="h-full"></div>
     <script type="module" src="/index.tsx"></script>
 </body>

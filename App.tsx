@@ -213,17 +213,17 @@ function AppContent() {
             activeModule={activeModule} 
             setActiveModule={setActiveModule} 
           />
-          <main className={`flex-1 flex flex-col min-w-0 relative ${
+          <main className={`flex-1 flex flex-col min-w-0 relative overflow-x-hidden ${
             isFullHeightModule 
               ? 'h-full' 
-              : 'overflow-y-auto pb-48' 
+              : 'overflow-y-auto pb-16' 
           }`}>
             <Suspense fallback={
               <div className="flex-1 flex items-center justify-center">
                 <LoadingSpinner />
               </div>
             }>
-              <div className={`w-full ${isFullHeightModule ? 'h-full' : 'max-w-7xl mx-auto p-4 md:p-8'}`}>
+              <div className={`w-full ${isFullHeightModule ? 'h-full' : 'max-w-[1200px] mx-auto p-4 md:p-8'}`}>
                   {renderModule()}
               </div>
             </Suspense>
