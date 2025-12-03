@@ -1,29 +1,29 @@
 
-import { Controller, Post, Body, UseGuards, Param, HttpCode, HttpStatus } from '@nestjs/common';
+import { Controller, Post, Body, UseGuards, Param, HttpCode, HttpStatus, Sse, MessageEvent } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import { FirebaseAuthGuard } from '../auth/guards/firebase-auth.guard';
 import { AiProxyService } from './ai-proxy.service';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
-import { DecodedIdToken } from 'firebase-admin/auth';
 import { GenerateTextDto, GenerateTextResponseDto } from './dto/generate-text.dto';
 import { OrganizationRoleGuard } from '../permissions/guards/organization-role.guard';
 import { Roles } from '../permissions/decorators/roles.decorator';
 import { Role } from '@prisma/client';
 import { ParseUUIDPipe } from '@nestjs/common';
-import { GenerateImageDto, GenerateImageResponseDto } from './dto/generate-image.dto'; // NOVO
-import { GenerateVideoDto, GenerateVideoResponseDto } from './dto/generate-video.dto'; // NOVO
-import { GenerateSpeechDto, GenerateSpeechResponseDto } from './dto/generate-speech.dto'; // NOVO
-import { CallGeminiDto, CallGeminiResponseDto } from './dto/call-gemini.dto'; // NOVO
+import { GenerateImageDto, GenerateImageResponseDto } from './dto/generate-image.dto';
+import { GenerateVideoDto, GenerateVideoResponseDto } from './dto/generate-video.dto';
+import { GenerateSpeechDto, GenerateSpeechResponseDto } from './dto/generate-speech.dto';
+import { CallGeminiDto, CallGeminiResponseDto } from './dto/call-gemini.dto';
+import { Observable } from 'rxjs';
 
 @ApiTags('AI Proxy')
 @Controller('organizations/:organizationId/ai-proxy')
-@UseGuards(FirebaseAuthGuard, OrganizationRoleGuard) // Protege com autenticação e RBAC
+@UseGuards(FirebaseAuthGuard, OrganizationRoleGuard)
 @ApiBearerAuth('firebase-auth')
 export class AiProxyController {
   constructor(private readonly aiProxyService: AiProxyService) {}
 
   @Post('generate-text')
-  @Roles(Role.ADMIN, Role.EDITOR, Role.VIEWER) // Exemplo: Todos podem gerar texto
+  @Roles(Role.ADMIN, Role.EDITOR, Role.VIEWER)
   @ApiOperation({ summary: 'Generate text content using AI via proxy' })
   @ApiResponse({ status: 200, description: 'Generated text content', type: GenerateTextResponseDto })
   async generateText(
@@ -32,7 +32,26 @@ export class AiProxyController {
     @CurrentUser('uid') firebaseUid: string,
   ): Promise<GenerateTextResponseDto> {
     const response = await this.aiProxyService.generateText(organizationId, firebaseUid, dto.prompt, dto.model, dto.options);
-    return { text: response.text }; // Retorna apenas o texto
+    return { text: response.text };
+  }
+  
+  @Sse('stream-text')
+  @Roles(Role.ADMIN, Role.EDITOR, Role.VIEWER)
+  @ApiOperation({ summary: 'Generate text content with streaming response (SSE)' })
+  streamText(
+    @Param('organizationId', ParseUUIDPipe) organizationId: string,
+    @Body() dto: GenerateTextDto,
+    @CurrentUser('uid') firebaseUid: string,
+  ): Observable<MessageEvent> {
+    return this.aiProxyService.generateTextStream(
+      organizationId,
+      firebaseUid,
+      dto.prompt,
+      dto.history,
+      dto.model,
+      dto.options,
+      dto.tools,
+    );
   }
 
   @Post('generate-image')
@@ -79,7 +98,7 @@ export class AiProxyController {
   }
 
   @Post('call-gemini')
-  @Roles(Role.ADMIN, Role.EDITOR, Role.VIEWER) // Pode ser ajustado conforme necessidade
+  @Roles(Role.ADMIN, Role.EDITOR, Role.VIEWER)
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Generic call to Gemini API for various content generation tasks (chamarGemini)' })
   @ApiResponse({ status: 200, description: 'Generic AI response', type: CallGeminiResponseDto })

@@ -5,7 +5,8 @@ import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import SaveToLibraryButton from '../components/SaveToLibraryButton';
 import MediaActionsToolbar from '../components/MediaActionsToolbar'; // NOVO
-import { generateImage, editImage, generateVideo, analyzeImage, analyzeVideo } from '../services/geminiService';
+// FIX: Removed 'analyzeVideo' as it is not exported from geminiService and not used in the component.
+import { generateImage, editImage, generateVideo, analyzeImage } from '../services/geminiService';
 import {
   GEMINI_IMAGE_PRO_MODEL,
   GEMINI_IMAGE_FLASH_MODEL,
@@ -338,7 +339,11 @@ const CreativeStudio: React.FC = () => {
             value={prompt}
             onChange={(e) => setPrompt(e.target.value)}
             rows={5}
-            placeholder={`Ex: 'Um cachorro astronauta flutuando no espaço com planetas coloridos.'`}
+            placeholder={
+              file 
+                ? "Ex: 'Adicione um filtro retrô' ou 'Remova a pessoa no fundo'"
+                : "Ex: 'Um cachorro astronauta flutuando no espaço com planetas coloridos.'"
+            }
             className={`flex-1 min-h-[100px] ${!prompt.trim() && error ? 'border-red-500 focus:ring-red-500' : ''}`}
           />
 

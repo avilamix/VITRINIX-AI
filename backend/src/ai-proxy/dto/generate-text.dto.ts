@@ -1,7 +1,7 @@
 
 import { ApiProperty } from '@nestjs/swagger';
 import { IsString, IsNotEmpty, IsOptional, IsObject, ValidateNested, IsArray } from 'class-validator';
-import { GenerateContentParameters, Tool } from '@google/genai'; // Import Tool and Parameters
+import { GenerateContentParameters, Tool, Content } from '@google/genai';
 
 export class GenerateTextDto {
   @ApiProperty({ example: 'Write a blog post about AI in marketing.' })
@@ -31,7 +31,17 @@ export class GenerateTextDto {
   })
   @IsArray()
   @IsOptional()
-  tools?: Tool[]; // Add tools here
+  tools?: Tool[];
+
+  @ApiProperty({
+      type: 'array',
+      items: { type: 'object' },
+      required: false,
+      description: 'Chat history for conversational context',
+  })
+  @IsArray()
+  @IsOptional()
+  history?: Content[];
 }
 
 export class GenerateTextResponseDto {

@@ -11,22 +11,49 @@ export async function urlToBlob(imageUrl: string): Promise<Blob> {
 }
 
 /**
- * Força o download de um Blob/URL no navegador
+ * Helper to convert Blob to Base64 string
+ */
+function blobToBase64(blob: Blob): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onloadend = () => resolve(reader.result as string);
+    reader.onerror = reject;
+    reader.readAsDataURL(blob);
+  });
+}
+
+/**
+ * Força o download de um Blob/URL no navegador ou salva nativamente se no Electron
  */
 export async function downloadImage(imageUrl: string, fileName: string) {
   try {
+    // Garante extensão
+    let finalFileName = fileName;
+    if (!/\.[^/.]+$/.test(finalFileName)) {
+        finalFileName = `${finalFileName}.png`;
+    }
+
+    // 1. Verificação Electron (Salvar Nativo)
+    if (window.electronAPI) {
+      // Para Electron, precisamos enviar os dados.
+      // Se for URL remota ou blob, convertemos para base64 data string
+      const blob = await urlToBlob(imageUrl);
+      const base64Data = await blobToBase64(blob);
+      
+      const result = await window.electronAPI.saveFile(base64Data, finalFileName);
+      if (!result.success) {
+        throw new Error(result.error || 'Cancelado pelo usuário');
+      }
+      return true;
+    }
+
+    // 2. Fallback Web (Download via Browser)
     const blob = await urlToBlob(imageUrl);
     const blobUrl = window.URL.createObjectURL(blob);
     
     const link = document.createElement('a');
     link.href = blobUrl;
-    
-    // Garante uma extensão de arquivo, adicionando .png se nenhuma for encontrada.
-    if (!/\.[^/.]+$/.test(fileName)) {
-      link.download = `${fileName}.png`;
-    } else {
-      link.download = fileName;
-    }
+    link.download = finalFileName;
     
     document.body.appendChild(link);
     link.click();

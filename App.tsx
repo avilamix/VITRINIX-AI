@@ -1,21 +1,8 @@
 
-
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
-import Dashboard from './pages/Dashboard';
-import AIManager from './pages/AIManager';
-import ContentGenerator from './pages/ContentGenerator';
-import AdStudio from './pages/AdStudio';
-import CampaignBuilder from './pages/CampaignBuilder';
-import TrendHunter from './pages/TrendHunter';
-import CreativeStudio from './pages/CreativeStudio';
-import ContentLibrary from './pages/ContentLibrary';
-import SmartScheduler from './pages/SmartScheduler';
-import Settings from './pages/Settings';
 import LoadingSpinner from './components/LoadingSpinner';
-import Chatbot from './pages/Chatbot';
-import AudioTools from './pages/AudioTools';
 import Logo from './components/Logo'; 
 import TutorialOverlay from './components/TutorialOverlay'; 
 import { NavigationContext } from './hooks/useNavigate';
@@ -26,6 +13,19 @@ import { TutorialProvider } from './contexts/TutorialContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { KeyIcon, CheckCircleIcon, PlayIcon } from '@heroicons/react/24/outline';
 import { testGeminiConnection } from './services/geminiService';
+
+// Lazy load all page components for code splitting
+const Dashboard = React.lazy(() => import('./pages/Dashboard'));
+const AIManager = React.lazy(() => import('./pages/AIManager'));
+const ContentGenerator = React.lazy(() => import('./pages/ContentGenerator'));
+const AdStudio = React.lazy(() => import('./pages/AdStudio'));
+const CampaignBuilder = React.lazy(() => import('./pages/CampaignBuilder'));
+const TrendHunter = React.lazy(() => import('./pages/TrendHunter'));
+const CreativeStudio = React.lazy(() => import('./pages/CreativeStudio'));
+const ContentLibrary = React.lazy(() => import('./pages/ContentLibrary'));
+const SmartScheduler = React.lazy(() => import('./pages/SmartScheduler'));
+const Settings = React.lazy(() => import('./pages/Settings'));
+const Chatbot = React.lazy(() => import('./pages/Chatbot'));
 
 export type ModuleName =
   | 'Dashboard'
@@ -58,6 +58,7 @@ function AppContent() {
   const [manualApiKey, setManualApiKey] = useState<string>('');
   const [isTestingKey, setIsTestingKey] = useState<boolean>(false);
   const [testResult, setTestResult] = useState<string | null>(null);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   const checkAndSelectApiKey = useCallback(async () => {
     // 1. Check Window (AI Studio) - Cast to any to avoid TS error
@@ -92,7 +93,7 @@ function AppContent() {
 
   useEffect(() => {
     checkAndSelectApiKey();
-  }, []);
+  }, [checkAndSelectApiKey]);
 
   const handleManualKeySubmit = async (e: React.FormEvent) => {
       e.preventDefault();
@@ -198,25 +199,34 @@ function AppContent() {
     );
   }
 
-  // Modules that require full height without internal padding/scroll (handled internally)
   const isFullHeightModule = activeModule === 'Chatbot';
 
   return (
     <NavigationContext.Provider value={{ setActiveModule, activeModule }}>
       <div className="flex flex-col h-screen bg-background text-body font-sans overflow-hidden">
         <TutorialOverlay /> 
-        <Navbar />
+        <Navbar onMenuClick={() => setIsMobileMenuOpen(true)} />
         <div className="flex flex-1 overflow-hidden relative">
-          <Sidebar activeModule={activeModule} setActiveModule={setActiveModule} />
-          {/* Main Content Area */}
+          <Sidebar 
+            isOpen={isMobileMenuOpen} 
+            onClose={() => setIsMobileMenuOpen(false)} 
+            activeModule={activeModule} 
+            setActiveModule={setActiveModule} 
+          />
           <main className={`flex-1 flex flex-col min-w-0 relative ${
             isFullHeightModule 
               ? 'h-full' 
-              : 'overflow-y-auto pb-48' // TAREFA 1: Padding Bottom Generoso para não cortar conteúdo
+              : 'overflow-y-auto pb-48' 
           }`}>
-            <div className={`w-full ${isFullHeightModule ? 'h-full' : 'max-w-7xl mx-auto p-4 md:p-8'}`}>
-                {renderModule()}
-            </div>
+            <Suspense fallback={
+              <div className="flex-1 flex items-center justify-center">
+                <LoadingSpinner />
+              </div>
+            }>
+              <div className={`w-full ${isFullHeightModule ? 'h-full' : 'max-w-7xl mx-auto p-4 md:p-8'}`}>
+                  {renderModule()}
+              </div>
+            </Suspense>
           </main>
         </div>
       </div>

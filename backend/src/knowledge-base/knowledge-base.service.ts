@@ -4,14 +4,13 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DecodedIdToken } from 'firebase-admin/auth';
 import { GeminiConfigService } from '../config/gemini.config';
 import { ApiKeysService } from '../api-keys/api-keys.service';
-import { GoogleGenAI, File as GenAIFile, GenerateContentParameters } from '@google/genai'; 
+import { GoogleGenAI, GenerateContentParameters } from '@google/genai'; 
 import { FileSearchStoreResponseDto } from './dto/create-store.dto';
 import { ListFilesResponseDto, UploadFileResponseDto } from './dto/upload-file.dto';
 import { QueryKnowledgeBaseResponseDto } from './dto/query-store.dto';
 import { AuthService } from '../auth/auth.service';
 import { OrganizationsService } from '../organizations/organizations.service';
 import { AiProxyService } from '../ai-proxy/ai-proxy.service';
-import { File } from '@prisma/client';
 import { MetadataDto } from './dto/metadata.dto';
 
 @Injectable()
@@ -59,7 +58,6 @@ export class KnowledgeBaseService {
     if (!organization.fileSearchStoreName) {
       throw new NotFoundException('File Search Store not found for this organization. Please create one.');
     }
-    // TODO: Adicionar chamada ao aiProxyService.getGeminiFileSearchStore para validar se o store ainda existe no Gemini
     return { storeName: organization.fileSearchStoreName, displayName: organization.name };
   }
 
@@ -207,7 +205,6 @@ export class KnowledgeBaseService {
 
     if (groundingMetadata && groundingMetadata.groundingChunks) {
       for (const chunk of groundingMetadata.groundingChunks) {
-        // Cast chunk to any to access potential file search properties that are not in basic type definition
         const anyChunk = chunk as any;
         
         if (anyChunk.retrievedFile && anyChunk.retrievedFile.uri) {
