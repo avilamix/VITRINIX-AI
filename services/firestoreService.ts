@@ -1,6 +1,5 @@
 
-
-import { UserProfile, Post, Ad, Campaign, Trend, LibraryItem, ScheduleEntry, ApiKeyConfig } from '../types';
+import { UserProfile, Post, Ad, Campaign, Trend, LibraryItem, ScheduleEntry } from '../types';
 import { MOCK_API_DELAY, DEFAULT_BUSINESS_PROFILE } from '../constants';
 
 // In a real application, this would interact with a backend service (e.g., Cloud Functions)
@@ -22,7 +21,6 @@ const mockDb = {
   trends: {} as { [id: string]: Trend },
   library: {} as { [id: string]: LibraryItem },
   schedule: {} as { [id: string]: ScheduleEntry },
-  // apiKeys: [] as ApiKeyConfig[], REMOVIDO: API Keys agora são gerenciadas pelo backend
 };
 
 // Generic mock function to simulate Firestore operations
@@ -157,23 +155,4 @@ export const deleteScheduleEntry = async (entryId: string): Promise<void> => {
       delete mockDb.schedule[entryId];
     }
   });
-};
-
-// --- API Key Management Operations ---
-// REMOVIDO: API Keys agora são gerenciadas pelo backend
-export const getApiKeys = async (): Promise<ApiKeyConfig[]> => {
-  // Em produção, as chaves seriam buscadas do backend e descriptografadas
-  return Promise.resolve([]);
-};
-
-export const saveApiKey = async (apiKey: ApiKeyConfig): Promise<ApiKeyConfig> => {
-  // Em produção, a chave seria enviada para o backend para persistência segura
-  console.warn("saveApiKey chamado no frontend, mas chaves devem ser gerenciadas pelo backend.");
-  return Promise.resolve(apiKey);
-};
-
-export const deleteApiKey = async (keyId: string): Promise<void> => {
-  // Em produção, a requisição seria enviada para o backend
-  console.warn("deleteApiKey chamado no frontend, mas chaves devem ser gerenciadas pelo backend.");
-  return Promise.resolve();
 };

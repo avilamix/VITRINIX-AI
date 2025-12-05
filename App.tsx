@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback, Suspense } from 'react';
 import Navbar from './components/Navbar';
 import Sidebar from './components/Sidebar';
+import MobileNavMenu from './components/MobileNavMenu'; // Import the new mobile menu
 import LoadingSpinner from './components/LoadingSpinner';
 import Logo from './components/Logo'; 
 import TutorialOverlay from './components/TutorialOverlay'; 
@@ -13,6 +14,7 @@ import { TutorialProvider } from './contexts/TutorialContext';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { KeyIcon, CheckCircleIcon, PlayIcon } from '@heroicons/react/24/outline';
 import { testGeminiConnection } from './services/geminiService';
+import { HARDCODED_API_KEY } from './constants';
 
 // Lazy load all page components for code splitting
 const Dashboard = React.lazy(() => import('./pages/Dashboard'));
@@ -26,6 +28,8 @@ const ContentLibrary = React.lazy(() => import('./pages/ContentLibrary'));
 const SmartScheduler = React.lazy(() => import('./pages/SmartScheduler'));
 const Settings = React.lazy(() => import('./pages/Settings'));
 const Chatbot = React.lazy(() => import('./pages/Chatbot'));
+// Lazy load Admin Console
+const AdminConsole = React.lazy(() => import('./pages/AdminConsole'));
 
 export type ModuleName =
   | 'Dashboard'
@@ -38,7 +42,8 @@ export type ModuleName =
   | 'ContentLibrary'
   | 'SmartScheduler'
   | 'Settings'
-  | 'Chatbot';
+  | 'Chatbot'
+  | 'Admin'; // Added Admin type
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -60,8 +65,16 @@ function AppContent() {
   const [testResult, setTestResult] = useState<string | null>(null);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
+  // Check URL for Admin Route on mount
+  useEffect(() => {
+    const path = window.location.pathname;
+    if (path === '/admin' || path === '/__core-admin' || window.location.search.includes('mode=admin')) {
+      setActiveModule('Admin');
+    }
+  }, []);
+
   const checkAndSelectApiKey = useCallback(async () => {
-    // 1. Check Window (AI Studio) - Cast to any to avoid TS error
+    // 1. Check Window (AI Studio)
     if ((window as any).aistudio && typeof (window as any).aistudio.hasSelectedApiKey === 'function') {
       try {
         const selected = await (window as any).aistudio.hasSelectedApiKey();
@@ -71,21 +84,21 @@ function AppContent() {
           return;
         }
       } catch (error) {
-        console.error("Error checking API key:", error);
+        console.error("Error checking AI Studio API key:", error);
       }
     }
     
-    // 2. Check Environment Variables (Enhanced support per documentation)
-    if (process.env.API_KEY || process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY) {
-      setHasApiKey(true);
-      setLoadingApiKeyCheck(false);
-      return;
-    }
-
-    // 3. Check Local Storage
+    // 2. Check Local Storage
     const localKey = localStorage.getItem('vitrinex_gemini_api_key');
     if (localKey) {
         setHasApiKey(true);
+        setLoadingApiKeyCheck(false);
+        return;
+    }
+
+    // 3. Check Hardcoded Fallback
+    if (HARDCODED_API_KEY) {
+      setHasApiKey(true);
     }
 
     setLoadingApiKeyCheck(false);
@@ -104,14 +117,13 @@ function AppContent() {
       setTestResult(null);
 
       try {
-          // Ativar API: Validar usando o código de teste "Explain how AI works"
           const result = await testGeminiConnection(key);
           setTestResult(result);
           
           setTimeout(() => {
               localStorage.setItem('vitrinex_gemini_api_key', key);
               setHasApiKey(true);
-          }, 1500); // Delay to show the success message
+          }, 1500); 
       } catch (error: any) {
           alert(`Erro ao ativar API: ${error.message || 'Chave inválida'}`);
           setTestResult(null);
@@ -132,7 +144,8 @@ function AppContent() {
       case 'ContentLibrary': return <ContentLibrary />;
       case 'SmartScheduler': return <SmartScheduler />;
       case 'Chatbot': return <Chatbot />;
-      case 'Settings': return <Settings onApiKeySelected={checkAndSelectApiKey} onOpenApiKeySelection={() => {}} />;
+      case 'Settings': return <Settings />;
+      case 'Admin': return <AdminConsole />;
       default: return <Dashboard />;
     }
   };
@@ -146,7 +159,9 @@ function AppContent() {
     );
   }
 
-  if (!hasApiKey) {
+  // Admin access doesn't require the standard API Key check immediately, 
+  // as it has its own auth and manages keys.
+  if (!hasApiKey && activeModule !== 'Admin') {
     return (
       <div className="flex flex-col items-center justify-center h-screen bg-background p-6 text-center">
         <div className="p-10 bg-surface rounded-3xl shadow-2xl border border-gray-100 dark:border-gray-800 max-w-md w-full">
@@ -172,7 +187,7 @@ function AppContent() {
                 </div>
                 
                 {testResult && (
-                    <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800 flex items-start gap-2 text-left animate-in fade-in slide-in-from-top-2">
+                    <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-800 flex items-start gap-2 text-left animate-fade-in">
                         <CheckCircleIcon className="w-5 h-5 text-green-600 dark:text-green-400 flex-shrink-0 mt-0.5" />
                         <div>
                             <p className="text-xs font-bold text-green-700 dark:text-green-300">Conexão Ativa!</p>
@@ -199,6 +214,15 @@ function AppContent() {
     );
   }
 
+  // If in Admin mode, render only the Admin Console without standard layout wrappers
+  if (activeModule === 'Admin') {
+    return (
+      <Suspense fallback={<div className="h-screen w-full bg-black flex items-center justify-center text-green-500 font-mono">INITIALIZING CORE...</div>}>
+         <AdminConsole />
+      </Suspense>
+    );
+  }
+
   const isFullHeightModule = activeModule === 'Chatbot';
 
   return (
@@ -208,14 +232,19 @@ function AppContent() {
         <Navbar onMenuClick={() => setIsMobileMenuOpen(true)} />
         <div className="flex flex-1 overflow-hidden relative">
           <Sidebar 
-            isOpen={isMobileMenuOpen} 
-            onClose={() => setIsMobileMenuOpen(false)} 
             activeModule={activeModule} 
             setActiveModule={setActiveModule} 
+          />
+          <MobileNavMenu
+            isOpen={isMobileMenuOpen}
+            onClose={() => setIsMobileMenuOpen(false)}
+            activeModule={activeModule}
+            setActiveModule={setActiveModule}
           />
           <main className={`flex-1 flex flex-col min-w-0 relative overflow-x-hidden ${
             isFullHeightModule 
               ? 'h-full' 
+              // REQUISITO: Garante que haja rolagem vertical e um padding generoso na parte inferior
               : 'overflow-y-auto pb-16' 
           }`}>
             <Suspense fallback={
@@ -223,7 +252,8 @@ function AppContent() {
                 <LoadingSpinner />
               </div>
             }>
-              <div className={`w-full ${isFullHeightModule ? 'h-full' : 'max-w-[1200px] mx-auto p-4 md:p-8'}`}>
+              {/* REQUISITO: Container fluido, centralizado e com max-width */}
+              <div className={`w-full ${isFullHeightModule ? 'h-full' : 'max-w-[1200px] mx-auto p-6 md:p-8'}`}>
                   {renderModule()}
               </div>
             </Suspense>

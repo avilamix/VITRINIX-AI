@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { useMediaActions } from '../hooks/useMediaActions';
 import Button from './Button';
@@ -28,12 +27,8 @@ const MediaActionsToolbar: React.FC<MediaActionsToolbarProps> = ({
         disabled={!mediaUrl || isProcessing}
         isLoading={isProcessing}
       >
-        {!isProcessing && (
-          <>
-            <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
-            Baixar
-          </>
-        )}
+        <ArrowDownTrayIcon className="w-4 h-4 mr-2" />
+        Baixar
       </Button>
       <Button
         onClick={() => mediaUrl && handleShare(mediaUrl, shareTitle, shareText)}
@@ -42,12 +37,8 @@ const MediaActionsToolbar: React.FC<MediaActionsToolbarProps> = ({
         disabled={!mediaUrl || isProcessing}
         isLoading={isProcessing}
       >
-        {!isProcessing && (
-          <>
-            <ShareIcon className="w-4 h-4 mr-2" />
-            Compartilhar
-          </>
-        )}
+        <ShareIcon className="w-4 h-4 mr-2" />
+        Compartilhar
       </Button>
     </div>
   );

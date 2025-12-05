@@ -1,7 +1,4 @@
 
-
-
-
 export interface TranscriptionSegment {
   text: string;
   isFinal: boolean;
@@ -22,6 +19,7 @@ export interface UserProfile {
   name?: string; // Added name property
   plan: 'free' | 'premium';
   businessProfile: BusinessProfile;
+  status?: 'active' | 'blocked'; // Added status for admin control
 }
 
 // Define Post interface
@@ -113,47 +111,6 @@ export interface ChatMessage {
   };
 }
 
-// --- API Key Management Types ---
-
-export type ProviderName =
-  | 'Google Gemini'
-  | 'OpenAI'
-  | 'Anthropic'
-  | 'Mistral'
-  | 'Groq'
-  | 'DeepSeek'
-  | 'Cohere'
-  | 'Meta LLaMA'
-  | 'Replicate'
-  | 'Hugging Face'
-  | 'Together AI';
-
-export type KeyStatus = 'valid' | 'invalid' | 'expired' | 'rate-limited' | 'unchecked';
-
-export interface ApiKeyConfig {
-  id: string;
-  provider: ProviderName;
-  key: string; // Stored "encrypted" in backend, plaintext here for mock
-  label: string;
-  isActive: boolean;
-  isDefault: boolean;
-  createdAt: string;
-  lastValidatedAt?: string;
-  status: KeyStatus;
-  errorMessage?: string;
-  usageCount: number;
-}
-
-export interface ApiKeySystemConfig {
-  defaultProvider: ProviderName;
-}
-
-// FIX: Define AIStudio interface explicitly to avoid type conflicts
-export interface AIStudio {
-  hasSelectedApiKey: () => Promise<boolean>;
-  openSelectKey: () => Promise<void>;
-}
-
 // NOVO: Interface para a resposta de consulta RAG do backend
 export interface KnowledgeBaseQueryResponse {
   resposta: string;
@@ -183,4 +140,43 @@ export interface LoginResponseDto {
     name?: string;
   };
   organizations: OrganizationMembership[];
+}
+
+// Admin Interfaces
+export interface AdminLog {
+  id: string;
+  timestamp: string;
+  level: 'INFO' | 'WARN' | 'ERROR' | 'CRITICAL';
+  module: string;
+  message: string;
+  userId?: string;
+}
+
+export interface AdminConfig {
+  modules: {
+    [key: string]: boolean;
+  };
+  system: {
+    maintenanceMode: boolean;
+    debugLevel: string;
+    globalRateLimit: number;
+  };
+}
+
+// Extend Window interface for Electron and AI Studio
+declare global {
+  // FIX: Define AIStudio and IElectronAPI interfaces explicitly inside global scope to avoid module conflicts
+  interface AIStudio {
+    hasSelectedApiKey: () => Promise<boolean>;
+    openSelectKey: () => Promise<void>;
+  }
+
+  interface IElectronAPI {
+    saveFile: (imageUrl: string, fileName: string) => Promise<{ success: boolean; path?: string; error?: string }>;
+  }
+
+  interface Window {
+    electronAPI?: IElectronAPI;
+    aistudio?: AIStudio;
+  }
 }

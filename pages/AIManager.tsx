@@ -124,7 +124,7 @@ const AIManager: React.FC = () => {
       )}
 
       {activeTab === 'command' && (
-         <div className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+         <div className="animate-slide-in-from-bottom duration-500">
              <InteractiveActionCenter />
              <p className="text-center text-textmuted text-sm mt-6">
                 Use a Central de Comando para executar ações rápidas em qualquer módulo do sistema sem sair desta tela.
@@ -133,7 +133,7 @@ const AIManager: React.FC = () => {
       )}
 
       {activeTab === 'strategy' && (
-        <div className="animate-in fade-in slide-in-from-bottom-4 duration-500 space-y-8">
+        <div className="animate-slide-in-from-bottom duration-500 space-y-8">
             <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800">
                 <h3 className="text-xl font-semibold text-textlight mb-5">Informações do Negócio (Contexto)</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

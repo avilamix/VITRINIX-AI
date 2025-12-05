@@ -42,7 +42,7 @@ const Toast: React.FC<ToastProps> = ({ id, type, title, message, duration = 5000
   }, [id, duration, onClose]);
 
   return (
-    <div className={`flex w-full max-w-sm bg-surface shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden mb-3 border-l-4 ${borderColors[type]} animate-in slide-in-from-right duration-300`}>
+    <div className={`flex w-full max-w-sm bg-surface shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden mb-3 border-l-4 ${borderColors[type]} animate-slide-in-from-right duration-300`}>
       <div className="p-4">
         <div className="flex items-start">
           <div className="flex-shrink-0">

@@ -1,4 +1,5 @@
 
+
 import React from 'react';
 
 interface Command {
@@ -19,7 +20,7 @@ const SlashCommandPopover: React.FC<SlashCommandPopoverProps> = ({ commands, onS
   }
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 bg-surface border border-border rounded-xl shadow-lg p-2 max-h-60 overflow-y-auto z-10 animate-in fade-in slide-in-from-bottom-2 duration-200">
+    <div className="absolute bottom-full left-0 right-0 mb-2 bg-surface border border-border rounded-xl shadow-lg p-2 max-h-60 overflow-y-auto z-10 animate-slide-in-from-bottom duration-200">
       <p className="text-xs font-semibold text-muted px-2 pb-1.5 border-b border-border">COMANDOS RÁPIDOS</p>
       <ul className="mt-1">
         {commands.map((cmd, index) => (

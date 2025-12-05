@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { useDashboardData } from '../hooks/useQueries';
 import Button from '../components/Button';
@@ -32,7 +33,7 @@ const SummaryCard: React.FC<SummaryCardProps> = ({ title, value, description, ic
           {isLoading ? (
             <Skeleton className="h-9 w-16 mt-1" />
           ) : (
-            <p className="text-3xl font-bold text-title mt-1 tracking-tight animate-in fade-in">{value}</p>
+            <p className="text-3xl font-bold text-title mt-1 tracking-tight animate-fade-in">{value}</p>
           )}
        </div>
        <div className="p-2.5 bg-background rounded-lg text-primary">
@@ -131,7 +132,7 @@ const Dashboard: React.FC = () => {
   };
 
   return (
-    <div className="animate-in fade-in duration-500">
+    <div className="animate-fade-in duration-500">
       <div id="dashboard-header" className="flex flex-col md:flex-row justify-between items-start md:items-end mb-8 border-b border-gray-200 dark:border-gray-800 pb-4 gap-4 md:gap-0">
         <div>
            <h2 className="text-2xl font-bold text-title">{t('dashboard.title')}</h2>

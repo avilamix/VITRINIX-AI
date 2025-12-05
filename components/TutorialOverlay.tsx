@@ -1,4 +1,5 @@
 
+
 import React, { useEffect, useState, useRef } from 'react';
 import { useTutorial } from '../contexts/TutorialContext';
 import Button from './Button';
@@ -115,7 +116,7 @@ const TutorialOverlay: React.FC = () => {
 
       {/* Tooltip Card */}
       <div 
-        className="absolute bg-surface p-6 rounded-xl shadow-2xl border border-border w-[320px] pointer-events-auto transition-all duration-300 flex flex-col animate-in zoom-in-95"
+        className="absolute bg-surface p-6 rounded-xl shadow-2xl border border-border w-[320px] pointer-events-auto transition-all duration-300 flex flex-col animate-zoom-in"
         style={getTooltipStyle() as React.CSSProperties}
       >
         <button 

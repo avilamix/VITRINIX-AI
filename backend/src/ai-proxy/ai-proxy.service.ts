@@ -1,4 +1,7 @@
 
+
+// FIX: Import Buffer to resolve type error.
+import { Buffer } from 'node:buffer';
 import { Injectable, BadRequestException, Logger, HttpException, HttpStatus, Inject } from '@nestjs/common';
 import { ApiKeysService } from '../api-keys/api-keys.service';
 import { PrismaService } from '../prisma/prisma.service';
@@ -8,7 +11,6 @@ import { ApiKey, ModelProvider } from '@prisma/client';
 import { CACHE_MANAGER } from '@nestjs/cache-manager';
 import { Cache } from 'cache-manager';
 import { Observable, from, map, switchMap } from 'rxjs';
-import { Buffer } from 'buffer';
 
 @Injectable()
 export class AiProxyService {

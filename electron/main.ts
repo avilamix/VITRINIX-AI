@@ -1,10 +1,13 @@
+// FIX: Add manual type declarations for Node.js globals to resolve compilation errors
+// when @types/node is not available. This is a workaround for a project setup issue.
+declare const __dirname: string;
+declare const process: {
+  platform: string;
+};
+
 import { app, BrowserWindow, ipcMain, dialog } from 'electron';
 import * as path from 'path';
 import * as fs from 'fs';
-
-// FIX: Declare __dirname to resolve TypeScript error when Node types are not found.
-// This global is available in Electron's main process.
-declare const __dirname: string;
 
 function createWindow() {
   const win = new BrowserWindow({
@@ -38,16 +41,12 @@ app.whenReady().then(() => {
 });
 
 app.on('window-all-closed', () => {
-  // FIX: Cast `process` to `any` to access the `platform` property.
-  // This is a workaround for the missing Node.js type definitions.
-  if ((process as any).platform !== 'darwin') {
+  if (process.platform !== 'darwin') {
     app.quit();
   }
 });
 
 // Manipulador para salvar arquivos nativamente
-// FIX: Removed `Buffer` type. It's not defined due to missing Node.js types,
-// and the corresponding preload script only passes a string.
 ipcMain.handle('save-file', async (event, content: string, defaultFilename: string) => {
   const window = BrowserWindow.getFocusedWindow();
   if (!window) return { success: false, error: 'No focused window' };

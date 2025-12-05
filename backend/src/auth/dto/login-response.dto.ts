@@ -1,7 +1,9 @@
 
-import { ApiProperty } from '@nestjs/swagger';
-import { OrganizationMembershipDto } from './organization-membership.dto';
 
+import { ApiProperty } from '@nestjs/swagger';
+import { OrganizationMembershipDto, OrganizationDto } from './organization-membership.dto';
+
+// Re-use OrganizationDto to define the user part of the response
 class UserDto {
   @ApiProperty({ example: 'clx0p92g50000r55m2h3k4l5p' })
   id: string;

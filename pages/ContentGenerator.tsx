@@ -182,7 +182,7 @@ const ContentGenerator: React.FC = () => {
       </div>
 
       {generatedPost && (
-        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 animate-in fade-in slide-in-from-bottom-4 duration-500">
+        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 animate-slide-in-from-bottom duration-500">
           <h3 className="text-xl font-semibold text-textlight mb-5">Conteúdo Gerado</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="flex flex-col">

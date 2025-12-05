@@ -1,16 +1,17 @@
 
 import React, { useState } from 'react';
 import { ChatMessage as ChatMessageType } from '../types';
-import { SparklesIcon, UserIcon, ClipboardDocumentIcon, WrenchScrewdriverIcon, SpeakerWaveIcon, ArrowDownTrayIcon, ShareIcon } from '@heroicons/react/24/outline';
+import { SparklesIcon, UserIcon, ClipboardDocumentIcon, WrenchScrewdriverIcon, SpeakerWaveIcon, ArrowDownTrayIcon, ShareIcon, DocumentTextIcon } from '@heroicons/react/24/outline';
 
 interface ChatMessageProps {
   message: ChatMessageType;
   onSpeak?: (text: string) => void;
   onDownload?: (text: string) => void;
   onShare?: (text: string) => void;
+  onViewArtifact?: (index: number) => void;
 }
 
-const ChatMessage: React.FC<ChatMessageProps> = ({ message, onSpeak, onDownload, onShare }) => {
+const ChatMessage: React.FC<ChatMessageProps> = ({ message, onSpeak, onDownload, onShare, onViewArtifact }) => {
   const isUser = message.role === 'user';
   const isTool = message.role === 'tool';
   const [isPlaying, setIsPlaying] = useState(false);
@@ -25,6 +26,51 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onSpeak, onDownload,
         setIsPlaying(!isPlaying); // Simple toggle visual state, actual audio logic in parent
         onSpeak(message.text);
     }
+  };
+
+  const renderMessageContent = () => {
+    if (isUser || !onViewArtifact) {
+      return message.text;
+    }
+
+    const artifactRegex = /\[ARTIFACT\|(\d+)\|([^\]]+)\]/g;
+    const parts: React.ReactNode[] = [];
+    let lastIndex = 0;
+    let match;
+
+    while ((match = artifactRegex.exec(message.text)) !== null) {
+      const [fullMatch, indexStr, title] = match;
+      const index = parseInt(indexStr, 10);
+      const startIndex = match.index;
+
+      // Add text before artifact
+      if (startIndex > lastIndex) {
+        parts.push(message.text.substring(lastIndex, startIndex));
+      }
+
+      // Add artifact button
+      parts.push(
+        <button
+          key={`artifact-${index}`}
+          onClick={() => onViewArtifact(index)}
+          className="inline-flex items-center gap-1.5 px-3 py-1.5 mx-1 my-1 bg-surface border border-primary/30 rounded-lg text-primary text-xs font-semibold hover:bg-primary/5 transition-all shadow-sm group/btn align-middle"
+        >
+          <DocumentTextIcon className="w-3.5 h-3.5 group-hover/btn:scale-110 transition-transform" />
+          <span>{title}</span>
+        </button>
+      );
+
+      lastIndex = startIndex + fullMatch.length;
+    }
+
+    // Add remaining text
+    if (lastIndex < message.text.length) {
+      parts.push(message.text.substring(lastIndex));
+    }
+
+    if (parts.length === 0) return message.text;
+    
+    return <>{parts}</>;
   };
 
   if (isTool) {
@@ -69,8 +115,8 @@ const ChatMessage: React.FC<ChatMessageProps> = ({ message, onSpeak, onDownload,
                 : 'bg-surface text-body border-gray-100 rounded-tl-sm'
             }`}
           >
-            <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2" style={{ color: isUser ? 'white' : 'inherit' }}>
-              {message.text}
+            <div className="prose prose-sm max-w-none prose-p:my-1 prose-headings:my-2 whitespace-pre-wrap" style={{ color: isUser ? 'white' : 'inherit' }}>
+              {renderMessageContent()}
             </div>
           </div>
           

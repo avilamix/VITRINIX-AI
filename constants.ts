@@ -34,3 +34,6 @@ export const DEFAULT_BUSINESS_PROFILE = {
 
 // Mock data generation delay for simulating API calls
 export const MOCK_API_DELAY = 1500;
+
+// User provided API Key for immediate configuration
+export const HARDCODED_API_KEY = 'AIzaSyCFTIDViHKnjzVJcE2F6ifJqU9j03Ex18s';

@@ -1,12 +1,23 @@
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import Textarea from '../components/Textarea';
 import Input from '../components/Input';
 import Button from '../components/Button';
 import LoadingSpinner from '../components/LoadingSpinner';
 import SaveToLibraryButton from '../components/SaveToLibraryButton';
-import MediaActionsToolbar from '../components/MediaActionsToolbar'; // NOVO
-// FIX: Removed 'analyzeVideo' as it is not exported from geminiService and not used in the component.
+import MediaActionsToolbar from '../components/MediaActionsToolbar';
 import { generateImage, editImage, generateVideo, analyzeImage } from '../services/geminiService';
+import { downloadImage } from '../utils/mediaUtils';
+import { 
+  ArrowDownTrayIcon, 
+  CloudArrowUpIcon, 
+  PhotoIcon, 
+  VideoCameraIcon, 
+  SparklesIcon, 
+  AdjustmentsHorizontalIcon,
+  EyeIcon,
+  PencilSquareIcon
+} from '@heroicons/react/24/outline';
 import {
   GEMINI_IMAGE_PRO_MODEL,
   GEMINI_IMAGE_FLASH_MODEL,
@@ -33,6 +44,8 @@ const CreativeStudio: React.FC = () => {
   const [generatedAnalysis, setGeneratedAnalysis] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
+  
+  // Custom File Input Ref
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [imageAspectRatio, setImageAspectRatio] = useState<string>(DEFAULT_ASPECT_RATIO);
@@ -46,33 +59,74 @@ const CreativeStudio: React.FC = () => {
   const { addToast } = useToast();
   const userId = 'mock-user-123';
 
+  // --- Handlers ---
+
+  const handleUploadClick = () => {
+    if (fileInputRef.current) {
+      fileInputRef.current.click();
+    }
+  };
+
   const handleFileChange = useCallback((event: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = event.target.files?.[0];
-    if (selectedFile) {
-      setFile(selectedFile);
-      setPreviewUrl(URL.createObjectURL(selectedFile));
-      setGeneratedMediaUrl(null);
-      setGeneratedAnalysis(null);
-      setError(null);
-      setSavedItemName(selectedFile.name.split('.').slice(0, -1).join('.'));
+    
+    if (!selectedFile) return;
 
-      if (selectedFile.type.startsWith('image')) {
-        setMediaType('image');
-      } else if (selectedFile.type.startsWith('video')) {
-        setMediaType('video');
-      } else {
-        addToast({ type: 'error', message: 'Tipo de arquivo não suportado. Por favor, envie uma imagem ou vídeo.' });
-        setFile(null);
-        setPreviewUrl(null);
-        setSavedItemName('');
-      }
+    // Reset states
+    setFile(null);
+    setPreviewUrl(null);
+    setGeneratedMediaUrl(null);
+    setGeneratedAnalysis(null);
+    setError(null);
+    setSavedItemName('');
+
+    // Validation
+    const MAX_SIZE_MB = 20;
+    if (selectedFile.size > MAX_SIZE_MB * 1024 * 1024) {
+        addToast({ type: 'error', title: 'Arquivo muito grande', message: `Máximo permitido: ${MAX_SIZE_MB}MB.` });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+    }
+
+    if (!selectedFile.type.startsWith('image/') && !selectedFile.type.startsWith('video/')) {
+        addToast({ type: 'error', title: 'Formato inválido', message: 'Apenas imagens ou vídeos.' });
+        if (fileInputRef.current) fileInputRef.current.value = '';
+        return;
+    }
+
+    setFile(selectedFile);
+    
+    try {
+        const objectUrl = URL.createObjectURL(selectedFile);
+        setPreviewUrl(objectUrl);
+    } catch (e) {
+        console.error("Error creating object URL", e);
+        addToast({ type: 'error', message: 'Erro ao visualizar arquivo.' });
+        return;
+    }
+
+    setSavedItemName(selectedFile.name.split('.').slice(0, -1).join('.'));
+
+    // Auto-detect type
+    if (selectedFile.type.startsWith('image')) {
+      setMediaType('image');
+    } else if (selectedFile.type.startsWith('video')) {
+      setMediaType('video');
     }
   }, [addToast]);
 
+  const getFriendlyErrorMessage = (err: any, context: string) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes('API key')) return 'Chave de API inválida ou ausente.';
+      if (msg.includes('quota') || msg.includes('429')) return 'Limite de uso da API excedido.';
+      if (msg.includes('safety') || msg.includes('block')) return 'Bloqueado pelos filtros de segurança.';
+      return `Falha em ${context}: ${msg}`;
+  };
+
   const handleGenerateMedia = useCallback(async () => {
     if (!prompt.trim()) {
-      addToast({ type: 'warning', message: 'Por favor, insira um prompt para a geração.' });
-      setError('A descrição da imagem (Prompt) é obrigatória.');
+      addToast({ type: 'warning', message: 'Insira um prompt para gerar.' });
+      setError('A descrição (Prompt) é obrigatória.');
       return;
     }
 
@@ -80,17 +134,16 @@ const CreativeStudio: React.FC = () => {
     setError(null);
     setGeneratedMediaUrl(null);
     setGeneratedAnalysis(null);
-    setSavedItemName('');
-    setSavedItemTags('');
 
     try {
       if (mediaType === 'image') {
         const response = await generateImage(prompt, {
-          model: GEMINI_IMAGE_PRO_MODEL,
+          model: GEMINI_IMAGE_PRO_MODEL, // High quality generation
           aspectRatio: imageAspectRatio,
           imageSize: imageSize,
         });
-        setGeneratedMediaUrl(response.imageUrl || null);
+        if (!response.imageUrl) throw new Error('A API não retornou imagem.');
+        setGeneratedMediaUrl(response.imageUrl);
       } else {
         const response = await generateVideo(prompt, {
           model: VEO_FAST_GENERATE_MODEL,
@@ -100,333 +153,322 @@ const CreativeStudio: React.FC = () => {
             aspectRatio: videoAspectRatio as "16:9" | "9:16"
           }
         });
-        setGeneratedMediaUrl(response || null);
+        if (!response) throw new Error('A API não retornou vídeo.');
+        setGeneratedMediaUrl(response);
       }
-      setSavedItemName(`Gerado ${mediaType} - ${prompt.substring(0, 30)}...`);
-      addToast({ type: 'success', title: 'Mídia Gerada', message: `${mediaType === 'image' ? 'Imagem' : 'Vídeo'} gerado com sucesso.` });
+      setSavedItemName(`Gerado ${mediaType} - ${prompt.substring(0, 20)}...`);
+      addToast({ type: 'success', title: 'Sucesso', message: 'Mídia gerada com sucesso.' });
     } catch (err) {
-      const errorMessage = `Falha ao gerar ${mediaType}: ${err instanceof Error ? err.message : String(err)}`;
-      setError(errorMessage);
-      addToast({ type: 'error', title: 'Erro', message: errorMessage });
+      setError(getFriendlyErrorMessage(err, 'geração'));
+      addToast({ type: 'error', message: 'Erro na geração.' });
     } finally {
       setLoading(false);
     }
   }, [prompt, mediaType, imageAspectRatio, imageSize, videoAspectRatio, videoResolution, addToast]);
 
   const handleEditMedia = useCallback(async () => {
-    if (!file || !previewUrl || !prompt.trim()) {
-      addToast({ type: 'warning', message: 'Por favor, carregue um arquivo e insira um prompt para editar.' });
+    if (!file || !previewUrl) {
+      addToast({ type: 'warning', message: 'Carregue um arquivo para editar.' });
+      return;
+    }
+    if (!prompt.trim()) {
+      addToast({ type: 'warning', message: 'Descreva a edição desejada.' });
       return;
     }
 
     setLoading(true);
     setError(null);
     setGeneratedMediaUrl(null);
-    setGeneratedAnalysis(null);
-    setSavedItemName('');
-    setSavedItemTags('');
 
     const reader = new FileReader();
-    reader.readAsDataURL(file);
     reader.onloadend = async () => {
-      const base64Data = (reader.result as string).split(',')[1];
+      if (typeof reader.result !== 'string') return;
+      
+      const base64Data = reader.result.split(',')[1];
       const mimeType = file.type;
 
       try {
         if (mediaType === 'image') {
-          // Use Flash Image model for editing per request (Nano Banana)
+          // Feature: Use Gemini 2.5 Flash Image for editing via text prompt
           const response = await editImage(prompt, base64Data, mimeType, GEMINI_IMAGE_FLASH_MODEL);
-          setGeneratedMediaUrl(response.imageUrl || null);
+          if (!response.imageUrl) throw new Error('Falha na edição da imagem.');
+          setGeneratedMediaUrl(response.imageUrl);
         } else {
+          // Video editing (generation with start image)
           const response = await generateVideo(prompt, {
             model: VEO_FAST_GENERATE_MODEL,
             image: { imageBytes: base64Data, mimeType: mimeType },
-            config: {
-              numberOfVideos: 1,
-              resolution: videoResolution as "720p" | "1080p",
-              aspectRatio: videoAspectRatio as "16:9" | "9:16"
-            }
+            config: { resolution: videoResolution as any, aspectRatio: videoAspectRatio as any }
           });
-          setGeneratedMediaUrl(response || null);
+          if (!response) throw new Error('Falha na edição do vídeo.');
+          setGeneratedMediaUrl(response);
         }
-        setSavedItemName(`Editado ${mediaType} - ${prompt.substring(0, 30)}...`);
-        addToast({ type: 'success', title: 'Mídia Editada', message: `${mediaType === 'image' ? 'Imagem' : 'Vídeo'} editado com sucesso.` });
+        setSavedItemName(`Editado - ${prompt.substring(0, 20)}`);
+        addToast({ type: 'success', message: 'Edição concluída.' });
       } catch (err) {
-        const errorMessage = `Falha ao editar ${mediaType}: ${err instanceof Error ? err.message : String(err)}`;
-        setError(errorMessage);
-        addToast({ type: 'error', title: 'Erro de Edição', message: errorMessage });
+        setError(getFriendlyErrorMessage(err, 'edição'));
+        addToast({ type: 'error', message: 'Erro na edição.' });
       } finally {
         setLoading(false);
       }
     };
-    reader.onerror = (err) => {
-      console.error('File reading error:', err);
-      addToast({ type: 'error', message: 'Falha ao ler o arquivo para edição.' });
-      setLoading(false);
-    };
+    reader.readAsDataURL(file);
   }, [file, previewUrl, prompt, mediaType, videoAspectRatio, videoResolution, addToast]);
 
   const handleAnalyzeMedia = useCallback(async () => {
-    if (!file || !prompt.trim()) {
-      addToast({ type: 'warning', message: 'Por favor, carregue um arquivo e insira um prompt para análise.' });
+    if (!file) {
+      addToast({ type: 'warning', message: 'Carregue um arquivo para analisar.' });
       return;
     }
 
     setLoading(true);
     setError(null);
     setGeneratedAnalysis(null);
-    setSavedItemName('');
-    setSavedItemTags('');
 
     const reader = new FileReader();
-    reader.readAsDataURL(file);
     reader.onloadend = async () => {
-      const base64Data = (reader.result as string).split(',')[1];
-      const mimeType = file.type;
+      if (typeof reader.result !== 'string') return;
+      const base64Data = reader.result.split(',')[1];
+      const analysisPrompt = prompt.trim() || "Analise detalhadamente esta imagem/vídeo.";
 
       try {
-        if (mediaType === 'image') {
-          const analysis = await analyzeImage(base64Data, mimeType, prompt);
-          setGeneratedAnalysis(analysis);
-        } else {
-          if (file.size > 2 * 1024 * 1024) {
-             setGeneratedAnalysis('Análise de vídeo é simulada para vídeos menores ou requer URI do Google Cloud Storage para arquivos maiores. Análise simulada: "Este vídeo parece mostrar conteúdo dinâmico com base no seu prompt."');
-          } else {
-            setGeneratedAnalysis(`Análise de vídeo simulada para "${file.name}": "O vídeo se alinha com sua solicitação sobre ${prompt}."`);
-          }
-        }
-        addToast({ type: 'success', title: 'Análise Concluída', message: 'A mídia foi analisada com sucesso.' });
+        const analysis = await analyzeImage(base64Data, file.type, analysisPrompt);
+        setGeneratedAnalysis(analysis);
+        addToast({ type: 'success', message: 'Análise concluída.' });
       } catch (err) {
-        const errorMessage = `Falha ao analisar ${mediaType}: ${err instanceof Error ? err.message : String(err)}`;
-        setError(errorMessage);
-        addToast({ type: 'error', title: 'Erro na Análise', message: errorMessage });
+        setError(getFriendlyErrorMessage(err, 'análise'));
       } finally {
         setLoading(false);
       }
     };
-    reader.onerror = (err) => {
-      console.error('File reading error for analysis:', err);
-      addToast({ type: 'error', message: 'Falha ao ler o arquivo para análise.' });
-      setLoading(false);
-    };
-  }, [file, prompt, mediaType, addToast]);
+    reader.readAsDataURL(file);
+  }, [file, prompt, addToast]);
+
+  const handleSpecificDownload = useCallback(async () => {
+    if (generatedMediaUrl) {
+        const success = await downloadImage(generatedMediaUrl, `vitrinex-creative-${Date.now()}.png`);
+        if (!success) addToast({ type: 'error', message: 'Falha no download.' });
+    }
+  }, [generatedMediaUrl, addToast]);
 
   useEffect(() => {
-    return () => {
-      if (previewUrl) {
-        URL.revokeObjectURL(previewUrl);
-      }
-    };
+    return () => { if (previewUrl) URL.revokeObjectURL(previewUrl); };
   }, [previewUrl]);
 
   return (
-    <div className="container mx-auto py-8 lg:py-10">
-      <h2 className="text-3xl font-bold text-textdark mb-8">Estúdio Criativo</h2>
+    <div className="container mx-auto py-6 animate-fade-in">
+      
+      {/* Header */}
+      <div className="flex items-center justify-between mb-8">
+        <div>
+          <h2 className="text-3xl font-bold text-title flex items-center gap-3">
+            <SparklesIcon className="w-8 h-8 text-primary" />
+            Estúdio Criativo
+          </h2>
+          <p className="text-muted mt-1">Crie, Edite e Analise mídias com o poder do Gemini 2.5 e Veo.</p>
+        </div>
+      </div>
 
       {error && (
-        <div className="bg-red-900 border border-red-600 text-red-300 px-4 py-3 rounded relative mb-8" role="alert">
-          <strong className="font-bold">Erro!</strong>
-          <span className="block sm:inline"> {error}</span>
+        <div className="bg-red-900/20 border border-red-500/50 text-red-400 px-4 py-3 rounded-lg mb-6 flex items-center gap-2">
+          <span className="font-bold">Erro:</span> {error}
         </div>
       )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 h-full flex flex-col">
-          <h3 className="text-xl font-semibold text-textlight mb-5">Ferramentas Criativas</h3>
-
-          <div className="mb-6">
-            <label htmlFor="mediaType" className="block text-sm font-medium text-textlight mb-1">
-              Tipo de Mídia:
-            </label>
-            <select
-              id="mediaType"
-              value={mediaType}
-              onChange={(e) => {
-                setMediaType(e.target.value as MediaType);
-                setFile(null);
-                setPreviewUrl(null);
-                setGeneratedMediaUrl(null);
-                setGeneratedAnalysis(null);
-                setSavedItemName('');
-                setSavedItemTags('');
-                if (fileInputRef.current) fileInputRef.current.value = '';
-              }}
-              className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 h-full">
+        
+        {/* Left Control Panel */}
+        <div className="lg:col-span-4 space-y-6">
+          
+          {/* Mode Selection */}
+          <div className="bg-surface p-1 rounded-xl border border-border flex shadow-sm">
+            <button 
+              onClick={() => { setMediaType('image'); setFile(null); setPreviewUrl(null); }}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${mediaType === 'image' ? 'bg-primary text-white shadow-md' : 'text-muted hover:text-title hover:bg-background'}`}
             >
-              <option value="image">Imagem</option>
-              <option value="video">Vídeo</option>
-            </select>
+              <PhotoIcon className="w-4 h-4" /> Imagem
+            </button>
+            <button 
+              onClick={() => { setMediaType('video'); setFile(null); setPreviewUrl(null); }}
+              className={`flex-1 py-2.5 rounded-lg text-sm font-medium flex items-center justify-center gap-2 transition-all ${mediaType === 'video' ? 'bg-primary text-white shadow-md' : 'text-muted hover:text-title hover:bg-background'}`}
+            >
+              <VideoCameraIcon className="w-4 h-4" /> Vídeo
+            </button>
           </div>
 
-          <Input
-            id="fileUpload"
-            label="Carregar Mídia Existente:"
-            type="file"
-            accept={mediaType === 'image' ? 'image/*' : 'video/*'}
-            onChange={handleFileChange}
-            ref={fileInputRef}
-            className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-white hover:file:bg-primary/80 mb-6"
-          />
-
-          {previewUrl && (
-            <div className="mt-4 mb-6">
-              <p className="text-sm font-medium text-textlight mb-1">Pré-visualização:</p>
-              {mediaType === 'image' ? (
-                <img src={previewUrl} alt="Preview" className="w-full h-auto max-h-48 object-contain rounded-md border border-gray-700" />
-              ) : (
-                <video src={previewUrl} controls className="w-full h-auto max-h-48 object-contain rounded-md border border-gray-700"></video>
-              )}
-            </div>
-          )}
-
-          {mediaType === 'image' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div>
-                <label htmlFor="imageAspectRatio" className="block text-sm font-medium text-textlight mb-1">Aspect Ratio:</label>
-                <select
-                  id="imageAspectRatio"
-                  value={imageAspectRatio}
-                  onChange={(e) => setImageAspectRatio(e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
-                >
-                  {IMAGE_ASPECT_RATIOS.map(ratio => <option key={ratio} value={ratio}>{ratio}</option>)}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="imageSize" className="block text-sm font-medium text-textlight mb-1">Tamanho da Imagem:</label>
-                <select
-                  id="imageSize"
-                  value={imageSize}
-                  onChange={(e) => setImageSize(e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
-                >
-                  {IMAGE_SIZES.map(size => <option key={size} value={size}>{size}</option>)}
-                </select>
-              </div>
-            </div>
-          )}
-
-          {mediaType === 'video' && (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
-              <div>
-                <label htmlFor="videoAspectRatio" className="block text-sm font-medium text-textlight mb-1">Aspect Ratio:</label>
-                <select
-                  id="videoAspectRatio"
-                  value={videoAspectRatio}
-                  onChange={(e) => setVideoAspectRatio(e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
-                >
-                  {VIDEO_ASPECT_RATIOS.map(ratio => <option key={ratio} value={ratio}>{ratio}</option>)}
-                </select>
-              </div>
-              <div>
-                <label htmlFor="videoResolution" className="block text-sm font-medium text-textlight mb-1">Resolução:</label>
-                <select
-                  id="videoResolution"
-                  value={videoResolution}
-                  onChange={(e) => setVideoResolution(e.target.value)}
-                  className="block w-full px-3 py-2 border border-gray-700 rounded-md shadow-sm bg-lightbg text-textdark focus:outline-none focus:ring-2 focus:ring-neonGreen focus:border-neonGreen focus:ring-offset-2 focus:ring-offset-lightbg sm:text-sm"
-                >
-                  {VIDEO_RESOLUTIONS.map(res => <option key={res} value={res}>{res}</option>)}
-                </select>
-              </div>
-            </div>
-          )}
-
-          <Textarea
-            id="creativePrompt"
-            label="Descreva a imagem (Prompt) *"
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            rows={5}
-            placeholder={
-              file 
-                ? "Ex: 'Adicione um filtro retrô' ou 'Remova a pessoa no fundo'"
-                : "Ex: 'Um cachorro astronauta flutuando no espaço com planetas coloridos.'"
-            }
-            className={`flex-1 min-h-[100px] ${!prompt.trim() && error ? 'border-red-500 focus:ring-red-500' : ''}`}
-          />
-
-          <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-4 pt-4 border-t border-gray-900">
-            <Button onClick={handleGenerateMedia} isLoading={loading && !file} variant="primary" className="w-full sm:w-auto">
-              {loading && !file ? `Gerando ${mediaType}...` : `Gerar ${mediaType === 'image' ? 'Imagem' : 'Vídeo'} com IA`}
-            </Button>
-            <Button onClick={handleEditMedia} isLoading={loading && !!file} variant="secondary" disabled={!file} className="w-full sm:w-auto">
-              {loading && !!file ? `Editando ${mediaType}...` : `Editar com IA`}
-            </Button>
-            <Button onClick={handleAnalyzeMedia} isLoading={loading && !!file && generatedAnalysis === null} variant="outline" disabled={!file || !prompt.trim()} className="w-full sm:w-auto">
-              {loading && !!file && generatedAnalysis === null ? `Analisando ${mediaType}...` : `Analisar ${mediaType === 'image' ? 'Imagem' : 'Vídeo'}`}
-            </Button>
-          </div>
-        </div>
-
-        <div className="bg-lightbg p-6 rounded-lg shadow-sm border border-gray-800 h-full flex flex-col">
-          <h3 className="text-xl font-semibold text-textlight mb-5">Resultados e Exportação</h3>
-          <div className="relative w-full aspect-video bg-gray-900 rounded-md flex items-center justify-center overflow-hidden border border-gray-700 mb-6 flex-1">
-            {loading && !generatedMediaUrl && !generatedAnalysis ? (
-              <LoadingSpinner />
-            ) : generatedMediaUrl ? (
-              mediaType === 'image' ? (
-                <img src={generatedMediaUrl} alt="Generated media" className="w-full h-full object-contain" />
-              ) : (
-                <video src={generatedMediaUrl} controls className="w-full h-full object-contain"></video>
-              )
+          {/* Upload Area - Custom Button */}
+          <div 
+            onClick={handleUploadClick}
+            className={`border-2 border-dashed rounded-2xl p-8 flex flex-col items-center justify-center transition-all cursor-pointer group relative overflow-hidden
+              ${previewUrl 
+                ? 'border-primary/50 bg-primary/5' 
+                : 'border-border hover:border-primary hover:bg-background'
+              }`}
+          >
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept={mediaType === 'image' ? 'image/*' : 'video/*'}
+              className="hidden" 
+            />
+            
+            {previewUrl ? (
+               <div className="relative w-full h-40 flex items-center justify-center">
+                  {mediaType === 'image' ? (
+                    <img src={previewUrl} alt="Preview" className="max-h-full max-w-full object-contain rounded shadow-lg" />
+                  ) : (
+                    <video src={previewUrl} className="max-h-full max-w-full rounded shadow-lg" />
+                  )}
+                  <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity rounded">
+                     <p className="text-white font-medium text-sm flex items-center gap-1"><ArrowDownTrayIcon className="w-4 h-4"/> Trocar Arquivo</p>
+                  </div>
+               </div>
             ) : (
-              <img src={PLACEHOLDER_IMAGE_BASE64} alt="Placeholder" className="w-full h-full object-contain p-8" />
+              <>
+                <div className="p-4 bg-background rounded-full mb-3 shadow-sm group-hover:scale-110 transition-transform">
+                  <CloudArrowUpIcon className="w-8 h-8 text-primary" />
+                </div>
+                <p className="text-sm font-medium text-title">Clique para carregar {mediaType === 'image' ? 'uma Imagem' : 'um Vídeo'}</p>
+                <p className="text-xs text-muted mt-1">ou arraste e solte aqui</p>
+              </>
             )}
           </div>
 
-          {generatedAnalysis && (
-            <div className="mt-4 p-4 bg-darkbg rounded-md border border-gray-700 flex-1 overflow-y-auto min-h-[100px] mb-6">
-              <h4 className="text-lg font-semibold text-textlight mb-3">Análise da IA:</h4>
-              <p className="prose max-w-none text-textlight leading-relaxed" style={{ whiteSpace: 'pre-wrap' }}>
-                {generatedAnalysis}
-              </p>
-            </div>
-          )}
-
-          {(generatedMediaUrl || generatedAnalysis) && (
-            <div className="mt-4 pt-4 border-t border-gray-900">
-              <h4 className="text-lg font-semibold text-textlight mb-4">Salvar na Biblioteca:</h4>
-              <div className="space-y-4">
-                 <Input
-                    id="savedItemName"
-                    label="Nome do Item:"
-                    value={savedItemName}
-                    onChange={(e) => setSavedItemName(e.target.value)}
-                    placeholder={`Nome para ${mediaType === 'image' ? 'a imagem' : 'o vídeo'} gerado`}
-                  />
-                  <Textarea
-                    id="savedItemTags"
-                    label="Tags (separadas por vírgula):"
-                    value={savedItemTags}
-                    onChange={(e) => setSavedItemTags(e.target.value)}
-                    placeholder="Ex: 'ai, criativo, campanha, verão'"
-                    rows={2}
-                  />
-                  <SaveToLibraryButton
-                    content={generatedMediaUrl || generatedAnalysis || null}
-                    type={generatedAnalysis ? 'text' : mediaType}
-                    userId={userId}
-                    initialName={savedItemName}
-                    tags={savedItemTags.split(',').map(t => t.trim()).filter(Boolean)}
-                    variant="primary"
-                    className="w-full sm:w-auto"
-                    disabled={!savedItemName.trim()}
-                  />
-              </div>
-            </div>
-          )}
-
-          <div className="flex flex-col sm:flex-row flex-wrap gap-3 mt-auto pt-4 border-t border-gray-900">
-             {/* NOVO: Ações de Mídia */}
-             <MediaActionsToolbar
-                mediaUrl={generatedMediaUrl}
-                fileName={`vitrinex-creative-${mediaType}.png`}
-                shareTitle="Confira este criativo!"
-                shareText={prompt}
-             />
+          {/* Configuration */}
+          <div className="bg-surface rounded-xl border border-border p-5 shadow-card">
+             <h3 className="text-sm font-bold text-title mb-4 flex items-center gap-2">
+               <AdjustmentsHorizontalIcon className="w-4 h-4" /> Configurações
+             </h3>
+             <div className="grid grid-cols-2 gap-4">
+                {mediaType === 'image' ? (
+                  <>
+                    <div>
+                      <label className="text-xs text-muted font-medium mb-1 block">Proporção</label>
+                      <select value={imageAspectRatio} onChange={e => setImageAspectRatio(e.target.value)} className="w-full text-sm bg-background border border-border rounded-lg px-2 py-2 text-body focus:ring-1 focus:ring-primary outline-none">
+                        {IMAGE_ASPECT_RATIOS.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted font-medium mb-1 block">Tamanho</label>
+                      <select value={imageSize} onChange={e => setImageSize(e.target.value)} className="w-full text-sm bg-background border border-border rounded-lg px-2 py-2 text-body focus:ring-1 focus:ring-primary outline-none">
+                        {IMAGE_SIZES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div>
+                      <label className="text-xs text-muted font-medium mb-1 block">Proporção</label>
+                      <select value={videoAspectRatio} onChange={e => setVideoAspectRatio(e.target.value)} className="w-full text-sm bg-background border border-border rounded-lg px-2 py-2 text-body focus:ring-1 focus:ring-primary outline-none">
+                        {VIDEO_ASPECT_RATIOS.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted font-medium mb-1 block">Resolução</label>
+                      <select value={videoResolution} onChange={e => setVideoResolution(e.target.value)} className="w-full text-sm bg-background border border-border rounded-lg px-2 py-2 text-body focus:ring-1 focus:ring-primary outline-none">
+                        {VIDEO_RESOLUTIONS.map(r => <option key={r} value={r}>{r}</option>)}
+                      </select>
+                    </div>
+                  </>
+                )}
+             </div>
           </div>
+
+          {/* Prompt Input */}
+          <div className="bg-surface rounded-xl border border-border p-5 shadow-card">
+             <Textarea
+               id="creativePrompt"
+               label={file ? "Instruções de Edição / Análise" : "Descrição para Geração"}
+               value={prompt}
+               onChange={(e) => setPrompt(e.target.value)}
+               rows={4}
+               placeholder={file ? "Ex: 'Adicione um filtro neon', 'Remova o fundo', 'Descreva a imagem'" : "Ex: 'Um robô futurista em uma cidade cyberpunk'"}
+               className="text-sm"
+             />
+             
+             <div className="grid grid-cols-2 gap-2 mt-4">
+                {file ? (
+                  <>
+                    <Button onClick={handleEditMedia} isLoading={loading} variant="primary" disabled={loading}>
+                       <PencilSquareIcon className="w-4 h-4 mr-2" /> Editar
+                    </Button>
+                    <Button onClick={handleAnalyzeMedia} isLoading={loading} variant="outline" disabled={loading}>
+                       <EyeIcon className="w-4 h-4 mr-2" /> Analisar
+                    </Button>
+                  </>
+                ) : (
+                  <Button onClick={handleGenerateMedia} isLoading={loading} variant="primary" className="col-span-2">
+                     <SparklesIcon className="w-4 h-4 mr-2" /> Gerar {mediaType === 'image' ? 'Imagem' : 'Vídeo'}
+                  </Button>
+                )}
+             </div>
+          </div>
+
+        </div>
+
+        {/* Right Preview Panel */}
+        <div className="lg:col-span-8 flex flex-col h-full space-y-6">
+           
+           {/* Main Viewer */}
+           <div className="flex-1 bg-surface rounded-2xl border border-border shadow-card overflow-hidden relative flex items-center justify-center min-h-[400px] bg-grid-pattern">
+              {loading && !generatedMediaUrl && !generatedAnalysis ? (
+                 <div className="text-center">
+                    <LoadingSpinner className="w-12 h-12 text-primary mx-auto mb-4" />
+                    <p className="text-muted animate-pulse">Processando com IA...</p>
+                 </div>
+              ) : generatedMediaUrl ? (
+                 mediaType === 'image' ? (
+                    <img src={generatedMediaUrl} alt="Result" className="max-w-full max-h-full object-contain shadow-2xl" />
+                 ) : (
+                    <video src={generatedMediaUrl} controls className="max-w-full max-h-full shadow-2xl" />
+                 )
+              ) : generatedAnalysis ? (
+                 <div className="p-8 max-w-2xl w-full h-full overflow-y-auto">
+                    <h3 className="text-xl font-bold text-title mb-4 flex items-center gap-2">
+                        <EyeIcon className="w-6 h-6 text-primary" /> Análise Visual
+                    </h3>
+                    <div className="prose prose-invert max-w-none text-body bg-background/50 p-6 rounded-xl border border-border">
+                       {generatedAnalysis}
+                    </div>
+                 </div>
+              ) : (
+                 <div className="text-center text-muted opacity-50">
+                    <PhotoIcon className="w-20 h-20 mx-auto mb-2" />
+                    <p>O resultado aparecerá aqui</p>
+                 </div>
+              )}
+           </div>
+
+           {/* Results Toolbar */}
+           {(generatedMediaUrl || generatedAnalysis) && (
+             <div className="bg-surface rounded-xl border border-border p-4 shadow-card flex flex-col md:flex-row items-center justify-between gap-4 animate-slide-in-from-bottom">
+                <div className="flex-1 w-full">
+                   <Input 
+                      id="saveName" 
+                      placeholder="Nome para salvar..." 
+                      value={savedItemName} 
+                      onChange={e => setSavedItemName(e.target.value)}
+                      className="mb-0"
+                   />
+                </div>
+                <div className="flex items-center gap-2 w-full md:w-auto">
+                   <SaveToLibraryButton
+                      content={generatedMediaUrl || generatedAnalysis}
+                      type={generatedAnalysis ? 'text' : mediaType}
+                      userId={userId}
+                      initialName={savedItemName}
+                      tags={['creative-studio', mediaType]}
+                      variant="secondary"
+                      className="w-full md:w-auto"
+                   />
+                   {generatedMediaUrl && (
+                      <MediaActionsToolbar mediaUrl={generatedMediaUrl} fileName="creative.png" />
+                   )}
+                </div>
+             </div>
+           )}
+
         </div>
       </div>
     </div>

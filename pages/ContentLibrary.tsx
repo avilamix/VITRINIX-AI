@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { LibraryItem } from '../types';
 import { getLibraryItems, deleteLibraryItem, saveLibraryItem } from '../services/firestoreService';
@@ -6,10 +7,9 @@ import { createFileSearchStore, uploadFileToSearchStore } from '../services/gemi
 import LoadingSpinner from '../components/LoadingSpinner';
 import Button from '../components/Button';
 import Input from '../components/Input';
-import { downloadImage, shareImage } from '../utils/mediaUtils'; // NOVO
-// FIX: Add CalendarDaysIcon import
+import { useMediaActions } from '../hooks/useMediaActions';
 import { TrashIcon, ArrowDownTrayIcon, ShareIcon, DocumentTextIcon, MusicalNoteIcon, CircleStackIcon, CloudArrowUpIcon, CalendarDaysIcon } from '@heroicons/react/24/outline';
-import { useNavigate } from '../hooks/useNavigate'; // Custom hook for navigation
+import { useNavigate } from '../hooks/useNavigate';
 import { useToast } from '../contexts/ToastContext';
 
 const ContentLibrary: React.FC = () => {
@@ -24,6 +24,7 @@ const ContentLibrary: React.FC = () => {
   
   const { navigateTo } = useNavigate();
   const { addToast } = useToast();
+  const { handleDownload, handleShare, isProcessing } = useMediaActions();
 
   const userId = 'mock-user-123';
 
@@ -115,24 +116,13 @@ const ContentLibrary: React.FC = () => {
     }
   }, [addToast]);
 
-  const handleDownloadItem = useCallback(async (item: LibraryItem) => {
-    addToast({ type: 'info', message: 'Iniciando download...' });
-    const success = await downloadImage(item.file_url, item.name);
-    if (!success) {
-      addToast({ type: 'error', message: 'Falha no download.' });
-    }
-  }, [addToast]);
-
-  const handleShareItem = useCallback(async (item: LibraryItem) => {
+  const handleShareItem = useCallback((item: LibraryItem) => {
     if (item.type !== 'image' && item.type !== 'video') {
       addToast({ type: 'warning', message: 'Apenas imagens e vídeos podem ser compartilhados.' });
       return;
     }
-    const success = await shareImage(item.file_url, item.name, `Confira este arquivo da minha biblioteca: ${item.name}`);
-    if (!success) {
-      addToast({ type: 'info', message: 'Compartilhamento não disponível ou cancelado.' });
-    }
-  }, [addToast]);
+    handleShare(item.file_url, item.name, `Confira este arquivo da minha biblioteca: ${item.name}`);
+  }, [addToast, handleShare]);
 
   const handleUseInCalendar = useCallback((item: LibraryItem) => {
     navigateTo('SmartScheduler');
@@ -262,11 +252,12 @@ const ContentLibrary: React.FC = () => {
                 )}
                 <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-300 gap-2">
                   <Button
-                    onClick={() => handleDownloadItem(item)}
+                    onClick={() => handleDownload(item.file_url, item.name)}
                     variant="ghost"
                     size="sm"
                     className="text-white hover:bg-primary/20"
                     title="Baixar"
+                    disabled={isProcessing}
                   >
                     <ArrowDownTrayIcon className="w-5 h-5 text-accent" />
                   </Button>
@@ -276,6 +267,7 @@ const ContentLibrary: React.FC = () => {
                     size="sm"
                     className="text-white hover:bg-primary/20"
                     title="Compartilhar"
+                    disabled={isProcessing}
                   >
                     <ShareIcon className="w-5 h-5 text-accent" />
                   </Button>

@@ -1,18 +1,16 @@
 
-// In a real application, this would integrate with Firebase Authentication or a similar service.
-// For this frontend-only app, these are mock functions.
-
 import { UserProfile, LoginResponseDto, OrganizationMembership } from '../types';
 import { MOCK_API_DELAY } from '../constants';
 import { getUserProfile } from './firestoreService';
+import { auth } from './firebase';
+import { GoogleAuthProvider, signInWithPopup, signOut } from 'firebase/auth';
 
-// TODO: Em um sistema real, a URL do backend viria de uma variável de ambiente ou configuração global
 const BACKEND_URL = 'http://localhost:3000'; // Exemplo para desenvolvimento
 
-let currentUserId: string | null = 'mock-user-123'; // Simulate a logged-in user
+let currentUserId: string | null = 'mock-user-123'; // Default to mock for initial load/demo
 let currentUserProfile: UserProfile | null = null;
 
-// Initialize with a default mock organization so getActiveOrganization() works immediately
+// Initialize with a default mock organization
 let currentUserOrganizations: OrganizationMembership[] = [
   {
     organization: {
@@ -24,20 +22,27 @@ let currentUserOrganizations: OrganizationMembership[] = [
   }
 ];
 
-// MOCK para obter o token do Firebase (deveria vir do SDK do Firebase Auth no frontend)
+// Get the actual Firebase ID token from the current user
 const getFirebaseIdToken = async (): Promise<string> => {
-  // Retorna um token mock para a demo.
-  // Em produção, você usaria firebase.auth().currentUser.getIdToken()
+  if (auth.currentUser) {
+    return await auth.currentUser.getIdToken();
+  }
+  // Fallback to mock token if not logged in (e.g., demo mode or initial load)
+  // console.warn("No authenticated user found, using mock token.");
   return 'mock-firebase-id-token'; 
 };
 
 export const loginWithGoogle = async (): Promise<UserProfile> => {
-  console.log('Simulating Google login...');
-  // await new Promise(resolve => setTimeout(resolve, MOCK_API_DELAY)); // Simulate network delay
-  
-  const idToken = await getFirebaseIdToken(); // Obter o token do Firebase
+  console.log('Initiating Google login...');
+  const provider = new GoogleAuthProvider();
 
   try {
+    // 1. Client-side authentication with Firebase
+    const userCredential = await signInWithPopup(auth, provider);
+    const firebaseUser = userCredential.user;
+    const idToken = await firebaseUser.getIdToken();
+
+    // 2. Exchange token with backend for app-specific profile & organizations
     const response = await fetch(`${BACKEND_URL}/auth/login`, {
       method: 'POST',
       headers: {
@@ -47,9 +52,22 @@ export const loginWithGoogle = async (): Promise<UserProfile> => {
     });
 
     if (!response.ok) {
-      // Fallback for frontend-only demo if backend is down
-      console.warn("Backend login failed, using local mock.");
-      throw new Error("Backend unavailable");
+      console.warn("Backend login failed (Backend might be offline), falling back to local session based on Firebase User.");
+      // Fallback: Create a local profile based on Firebase data
+      currentUserId = firebaseUser.uid;
+      currentUserProfile = {
+        id: firebaseUser.uid,
+        email: firebaseUser.email || '',
+        name: firebaseUser.displayName || 'User',
+        plan: 'free', 
+        businessProfile: {
+            name: 'Minha Empresa',
+            industry: 'Geral',
+            targetAudience: 'Todos',
+            visualStyle: 'Padrão'
+        }
+      };
+      return currentUserProfile;
     }
 
     const data: LoginResponseDto = await response.json();
@@ -66,44 +84,32 @@ export const loginWithGoogle = async (): Promise<UserProfile> => {
     };
     currentUserOrganizations = data.organizations;
 
-    console.log('User logged in via backend:', currentUserId, currentUserOrganizations);
-    if (!currentUserProfile) throw new Error('Failed to get user profile after login.');
+    console.log('User logged in successfully:', currentUserId);
     return currentUserProfile;
 
   } catch (error) {
-    console.warn('Backend login failed, proceeding with mock session:', error);
-    // Ensure profile exists in mock
-    if (!currentUserProfile) {
-        const profile = await getUserProfile(currentUserId!);
-        currentUserProfile = profile || {
-            id: currentUserId!,
-            email: 'mock@example.com',
-            plan: 'premium',
-            businessProfile: { name: 'Minha Empresa', industry: 'Tech', targetAudience: 'Everyone', visualStyle: 'Modern' }
-        };
-    }
-    return currentUserProfile!;
+    console.error('Login failed:', error);
+    throw error;
   }
 };
 
 export const logout = async (): Promise<void> => {
-  console.log('Simulating logout...');
-  await new Promise(resolve => setTimeout(resolve, MOCK_API_DELAY / 2)); // Simulate network delay
+  console.log('Logging out...');
+  try {
+      await signOut(auth);
+  } catch(e) {
+      console.warn("Firebase signout error", e);
+  }
 
   currentUserId = null;
   currentUserProfile = null;
-  // Don't clear organizations to keep the app usable in demo mode without relogin
-  // currentUserOrganizations = []; 
-  console.log('Mock user logged out.');
+  // currentUserOrganizations = []; // Optionally clear organizations
+  console.log('User logged out.');
 };
 
 export const getCurrentUser = async (): Promise<UserProfile | null> => {
-  // console.log('Simulating getting current user...');
-  // await new Promise(resolve => setTimeout(resolve, MOCK_API_DELAY / 2)); // Simulate network delay
-
   if (currentUserId && !currentUserProfile) {
-    // If we have a currentUserId but no profile, try to fetch it
-    // In a real app, this would be a backend call to /profile
+    // Try to fetch profile if ID is set but profile is missing
     const profile = await getUserProfile(currentUserId);
     if (profile) {
       currentUserProfile = profile;
@@ -112,11 +118,8 @@ export const getCurrentUser = async (): Promise<UserProfile | null> => {
   return currentUserProfile;
 };
 
-// NOVO: Obter a organização ativa (ou a primeira)
 export const getActiveOrganization = (): OrganizationMembership | undefined => {
-  // Para fins de demo, retorna a primeira organização ou undefined
   return currentUserOrganizations.length > 0 ? currentUserOrganizations[0] : undefined;
 };
 
-// Exporte o getFirebaseIdToken para ser usado por outros serviços
 export { getFirebaseIdToken };

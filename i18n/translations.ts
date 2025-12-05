@@ -1,9 +1,15 @@
 
-
-
 export type Language = 'pt-BR' | 'en-US';
 
-export const translations = {
+type TranslationKeys = {
+  [key: string]: string;
+};
+
+type Translations = {
+  [key in Language]: TranslationKeys;
+};
+
+export const translations: Translations = {
   'en-US': {
     // Sidebar
     'sidebar.overview': 'Overview',
